@@ -89,6 +89,13 @@ namespace Chinese_Chess_v3.Game.Core
                 pieces.Add(piece);                      // Add to the active piece list
             }
         }
+        public void Clear()
+        {
+            // 清空棋盤格子
+            Array.Clear(Grid, 0, Grid.Length);
+            // 清空棋子列表
+            pieces.Clear();
+        }
         
         /// <summary>
         /// Creates a piece instance based on the provided <see cref="PieceInfo"/> configuration.

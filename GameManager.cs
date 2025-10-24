@@ -88,18 +88,55 @@ namespace Chinese_Chess_v3.Game.Core
             foreach (var p in Board.GetAllPieces())
                 PieceAdded?.Invoke(p);
         }
+        public void ResetBoardToDefault()
+        {
+            // 1. 清空棋盤
+            Board.Clear();
+
+            // 2. 重新載入預設棋子
+            var defaultPieces = BoardConfigLoader.Load(); // 你的預設初始資料
+            Board.Initialize(defaultPieces);
+
+            // 3. 重置回合、選中棋子
+            selectedPiece = null;
+            CurrentTurn = PlayerSide.Red;
+
+            // 4. 通知 UI
+            BoardReset?.Invoke();
+
+            // 5. 通知每個棋子新增
+            foreach (var p in Board.GetAllPieces())
+                PieceAdded?.Invoke(p);
+        }
 
         public void LoadCustomBoard(List<PieceInfo> customInitialPieces)
         {
+            // 1. 清空棋盤
+            Board.Clear();
+
+            // 2. 初始化自訂棋盤
             Board.Initialize(customInitialPieces);
+
+            // 3. 重置回合、選中棋子
+            selectedPiece = null;
+            CurrentTurn = PlayerSide.Red;
+
+            // 4. 通知 UI
+            BoardReset?.Invoke();
+
+            // 5. 通知每個棋子新增
+            foreach (var p in Board.GetAllPieces())
+                PieceAdded?.Invoke(p);
+        }
+
+        public void ClearBoard()
+        {
+            // 清空棋盤資料，不新增任何棋子
+            Board.Clear();
             selectedPiece = null;
             CurrentTurn = PlayerSide.Red;
 
             BoardReset?.Invoke();
-
-            // emit PieceAdded for all pieces
-            foreach (var p in Board.GetAllPieces())
-                PieceAdded?.Invoke(p);
         }
 
         public List<Piece> GetCurrentPieces()
