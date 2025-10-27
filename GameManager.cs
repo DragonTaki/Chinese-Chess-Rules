@@ -69,7 +69,6 @@ namespace Chinese_Chess_v3.Game.Core
         public event Action<Piece>? PieceAdded;
         public event Action<Piece>? PieceRemoved;
         public event Action? BoardReset;
-        private static GameManager? instance;
 #nullable disable
 
         public GameManager()
