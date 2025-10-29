@@ -40,16 +40,21 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         /// <param name="targetX">The X-coordinate of the destination.</param>
         /// <param name="targetY">The Y-coordinate of the destination.</param>
         /// <returns><c>true</c> if the destination is within the palace; otherwise, <c>false</c>.</returns>
-        public override bool IsInLegalZone(int targetX, int targetY)
+        protected override bool IsDestinationLegalFull(Board board, int targetX, int targetY)
         {
-            // Only can stay in palace (九宮格)
-            if (targetX < BoardConstants.PalaceXRange.MinX || targetX > BoardConstants.PalaceXRange.MaxX)
-                return false;
-
-            if (Side == PlayerSide.Red)
-                return targetY >= BoardConstants.RedPalaceYRange.MinY && targetY <= BoardConstants.RedPalaceYRange.MaxY;
+            if (board.GameRules.CanAdvisorLeavePalace)
+            {
+                // Only can stay in palace (九宮格)
+                if (!board.IsInPalace(X, Y, Side))
+                    return false;
+            }
             else
-                return targetY >= BoardConstants.BlackPalaceYRange.MinY && targetY <= BoardConstants.BlackPalaceYRange.MaxY;
+            {
+                if (!board.IsInBoard(X, Y))
+                    return false;
+            }
+
+            return true;
         }
 
         /// <summary>
@@ -60,7 +65,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         /// <param name="targetY">The Y-coordinate of the target position.</param>
         /// <param name="board">The current game board instance, used to check piece positions.</param>
         /// <returns><c>true</c> if the move is valid; otherwise, <c>false</c>.</returns>
-        public override bool IsValidMove(int targetX, int targetY, Board board)
+        protected override bool IsValidMoveFull(Board board, int targetX, int targetY)
         {
             int dx = Math.Abs(targetX - X);
             int dy = Math.Abs(targetY - Y);
@@ -69,12 +74,8 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
             if (dx != 1 || dy != 1)
                 return false;
 
-            // Check if in palace
-            if (!IsInLegalZone(targetX, targetY))
-                return false;
-
             // Check if there is an ally piece at the destination
-            if (!IsDestinationLegal(targetX, targetY, board))
+            if (!IsDestinationLegal(board, targetX, targetY))
                 return false;
 
             return true;
@@ -90,7 +91,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         /// <returns>
         /// A list of all possible (x, y) positions the Advisor can legally move to.
         /// </returns>
-        public override List<(int x, int y)> GetLegalMoves(int x, int y, Board board)
+        protected override List<(int x, int y)> GetLegalMovesFull(Board board, int x, int y)
         {
             List<(int x, int y)> legalMoves = new List<(int x, int y)>();
 
