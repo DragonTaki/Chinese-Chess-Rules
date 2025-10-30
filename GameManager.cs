@@ -3,8 +3,8 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2025/05/06
-// Update Date: 2025/10/22
-// Version: v1.1
+// Update Date: 2025/10/31
+// Version: v1.2
 /* ----- ----- ----- ----- */
 
 using System;
@@ -78,8 +78,8 @@ namespace Chinese_Chess_v3.Game.Core
             Board.Initialize(BoardConfigLoader.Load());
             CurrentTurn = PlayerSide.Red;
             selectedPiece = null;
-            Red = new Player(PlayerSide.Red, TimeSpan.FromMinutes(5));
-            Black = new Player(PlayerSide.Black, TimeSpan.FromMinutes(5));
+            Red = new Player(PlayerSide.Red, TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(5));
+            Black = new Player(PlayerSide.Black, TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(5));
 
             // notify UI that board is ready
             BoardReset?.Invoke();
@@ -93,52 +93,62 @@ namespace Chinese_Chess_v3.Game.Core
 
         public void ResetBoardToDefault()
         {
-            // 1. 清空棋盤
-            Board.Clear();
+            // Load default pieces
+            var defaultPieces = BoardConfigLoader.Load();
 
-            // 2. 重新載入預設棋子
-            var defaultPieces = BoardConfigLoader.Load(); // 你的預設初始資料
+            // Reset board:
+            // (A) Clear pieces
+            // (B) Reset turn
+            // (C) Recreate pieces
             Board.Initialize(defaultPieces);
 
-            // 3. 重置回合、選中棋子
+            // Reset selected piece
             selectedPiece = null;
+            // Reset side
             CurrentTurn = PlayerSide.Red;
 
-            // 4. 通知 UI
+            // Inform UI
             BoardReset?.Invoke();
 
-            // 5. 通知每個棋子新增
+            // Inform pieces added
             foreach (var p in Board.GetAllPieces())
                 PieceAdded?.Invoke(p);
         }
 
         public void LoadCustomBoard(List<PieceInfo> customInitialPieces)
         {
-            // 1. 清空棋盤
-            Board.Clear();
-
-            // 2. 初始化自訂棋盤
+            // Reset board:
+            // (A) Clear pieces
+            // (B) Reset turn
+            // (C) Recreate pieces
             Board.Initialize(customInitialPieces);
 
-            // 3. 重置回合、選中棋子
+            // Reset selected piece
             selectedPiece = null;
+            // Reset side
             CurrentTurn = PlayerSide.Red;
 
-            // 4. 通知 UI
+            // Inform UI
             BoardReset?.Invoke();
 
-            // 5. 通知每個棋子新增
+            // Inform pieces added
             foreach (var p in Board.GetAllPieces())
                 PieceAdded?.Invoke(p);
         }
 
         public void ClearBoard()
         {
-            // 清空棋盤資料，不新增任何棋子
+            // Clear board:
+            // (A) Clear pieces
+            // (B) Reset turn
             Board.Clear();
+
+            // Reset selected piece
             selectedPiece = null;
+            // Reset side
             CurrentTurn = PlayerSide.Red;
 
+            // Inform UI
             BoardReset?.Invoke();
         }
 
@@ -152,7 +162,7 @@ namespace Chinese_Chess_v3.Game.Core
             if (piece == null || piece.Side != CurrentTurn)
                 return false;
 
-            if (piece.CanMoveTo(toX, toY, Board))
+            if (piece.CanMoveTo(Board, toX, toY))
             {
                 var targetPiece = Board.GetPiece(toX, toY);
                 if (targetPiece != null)
@@ -215,7 +225,7 @@ namespace Chinese_Chess_v3.Game.Core
             }
 
             // Has selected piece, try to move to 2nd selection
-            if (selectedPiece.CanMoveTo(x, y, Board))
+            if (selectedPiece.CanMoveTo(Board, x, y))
             {
                 // If 2nd selection point has enemy piece
                 if (clickedPiece != null && clickedPiece.Side != selectedPiece.Side)
@@ -265,14 +275,14 @@ namespace Chinese_Chess_v3.Game.Core
         {
             if (CurrentTurn == PlayerSide.Red)
             {
-                Red.Timer.Stop();
-                Black.Timer.Start();
+                Red.Timer.EndStep();
+                Black.Timer.StartStep();
                 CurrentTurn = PlayerSide.Black;
             }
             else
             {
-                Black.Timer.Stop();
-                Red.Timer.Start();
+                Black.Timer.EndStep();
+                Red.Timer.StartStep();
                 CurrentTurn = PlayerSide.Red;
             }
         }

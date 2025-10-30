@@ -3,8 +3,8 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2025/05/06
-// Update Date: 2025/10/22
-// Version: v1.1
+// Update Date: 2025/10/30
+// Version: v2.0
 /* ----- ----- ----- ----- */
 
 using System;
@@ -28,10 +28,8 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         /// <param name="x">The initial X-coordinate of the piece.</param>
         /// <param name="y">The initial Y-coordinate of the piece.</param>
         /// <param name="side">The player side this piece belongs to (Red or Black).</param>
-        public Elephant(int x, int y, PlayerSide side)
-            : base(PieceType.Elephant, x, y, side)
-        {
-        }
+        public Elephant(PieceInfo info)
+            : base(info) { }
 
         /// <summary>
         /// Determines whether the target position is within the legal area for the Elephant.
@@ -40,13 +38,21 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         /// <param name="targetX">The X-coordinate of the destination.</param>
         /// <param name="targetY">The Y-coordinate of the destination.</param>
         /// <returns><c>true</c> if the destination is within the Elephant's allowed side; otherwise, <c>false</c>.</returns>
-        public override bool IsInLegalZone(int targetX, int targetY)
+        protected override bool IsDestinationLegalFull(Board board, int targetX, int targetY)
         {
-            // Elephants cannot across the river (不可過河)
-            if (Side == PlayerSide.Red)
-                return targetY >= BoardConstants.RedYSideRiverLine && targetY <= 9;
-            else
-                return targetY <= BoardConstants.BlackYSideRiverLine && targetY >= 0;
+            switch (Side)
+            {
+                case PlayerSide.Black:
+                    return targetY <= BoardConstants.Full.RiverLineYBlackSide;
+
+                case PlayerSide.Red:
+                    return targetY >= BoardConstants.Full.RiverLineYRedSide;
+
+                case PlayerSide.None:
+                case PlayerSide.Neutral:
+                default:
+                    throw new Exception("Unknown player side");  // Defensive check
+            }
         }
 
         /// <summary>
@@ -62,33 +68,40 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         /// <param name="targetY">The Y-coordinate of the target position.</param>
         /// <param name="board">The current game board instance used to check piece positions.</param>
         /// <returns><c>true</c> if the move is legal for the Elephant; otherwise, <c>false</c>.</returns>
-        public override bool IsValidMove(int targetX, int targetY, Board board)
+        protected override bool IsValidMoveFull(Board board, int targetX, int targetY)
         {
+            // Check if still in valid area
+            if (!IsDestinationLegalFull(board, targetX, targetY))
+                return false;
+
+            // Check if general will see general after move
+            if (targetX != X && !board.GameRules.CanGeneralSeeGeneral && board.IsGeneralFaceToFaceAfterMove(X))
+                return false;
+
             int dx = targetX - X;
             int dy = targetY - Y;
 
-            // Must move 2 squares diagonally (象走田)
-            if (Math.Abs(dx) != 2 || Math.Abs(dy) != 2)
+            var directions = MovePatterns.GetDiagonalTwoStep(Side);
+
+            // Check if match move rule
+            bool matched = false;
+            foreach (var (dirX, dirY) in directions)
+            {
+                if (dx == dirX && dy == dirY)
+                {
+                    matched = true;
+                    break;
+                }
+            }
+            if (!matched)
                 return false;
 
-            // Check if within allowed side
-            if (!IsInLegalZone(targetX, targetY))
-                return false;
-
-            // Determine the elephant's eye position
-            int midX = X + dx / 2;
-            int midY = Y + dy / 2;
-
-            // Check if in board
-            if (midX < 0 || midX >= BoardConstants.Columns || midY < 0 || midY >= BoardConstants.Rows)
-                return false;  // Outside the bound
-        
-            // Check if "elephant's eye" is blocked (卡象眼)
-            if (board.Grid[midX, midY] != null)
+            // Check if elephant's eye is blocked
+            if (board.GameRules.CanElephantEyeBlockd && IsElephantEyeBlocked(board, dx, dy))
                 return false;
 
             // Check if there is an ally piece at the destination
-            if (!IsDestinationLegal(targetX, targetY, board))
+            if (board.IsLocationSamePlayerSide(Side, targetX, targetY) == true)
                 return false;
 
             return true;
@@ -104,37 +117,31 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         /// <returns>
         /// A list of all possible (x, y) positions the Elephant can legally move to.
         /// </returns>
-        public override List<(int x, int y)> GetLegalMoves(int x, int y, Board board)
+        protected override List<(int x, int y)> GetLegalMovesFull(Board board)
         {
             List<(int x, int y)> legalMoves = new List<(int x, int y)>();
 
-            // Define every move directions
-            (int dx, int dy)[] directions = new (int, int)[]
-            {
-                (2, 2),   // Top-right
-                (-2, 2),  // Top-left
-                (2, -2),  // Bottom-right
-                (-2, -2)  // Bottom-left
-            };
+            var directions = MovePatterns.GetDiagonalLShape(Side);
 
-            // Try all possible diagonal moves
             foreach (var (dx, dy) in directions)
             {
-                int newX = x + dx;
-                int newY = y + dy;
+                int newX = X + dx;
+                int newY = Y + dy;
 
-                if (!IsInLegalZone(newX, newY))
+                // Skip if outside board bounds
+                if (!board.IsInBoard(newX, newY))
                     continue;
 
-                int midX = x + dx / 2;
-                int midY = y + dy / 2;
+                // Skip if general will see general after move
+                if (newX != X && !board.GameRules.CanGeneralSeeGeneral && board.IsGeneralFaceToFaceAfterMove(X))
+                    return legalMoves;
 
                 // Skip if elephant's eye is blocked
-                if (board.Grid[midX, midY] != null)
+                if (board.GameRules.CanElephantEyeBlockd && IsElephantEyeBlocked(board, dx, dy))
                     continue;
 
                 // Skip if destination occupied by ally
-                if (!IsDestinationLegal(newX, newY, board))
+                if (board.IsLocationSamePlayerSide(Side, newX, newY) == true)
                     continue;
 
                 // Add to legal moves
@@ -142,6 +149,34 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
             }
 
             return legalMoves;
+        }
+
+        protected override List<(int x, int y)> GetLegalMovesHalfCenter(Board board)
+        {
+            List<(int x, int y)> legalMoves = new List<(int x, int y)>();
+            // Not implement yet
+            return legalMoves;
+        }
+
+        protected override List<(int x, int y)> GetLegalMovesHalfCross(Board board)
+        {
+            List<(int x, int y)> legalMoves = new List<(int x, int y)>();
+            // Not implement yet
+            return legalMoves;
+        }
+
+        private bool IsElephantEyeBlocked(Board board, int dx, int dy)
+        {
+            // Elephant moves exactly 2 squares diagonally
+            if (Math.Abs(dx) != 2 || Math.Abs(dy) != 2)
+                throw new Exception("Invalid Elephant move offset.");
+
+            // Compute the intermediate square (the "eye")
+            int blockX = X + dx / 2;
+            int blockY = Y + dy / 2;
+
+            // Piece exists => blocked
+            return board.Grid[blockX, blockY] != null;
         }
     }
 }

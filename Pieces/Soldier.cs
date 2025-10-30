@@ -3,8 +3,8 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2025/05/06
-// Update Date: 2025/05/06
-// Version: v1.0
+// Update Date: 2025/10/30
+// Version: v2.0
 /* ----- ----- ----- ----- */
 
 using System;
@@ -30,23 +30,8 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         /// <param name="x">The initial X-coordinate of the Soldier.</param>
         /// <param name="y">The initial Y-coordinate of the Soldier.</param>
         /// <param name="side">The player side this Soldier belongs to (Red or Black).</param>
-        public Soldier(int x, int y, PlayerSide side)
-            : base(PieceType.Soldier, x, y, side)
-        {
-        }
-
-        /// <summary>
-        /// Determines whether the target position is within the board bounds.
-        /// Soldiers have no special zone limitation.
-        /// </summary>
-        /// <param name="targetX">The X-coordinate of the destination.</param>
-        /// <param name="targetY">The Y-coordinate of the destination.</param>
-        /// <returns><c>true</c> if the destination is within the board; otherwise, <c>false</c>.</returns>
-        public override bool IsInLegalZone(int targetX, int targetY)
-        {
-            // No specific zone limit for chariot, but method reserved for consistency
-            return BoardConstants.IsInBounds(targetX, targetY);
-        }
+        public Soldier(PieceInfo info)
+            : base(info) { }
 
         /// <summary>
         /// Determines whether a move to the target position is valid according to Chinese Chess rules.
@@ -61,34 +46,39 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         /// <param name="targetY">The Y-coordinate of the target position.</param>
         /// <param name="board">The current board state used to check piece positions.</param>
         /// <returns><c>true</c> if the move is valid for the Soldier; otherwise, <c>false</c>.</returns>
-        public override bool IsValidMove(int targetX, int targetY, Board board)
+        protected override bool IsValidMoveFull(Board board, int targetX, int targetY)
         {
-            if (!IsInLegalZone(targetX, targetY))
+            // Check if still in valid area
+            if (!IsDestinationLegalFull(board, targetX, targetY))
+                return false;
+
+            // Check if general will see general after move
+            if (targetX != X && targetX != X && !board.GameRules.CanGeneralSeeGeneral && board.IsGeneralFaceToFaceAfterMove(X))
                 return false;
 
             int dx = targetX - X;
             int dy = targetY - Y;
 
-            // Soldier can only move 1 step
-            if (Math.Abs(dx) + Math.Abs(dy) != 1)
+            var directions = MovePatterns.GetSoldierDirections(Side, HasCrossedRiver(Y));
+
+            // Check if match move rule
+            bool matched = false;
+            foreach (var (dirX, dirY) in directions)
+            {
+                if (dx == dirX && dy == dirY)
+                {
+                    matched = true;
+                    break;
+                }
+            }
+            if (!matched)
                 return false;
-
-            // Forward direction: Red (Y--), Black (Y++)
-            int forward = (Side == PlayerSide.Red) ? -1 : 1;
-
-            // Always allow forward step
-            if (dy == forward && dx == 0)
-                return true;
-
-            // Allow side move only after crossing river
-            if (dy == 0 && Math.Abs(dx) == 1 && HasCrossedRiver(Y))
-                return true;
 
             // Check if there is an ally piece at the destination
-            if (!IsDestinationLegal(targetX, targetY, board))
+            if (board.IsLocationSamePlayerSide(Side, targetX, targetY) == true)
                 return false;
 
-            return false;
+            return true;
         }
 
         /// <summary>
@@ -98,40 +88,47 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         /// <param name="y">The current Y-coordinate of the Soldier.</param>
         /// <param name="board">The current board state.</param>
         /// <returns>A list of all possible (x, y) positions the Soldier can legally move to.</returns>
-        public override List<(int x, int y)> GetLegalMoves(int x, int y, Board board)
+        protected override List<(int x, int y)> GetLegalMovesFull(Board board)
         {
             List<(int x, int y)> legalMoves = new List<(int x, int y)>();
 
-            // Define every possible move directions
-            int forward = (Side == PlayerSide.Red) ? -1 : 1;
-            (int dx, int dy)[] directions = HasCrossedRiver(y)
-                ? new (int, int)[]
-                {
-                    (0, forward),   // Forward
-                    (-1, 0),        // Left
-                    (1, 0)          // Right
-                }
-                : new (int, int)[]
-                {
-                    (0, forward)    // Only Forward
-                };
+            var directions = MovePatterns.GetSoldierDirections(Side, HasCrossedRiver(Y));
 
             foreach (var (dx, dy) in directions)
             {
-                int newX = x + dx;
-                int newY = y + dy;
+                int newX = X + dx;
+                int newY = Y + dy;
 
-                if (!BoardConstants.IsInBounds(newX, newY))
+                // Skip if outside board bounds
+                if (!board.IsInBoard(newX, newY))
                     continue;
 
+                // Skip if general will see general after move
+                if (newX != X && !board.GameRules.CanGeneralSeeGeneral && board.IsGeneralFaceToFaceAfterMove(X))
+                    return legalMoves;
+
                 // Skip if destination occupied by ally
-                if (!IsDestinationLegal(newX, newY, board))
+                if (board.IsLocationSamePlayerSide(Side, newX, newY) == true)
                     continue;
 
                 // Add to legal moves
                 legalMoves.Add((newX, newY));
             }
 
+            return legalMoves;
+        }
+
+        protected override List<(int x, int y)> GetLegalMovesHalfCenter(Board board)
+        {
+            List<(int x, int y)> legalMoves = new List<(int x, int y)>();
+            // Not implement yet
+            return legalMoves;
+        }
+
+        protected override List<(int x, int y)> GetLegalMovesHalfCross(Board board)
+        {
+            List<(int x, int y)> legalMoves = new List<(int x, int y)>();
+            // Not implement yet
             return legalMoves;
         }
 
@@ -142,9 +139,19 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         /// <returns><c>true</c> if the Soldier has crossed the river; otherwise, <c>false</c>.</returns>
         private bool HasCrossedRiver(int y)
         {
-            return Side == PlayerSide.Red
-                ? y <= BoardConstants.RedYSideRiverLine
-                : y >= BoardConstants.BlackYSideRiverLine;
+            switch (Side)
+            {
+                case PlayerSide.Black:
+                    return y >= BoardConstants.Full.RiverLineYBlackSide;
+
+                case PlayerSide.Red:
+                    return y <= BoardConstants.Full.RiverLineYRedSide;
+
+                case PlayerSide.None:
+                case PlayerSide.Neutral:
+                default:
+                    throw new Exception("Unknown player side");  // Defensive check
+            }
         }
     }
 }

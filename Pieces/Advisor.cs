@@ -3,14 +3,12 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2025/05/06
-// Update Date: 2025/05/06
-// Version: v1.0
+// Update Date: 2025/10/30
+// Version: v2.0
 /* ----- ----- ----- ----- */
 
-using System;
 using System.Collections.Generic;
 
-using Chinese_Chess_v3.Game.Constants.Game;
 using Chinese_Chess_v3.Game.Models;
 
 namespace Chinese_Chess_v3.Game.Core.Pieces
@@ -28,10 +26,8 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         /// <param name="x">The initial X-coordinate of the piece.</param>
         /// <param name="y">The initial Y-coordinate of the piece.</param>
         /// <param name="side">The player side this piece belongs to (Red or Black).</param>
-        public Advisor(int x, int y, PlayerSide side)
-            : base(PieceType.Advisor, x, y, side)
-        {
-        }
+        public Advisor(PieceInfo info)
+            : base(info) { }
 
         /// <summary>
         /// Determines whether the target position is within the legal area where this piece is allowed to stay.
@@ -42,15 +38,15 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         /// <returns><c>true</c> if the destination is within the palace; otherwise, <c>false</c>.</returns>
         protected override bool IsDestinationLegalFull(Board board, int targetX, int targetY)
         {
-            if (board.GameRules.CanAdvisorLeavePalace)
+            if (!board.GameRules.CanAdvisorLeavePalace)
             {
                 // Only can stay in palace (九宮格)
-                if (!board.IsInPalace(X, Y, Side))
+                if (!board.IsInPalace(Side, targetX, targetY))
                     return false;
             }
             else
             {
-                if (!board.IsInBoard(X, Y))
+                if (!board.IsInBoard(targetX, targetY))
                     return false;
             }
 
@@ -67,15 +63,34 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         /// <returns><c>true</c> if the move is valid; otherwise, <c>false</c>.</returns>
         protected override bool IsValidMoveFull(Board board, int targetX, int targetY)
         {
-            int dx = Math.Abs(targetX - X);
-            int dy = Math.Abs(targetY - Y);
+            // Check if still in valid area
+            if (!IsDestinationLegalFull(board, targetX, targetY))
+                return false;
 
-            // Must move 1 squares diagonally
-            if (dx != 1 || dy != 1)
+            // Check if general will see general after move
+            if (targetX != X && !board.GameRules.CanGeneralSeeGeneral && board.IsGeneralFaceToFaceAfterMove(X))
+                return false;
+
+            int dx = targetX - X;
+            int dy = targetY - Y;
+
+            var directions = MovePatterns.GetDiagonalOneStep(Side);
+
+            // Check if match move rule
+            bool matched = false;
+            foreach (var (dirX, dirY) in directions)
+            {
+                if (dx == dirX && dy == dirY)
+                {
+                    matched = true;
+                    break;
+                }
+            }
+            if (!matched)
                 return false;
 
             // Check if there is an ally piece at the destination
-            if (!IsDestinationLegal(board, targetX, targetY))
+            if (board.IsLocationSamePlayerSide(Side, targetX, targetY) == true)
                 return false;
 
             return true;
@@ -91,37 +106,47 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         /// <returns>
         /// A list of all possible (x, y) positions the Advisor can legally move to.
         /// </returns>
-        protected override List<(int x, int y)> GetLegalMovesFull(Board board, int x, int y)
+        protected override List<(int x, int y)> GetLegalMovesFull(Board board)
         {
             List<(int x, int y)> legalMoves = new List<(int x, int y)>();
 
-            // Define every move directions
-            (int dx, int dy)[] directions = new (int, int)[]
-            {
-                (1, 1),   // Top-right
-                (-1, 1),  // Top-left
-                (1, -1),  // Bottom-right
-                (-1, -1)  // Bottom-left
-            };
+            var directions = MovePatterns.GetDiagonalOneStep(Side);
 
-            // Try all possible diagonal moves
             foreach (var (dx, dy) in directions)
             {
-                int newX = x + dx;
-                int newY = y + dy;
+                int newX = X + dx;
+                int newY = Y + dy;
 
-                // Skip if outside palace boundaries
-                if (!IsInLegalZone(newX, newY))
+                // Skip if outside board bounds
+                if (!board.IsInBoard(newX, newY))
                     continue;
 
+                // Skip if general will see general after move
+                if (newX != X && !board.GameRules.CanGeneralSeeGeneral && board.IsGeneralFaceToFaceAfterMove(X))
+                    return legalMoves;
+
                 // Skip if destination occupied by ally
-                if (!IsDestinationLegal(newX, newY, board))
+                if (board.IsLocationSamePlayerSide(Side, newX, newY) == true)
                     continue;
 
                 // Add to legal moves
                 legalMoves.Add((newX, newY));
             }
 
+            return legalMoves;
+        }
+
+        protected override List<(int x, int y)> GetLegalMovesHalfCenter(Board board)
+        {
+            List<(int x, int y)> legalMoves = new List<(int x, int y)>();
+            // Not implement yet
+            return legalMoves;
+        }
+
+        protected override List<(int x, int y)> GetLegalMovesHalfCross(Board board)
+        {
+            List<(int x, int y)> legalMoves = new List<(int x, int y)>();
+            // Not implement yet
             return legalMoves;
         }
     }

@@ -85,6 +85,7 @@ namespace Chinese_Chess_v3.Game.Core
             }
 
             Grid = new Piece[Columns, Rows];
+            GameRules = new Rules();
         }
 
         /// <summary>
@@ -137,18 +138,16 @@ namespace Chinese_Chess_v3.Game.Core
         /// <exception cref="Exception">Thrown when an unknown piece type is encountered.</exception>
         private Piece CreatePieceFromInfo(PieceInfo info)
         {
-            PlayerSide side = info.Side;
-
             // Determine which piece class to instantiate based on type
             return info.Type switch
             {
-                PieceType.General   => new General(info.X, info.Y, side),
-                PieceType.Advisor   => new Advisor(info.X, info.Y, side),
-                PieceType.Elephant  => new Elephant(info.X, info.Y, side),
-                PieceType.Horse     => new Horse(info.X, info.Y, side),
-                PieceType.Chariot   => new Chariot(info.X, info.Y, side),
-                PieceType.Cannon    => new Cannon(info.X, info.Y, side),
-                PieceType.Soldier   => new Soldier(info.X, info.Y, side),
+                PieceType.General   => new General(info),
+                PieceType.Advisor   => new Advisor(info),
+                PieceType.Elephant  => new Elephant(info),
+                PieceType.Horse     => new Horse(info),
+                PieceType.Chariot   => new Chariot(info),
+                PieceType.Cannon    => new Cannon(info),
+                PieceType.Soldier   => new Soldier(info),
                 _ => throw new Exception("Unknown piece type"),  // Defensive check
             };
         }
@@ -315,6 +314,7 @@ namespace Chinese_Chess_v3.Game.Core
             if (piece == null)
                 return false;
 
+            piece.UpdateState(Turn, isDead: true);
             pieces.Remove(piece);
             Grid[x, y] = null;
 
@@ -343,7 +343,7 @@ namespace Chinese_Chess_v3.Game.Core
         /// <c>true</c> if the position is inside the palace for the given side,
         /// or if the side is not recognized (treated as unrestricted); otherwise, <c>false</c>.
         /// </returns>
-        public bool IsInPalace(int x, int y, PlayerSide side)
+        public bool IsInPalace(PlayerSide side, int x, int y)
         {
             if (side == PlayerSide.Red)
             {
@@ -379,10 +379,103 @@ namespace Chinese_Chess_v3.Game.Core
                 return true;
         }
 
-        // 先建立 GetPlayerPieces 框架，後續可加入篩選條件
-        public List<Piece> GetPlayerPieces(PlayerSide side, bool onlyAlive = false, bool onlyDead = false)
+        public bool? IsLocationSamePlayerSide(PlayerSide side, int x, int y)
         {
-            return pieces.Where(p => p.Side == side).ToList();
+            var piece = GetPiece(x, y);
+            if (piece == null)
+                return null;
+
+            if (side == piece.Side)
+                return true;  // Same side
+
+            return false;
+        }
+
+        /// <summary>
+        /// Checks if after moving a general piece to targetX, the two generals would face each other.
+        /// Returns false if the move would cause face-to-face (illegal), true otherwise.
+        /// </summary>
+        public bool IsGeneralFaceToFaceAfterMove(int currentX)
+        {
+            var redGenerals = QueryPieces(type: PieceType.General, side: PlayerSide.Red);
+            var blackGenerals = QueryPieces(type: PieceType.General,  side: PlayerSide.Black);
+
+            if (redGenerals.Count != 1 || blackGenerals.Count != 1)
+                throw new Exception("Expected exactly one general per side.");
+
+            var redGeneral = redGenerals[0];
+            var blackGeneral = blackGenerals[0];
+
+            // Check if any general not in same X position with current piece
+            if (redGeneral.X != currentX || blackGeneral.X != currentX)
+                return false;
+
+            int x = currentX;
+            int yMin = Math.Min(redGeneral.Y, blackGeneral.Y) + 1;
+            int yMax = Math.Max(redGeneral.Y, blackGeneral.Y);
+
+            int count = 0;
+            for (int y = yMin; y < yMax; y++)
+            {
+                if (Grid[x, y] != null)
+                    count++;
+
+                if (count >= 2)
+                    return false; // 有兩顆以上棋子 → 合法
+            }
+
+            return true; // 中間棋子 ≤1 → 不合法
+        }
+
+        /// <summary>
+        /// Checks if moving a piece at (targetX, targetY) is legal regarding the face-to-face rule.
+        /// The check scans vertically in the direction of the opponent's side.
+        /// </summary>
+        /// <param name="side">The side of the moving piece.</param>
+        /// <param name="targetX">The X-coordinate of the target position.</param>
+        /// <param name="targetY">The Y-coordinate of the target position.</param>
+        /// <returns>True if the move does NOT cause generals to face each other; otherwise, false.</returns>
+        public bool IsGeneralTargetLegal(PlayerSide side, int targetX, int targetY)
+        {
+            // Determine scanning direction based on side
+            int step = side switch
+            {
+                PlayerSide.Red   => -1,  // Red scans upwards (Y--)
+                PlayerSide.Black =>  1,  // Black scans downwards (Y++)
+                _ => throw new Exception("Unknown side type")
+            };
+
+            int y = targetY + step;
+
+            while (y >= 0 && y < BoardConstants.Full.Rows) // 假設 BoardConstants.Full.Height 為棋盤高度
+            {
+                var piece = Grid[targetX, y];
+                if (piece != null)
+                {
+                    if (piece.Type == PieceType.General && piece.Side != side)
+                        return false;  // 遇到對方將帥 → 不合法
+                    else
+                        return true;  // 遇到其他棋子 → 不阻擋王見王規則，停止掃描
+                }
+
+                y += step;
+            }
+
+            return true;  // 沿線沒遇到對方將帥 → 合法
+        }
+
+        public List<Piece> QueryPieces(
+            PieceType? type = null,
+            PlayerSide? side = null,
+            bool? isAlive = null,
+            bool? isFaceUp = null)
+        {
+            return pieces.Where(p =>
+                (!type.HasValue || p.Type == type.Value) &&
+                (!side.HasValue || p.Side == side.Value) &&
+                (!isAlive.HasValue || (isAlive.Value ? !p.CurrentInfo.IsDead : p.CurrentInfo.IsDead)) &&
+                (!isFaceUp.HasValue || p.CurrentInfo.IsFaceUp == isFaceUp.Value)
+            ).ToList();
         }
     }
 }

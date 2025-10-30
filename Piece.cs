@@ -3,8 +3,8 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2025/05/06
-// Update Date: 2025/10/29
-// Version: v2.0
+// Update Date: 2025/10/30
+// Version: v2.1
 /* ----- ----- ----- ----- */
 
 using System;
@@ -113,17 +113,19 @@ namespace Chinese_Chess_v3.Game.Core
 
         /* ----- 遊戲邏輯 ----- */
 
-        protected virtual bool IsDestinationLegalFull(Board board, int x, int y) => true;
-        protected virtual bool IsDestinationLegalCenter(Board board, int x, int y) => true;
-        protected virtual bool IsDestinationLegalCross(Board board, int x, int y) => true;
+        // Only check destination location
+        protected virtual bool IsDestinationLegalFull(Board board, int targetX, int targetY) => board.IsInBoard(targetX, targetY);
+        protected virtual bool IsDestinationLegalHalfCenter(Board board, int targetX, int targetY) => board.IsInBoard(targetX, targetY);
+        protected virtual bool IsDestinationLegalHalfCross(Board board, int targetX, int targetY) => board.IsInBoard(targetX, targetY);
 
-        protected virtual bool IsValidMoveFull(Board board, int x, int y) => true;
-        protected virtual bool IsValidMoveCenter(Board board, int x, int y) => true;
-        protected virtual bool IsValidMoveCross(Board board, int x, int y) => true;
+        // Check chessboard circumstance if destination legal
+        protected virtual bool IsValidMoveFull(Board board, int x, int targetY) => true;
+        protected virtual bool IsValidMoveHalfCenter(Board board, int x, int targetY) => true;
+        protected virtual bool IsValidMoveHalfCross(Board board, int x, int targetY) => true;
 
-        protected abstract List<(int x, int y)> GetLegalMovesFull(Board board, int x, int y);
-        protected abstract List<(int x, int y)> GetLegalMovesCenter(Board board, int x, int y);
-        protected abstract List<(int x, int y)> GetLegalMovesCross(Board board, int x, int y);
+        protected abstract List<(int x, int y)> GetLegalMovesFull(Board board);
+        protected abstract List<(int x, int y)> GetLegalMovesHalfCenter(Board board);
+        protected abstract List<(int x, int y)> GetLegalMovesHalfCross(Board board);
 
         public T PieceFunc<T>(PieceFuncType funcType, BoardType boardType, Board board, int x = -1, int y = -1)
         {
@@ -134,23 +136,23 @@ namespace Chinese_Chess_v3.Game.Core
                     {
                         PieceFuncType.IsDestinationLegal => (T)(object)IsDestinationLegalFull(board, x, y),
                         PieceFuncType.IsValidMove => (T)(object)IsValidMoveFull(board, x, y),
-                        PieceFuncType.GetLegalMoves => (T)(object)GetLegalMovesFull(board, x, y),
+                        PieceFuncType.GetLegalMoves => (T)(object)GetLegalMovesFull(board),
                         _ => throw new NotImplementedException()
                     };
                 case BoardType.HalfCenter:
                     return funcType switch
                     {
-                        PieceFuncType.IsDestinationLegal => (T)(object)IsDestinationLegalCenter(board, x, y),
-                        PieceFuncType.IsValidMove => (T)(object)IsValidMoveCenter(board, x, y),
-                        PieceFuncType.GetLegalMoves => (T)(object)GetLegalMovesCenter(board, x, y),
+                        PieceFuncType.IsDestinationLegal => (T)(object)IsDestinationLegalHalfCenter(board, x, y),
+                        PieceFuncType.IsValidMove => (T)(object)IsValidMoveHalfCenter(board, x, y),
+                        PieceFuncType.GetLegalMoves => (T)(object)GetLegalMovesHalfCenter(board),
                         _ => throw new NotImplementedException()
                     };
                 case BoardType.HalfCross:
                     return funcType switch
                     {
-                        PieceFuncType.IsDestinationLegal => (T)(object)IsDestinationLegalCross(board, x, y),
-                        PieceFuncType.IsValidMove => (T)(object)IsValidMoveCross(board, x, y),
-                        PieceFuncType.GetLegalMoves => (T)(object)GetLegalMovesCross(board, x, y),
+                        PieceFuncType.IsDestinationLegal => (T)(object)IsDestinationLegalHalfCross(board, x, y),
+                        PieceFuncType.IsValidMove => (T)(object)IsValidMoveHalfCross(board, x, y),
+                        PieceFuncType.GetLegalMoves => (T)(object)GetLegalMovesHalfCross(board),
                         _ => throw new NotImplementedException()
                     };
                 default:
@@ -169,8 +171,8 @@ namespace Chinese_Chess_v3.Game.Core
         public bool CanMoveTo(Board board, int targetX, int targetY) =>
             IsValidMove(board, targetX, targetY);
 
-        public List<(int x, int y)> GetLegalMoves(Board board, int currentX, int currentY) =>
-            PieceFunc<List<(int x, int y)>>(PieceFuncType.GetLegalMoves, board.Type, board, currentX, currentY);
+        public List<(int x, int y)> GetLegalMoves(Board board) =>
+            PieceFunc<List<(int x, int y)>>(PieceFuncType.GetLegalMoves, board.Type, board);
     }
 
     public enum PieceFuncType

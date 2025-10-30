@@ -3,14 +3,13 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2025/05/06
-// Update Date: 2025/05/06
-// Version: v1.0
+// Update Date: 2025/10/30
+// Version: v2.0
 /* ----- ----- ----- ----- */
 
 using System;
 using System.Collections.Generic;
 
-using Chinese_Chess_v3.Game.Constants.Game;
 using Chinese_Chess_v3.Game.Models;
 
 namespace Chinese_Chess_v3.Game.Core.Pieces
@@ -28,23 +27,8 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         /// <param name="x">The initial X-coordinate of the piece.</param>
         /// <param name="y">The initial Y-coordinate of the piece.</param>
         /// <param name="side">The player side this piece belongs to (Red or Black).</param>
-        public Cannon(int x, int y, PlayerSide side)
-            : base(PieceType.Cannon, x, y, side)
-        {
-        }
-
-        /// <summary>
-        /// Determines whether the target position is within the legal area where this piece is allowed to move.
-        /// The Cannon has no palace or river restrictions; it only needs to stay within the board boundaries.
-        /// </summary>
-        /// <param name="targetX">The X-coordinate of the destination.</param>
-        /// <param name="targetY">The Y-coordinate of the destination.</param>
-        /// <returns><c>true</c> if the destination is within the game board bounds; otherwise, <c>false</c>.</returns>
-        public override bool IsInLegalZone(int targetX, int targetY)
-        {
-            // No specific zone limit for chariot, but method reserved for consistency
-            return BoardConstants.IsInBounds(targetX, targetY);
-        }
+        public Cannon(PieceInfo info)
+            : base(info) { }
 
         /// <summary>
         /// Checks whether the Cannon can move to the target position according to Chinese Chess rules.
@@ -58,9 +42,14 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         /// <param name="targetY">The Y-coordinate of the target position.</param>
         /// <param name="board">The current game board instance used to check piece positions.</param>
         /// <returns><c>true</c> if the move follows the Cannon's movement rules; otherwise, <c>false</c>.</returns>
-        public override bool IsValidMove(int targetX, int targetY, Board board)
+        protected override bool IsValidMoveFull(Board board, int targetX, int targetY)
         {
-            if (!IsInLegalZone(targetX, targetY))
+            // Check if still in valid area
+            if (!IsDestinationLegalFull(board, targetX, targetY))
+                return false;
+
+            // Check if general will see general after move
+            if (targetX != X && !board.GameRules.CanGeneralSeeGeneral && board.IsGeneralFaceToFaceAfterMove(X))
                 return false;
                 
             int dx = targetX - X;
@@ -96,37 +85,34 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         /// <returns>
         /// A list of all possible (x, y) positions the Cannon can legally move to.
         /// </returns>
-        public override List<(int x, int y)> GetLegalMoves(int x, int y, Board board)
+        protected override List<(int x, int y)> GetLegalMovesFull(Board board)
         {
             List<(int x, int y)> legalMoves = new List<(int x, int y)>();
 
-            // Define every move directions
-            (int dx, int dy)[] directions = new (int, int)[]
-            {
-                (1, 0),   // Right
-                (-1, 0),  // Left
-                (0, 1),   // Up
-                (0, -1)   // Down
-            };
+            var directions = MovePatterns.GetOrthogonalOneStep(Side);
 
             foreach (var (dx, dy) in directions)
             {
                 bool jumped = false;  // Whether the Cannon has jumped over a piece
 
-                int currX = x + dx;
-                int currY = y + dy;
+                int newX = X + dx;
+                int newY = Y + dy;
+
+                // Skip if general will see general after move
+                if (newX != X && !board.GameRules.CanGeneralSeeGeneral && board.IsGeneralFaceToFaceAfterMove(X))
+                    return legalMoves;
 
                 // Continue scanning until reaching the edge of the board
-                while (BoardConstants.IsInBounds(currX, currY))
+                while (board.IsInBoard(newX, newY))
                 {
-                    Piece target = board.Grid[currX, currY];
+                    Piece target = board.Grid[newX, newY];
 
                     if (!jumped)
                     {
                         if (target == null)
                         {
                             // Can move freely before jumping
-                            legalMoves.Add((currX, currY));
+                            legalMoves.Add((newX, newY));
                         }
                         else
                         {
@@ -140,16 +126,30 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
                         if (target != null && target.Side != this.Side)
                         {
                             // Add to legal moves
-                            legalMoves.Add((currX, currY));
+                            legalMoves.Add((newX, newY));
                         }
                         break;  // Stop searching after a potential capture
                     }
 
-                    currX += dx;
-                    currY += dy;
+                    newX += dx;
+                    newY += dy;
                 }
             }
 
+            return legalMoves;
+        }
+
+        protected override List<(int x, int y)> GetLegalMovesHalfCenter(Board board)
+        {
+            List<(int x, int y)> legalMoves = new List<(int x, int y)>();
+            // Not implement yet
+            return legalMoves;
+        }
+
+        protected override List<(int x, int y)> GetLegalMovesHalfCross(Board board)
+        {
+            List<(int x, int y)> legalMoves = new List<(int x, int y)>();
+            // Not implement yet
             return legalMoves;
         }
 

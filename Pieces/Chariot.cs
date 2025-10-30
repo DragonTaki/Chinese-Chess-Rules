@@ -3,14 +3,13 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2025/05/06
-// Update Date: 2025/05/06
-// Version: v1.0
+// Update Date: 2025/10/30
+// Version: v2.0
 /* ----- ----- ----- ----- */
 
 using System;
 using System.Collections.Generic;
 
-using Chinese_Chess_v3.Game.Constants.Game;
 using Chinese_Chess_v3.Game.Models;
 
 namespace Chinese_Chess_v3.Game.Core.Pieces
@@ -28,23 +27,8 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         /// <param name="x">The initial X-coordinate of the piece.</param>
         /// <param name="y">The initial Y-coordinate of the piece.</param>
         /// <param name="side">The player side this piece belongs to (Red or Black).</param>
-        public Chariot(int x, int y, PlayerSide side)
-            : base(PieceType.Chariot, x, y, side)
-        {
-        }
-
-        /// <summary>
-        /// Determines whether the target position is within the legal area where this piece can move.
-        /// The Chariot has no palace or river restrictions; it only needs to stay within board bounds.
-        /// </summary>
-        /// <param name="targetX">The X-coordinate of the destination.</param>
-        /// <param name="targetY">The Y-coordinate of the destination.</param>
-        /// <returns><c>true</c> if the destination is within board boundaries; otherwise, <c>false</c>.</returns>
-        public override bool IsInLegalZone(int targetX, int targetY)
-        {
-            // No specific zone limit for Chariot, kept for consistency with other pieces
-            return BoardConstants.IsInBounds(targetX, targetY);
-        }
+        public Chariot(PieceInfo info)
+            : base(info) { }
 
         /// <summary>
         /// Checks whether the Chariot can move to the target position according to Chinese Chess rules.
@@ -58,9 +42,14 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         /// <param name="targetY">The Y-coordinate of the target position.</param>
         /// <param name="board">The current game board instance used to check piece positions.</param>
         /// <returns><c>true</c> if the move follows the Chariot's movement rules; otherwise, <c>false</c>.</returns>
-        public override bool IsValidMove(int targetX, int targetY, Board board)
+        protected override bool IsValidMoveFull(Board board, int targetX, int targetY)
         {
-            if (!IsInLegalZone(targetX, targetY))
+            // Check if still in valid area
+            if (!IsDestinationLegalFull(board, targetX, targetY))
+                return false;
+
+            // Check if general will see general after move
+            if (targetX != X && !board.GameRules.CanGeneralSeeGeneral && board.IsGeneralFaceToFaceAfterMove(X))
                 return false;
 
             int dx = targetX - X;
@@ -74,21 +63,21 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
             int stepX = Math.Sign(dx);
             int stepY = Math.Sign(dy);
 
-            int currX = X + stepX;
-            int currY = Y + stepY;
+            int newX = X + stepX;
+            int newY = Y + stepY;
 
             // Check path obstruction (車衝無障礙物)
-            while (currX != targetX || currY != targetY)
+            while (newX != targetX || newY != targetY)
             {
-                if (board.Grid[currX, currY] != null)
+                if (board.Grid[newX, newY] != null)
                     return false;
 
-                currX += stepX;
-                currY += stepY;
+                newX += stepX;
+                newY += stepY;
             }
 
             // Check if there is an ally piece at the destination
-            if (!IsDestinationLegal(targetX, targetY, board))
+            if (board.IsLocationSamePlayerSide(Side, targetX, targetY) == true)
                 return false;
 
             return true;
@@ -104,48 +93,59 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         /// <returns>
         /// A list of all possible (x, y) positions the Chariot can legally move to.
         /// </returns>
-        public override List<(int x, int y)> GetLegalMoves(int x, int y, Board board)
+        protected override List<(int x, int y)> GetLegalMovesFull(Board board)
         {
             List<(int x, int y)> legalMoves = new List<(int x, int y)>();
 
-            // Define every move directions
-            (int dx, int dy)[] directions = new (int, int)[]
-            {
-                (1, 0),  // Right
-                (-1, 0), // Left
-                (0, 1),  // Up
-                (0, -1)  // Down
-            };
+            var directions = MovePatterns.GetOrthogonalOneStep(Side);
 
             foreach (var (dx, dy) in directions)
             {
-                int currX = x + dx;
-                int currY = y + dy;
+                int newX = X + dx;
+                int newY = Y + dy;
+
+                // Skip if general will see general after move
+                if (newX != X && !board.GameRules.CanGeneralSeeGeneral && board.IsGeneralFaceToFaceAfterMove(X))
+                    return legalMoves;
 
                 // Continue scanning until reaching the edge of the board or an obstacle
-                while (BoardConstants.IsInBounds(currX, currY))
+                while (board.IsInBoard(newX, newY))
                 {
-                    Piece obstacle = board.Grid[currX, currY];
+                    Piece obstacle = board.Grid[newX, newY];
 
                     if (obstacle == null)
                     {
                         // No piece — legal move
-                        legalMoves.Add((currX, currY));
+                        legalMoves.Add((newX, newY));
                     }
                     else
                     {
                         // Encounter piece — can capture if enemy, then stop
                         if (obstacle.Side != this.Side)
                             // Add to legal moves
-                            legalMoves.Add((currX, currY));
+                            legalMoves.Add((newX, newY));
                         break;
                     }
 
-                    currX += dx;
-                    currY += dy;
+                    newX += dx;
+                    newY += dy;
                 }
             }
 
+            return legalMoves;
+        }
+
+        protected override List<(int x, int y)> GetLegalMovesHalfCenter(Board board)
+        {
+            List<(int x, int y)> legalMoves = new List<(int x, int y)>();
+            // Not implement yet
+            return legalMoves;
+        }
+
+        protected override List<(int x, int y)> GetLegalMovesHalfCross(Board board)
+        {
+            List<(int x, int y)> legalMoves = new List<(int x, int y)>();
+            // Not implement yet
             return legalMoves;
         }
     }

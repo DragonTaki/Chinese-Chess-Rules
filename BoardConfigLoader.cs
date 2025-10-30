@@ -3,13 +3,14 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2025/10/21
-// Update Date: 2025/10/21
-// Version: v1.0
+// Update Date: 2025/10/31
+// Version: v1.1
 /* ----- ----- ----- ----- */
 
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 
 using Chinese_Chess_v3.Game.Models;
@@ -57,7 +58,7 @@ namespace Chinese_Chess_v3.Game.Core
             }
 
             // 3. 回傳預設棋盤
-            return DeepCopyPieces(PieceConstants.InitialPieces);
+            return DeepCopyPieces(PieceConstants.InitialClassicPieces);
         }
 
         /// <summary>
@@ -75,10 +76,7 @@ namespace Chinese_Chess_v3.Game.Core
         /// </summary>
         private static List<PieceInfo> DeepCopyPieces(List<PieceInfo> source)
         {
-            var list = new List<PieceInfo>();
-            foreach (var p in source)
-                list.Add(new PieceInfo(p.Type, p.X, p.Y, p.IsRed, p.FaceUp));
-            return list;
+            return source?.Select(p => p?.Clone()).ToList() ?? new List<PieceInfo>();
         }
     }
 }
