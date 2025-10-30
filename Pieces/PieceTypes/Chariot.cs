@@ -10,9 +10,10 @@
 using System;
 using System.Collections.Generic;
 
-using Chinese_Chess_v3.Game.Models;
+using Chinese_Chess_v3.Game.Core.Boards;
+using Chinese_Chess_v3.Game.Core.Movements;
 
-namespace Chinese_Chess_v3.Game.Core.Pieces
+namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
 {
     /// <summary>
     /// Represents the <b>Chariot (俥/車)</b> piece in Chinese Chess.

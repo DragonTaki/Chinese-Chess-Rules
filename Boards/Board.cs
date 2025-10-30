@@ -9,14 +9,14 @@
 
 using System;
 using System.Collections.Generic;
-
-using Chinese_Chess_v3.Game.Constants.UI;
-using Chinese_Chess_v3.Game.Constants.Game;
-using Chinese_Chess_v3.Game.Core.Pieces;
-using Chinese_Chess_v3.Game.Models;
 using System.Linq;
 
-namespace Chinese_Chess_v3.Game.Core
+using Chinese_Chess_v3.Game.UI.Constants;
+using Chinese_Chess_v3.Game.Core.Pieces.PieceTypes;
+using Chinese_Chess_v3.Game.Core.Pieces;
+using Chinese_Chess_v3.Game.Core.Players;
+
+namespace Chinese_Chess_v3.Game.Core.Boards
 {
     public enum BoardType
     {

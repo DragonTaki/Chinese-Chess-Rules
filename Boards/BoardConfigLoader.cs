@@ -13,9 +13,9 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 
-using Chinese_Chess_v3.Game.Models;
+using Chinese_Chess_v3.Game.Core.Pieces;
 
-namespace Chinese_Chess_v3.Game.Core
+namespace Chinese_Chess_v3.Game.Core.Boards
 {
     public static class BoardConfigLoader
     {

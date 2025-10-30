@@ -1,5 +1,5 @@
 /* ----- ----- ----- ----- */
-// Advisor.cs
+// Soldier.cs
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2025/05/06
@@ -7,60 +7,46 @@
 // Version: v2.0
 /* ----- ----- ----- ----- */
 
+using System;
 using System.Collections.Generic;
 
-using Chinese_Chess_v3.Game.Models;
+using Chinese_Chess_v3.Game.Core.Boards;
+using Chinese_Chess_v3.Game.Core.Movements;
+using Chinese_Chess_v3.Game.Core.Players;
 
-namespace Chinese_Chess_v3.Game.Core.Pieces
+namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
 {
     /// <summary>
-    /// Represents the <b>Advisor (仕/士)</b> piece in Chinese Chess.
-    /// The Advisor protects the General and can only move diagonally by one step.
-    /// It must always remain within the 3×3 palace area of its own side.
+    /// Represents the <b>Soldier (兵/卒)</b> piece in Chinese Chess.
+    /// <para>
+    /// Soldiers move 1 step forward before crossing the river and can move horizontally 
+    /// (left or right) after crossing the river. They cannot move backward.
+    /// </para>
     /// </summary>
-    public class Advisor : Piece
+    public class Soldier : Piece
     {
         /// <summary>
-        /// Initializes a new instance of the <see cref="Advisor"/> class with the specified position and player side.
+        /// Initializes a new instance of the <see cref="Soldier"/> class with the specified position and player side.
         /// </summary>
-        /// <param name="x">The initial X-coordinate of the piece.</param>
-        /// <param name="y">The initial Y-coordinate of the piece.</param>
-        /// <param name="side">The player side this piece belongs to (Red or Black).</param>
-        public Advisor(PieceInfo info)
+        /// <param name="x">The initial X-coordinate of the Soldier.</param>
+        /// <param name="y">The initial Y-coordinate of the Soldier.</param>
+        /// <param name="side">The player side this Soldier belongs to (Red or Black).</param>
+        public Soldier(PieceInfo info)
             : base(info) { }
 
         /// <summary>
-        /// Determines whether the target position is within the legal area where this piece is allowed to stay.
-        /// For the Advisor, this means staying inside its palace area.
-        /// </summary>
-        /// <param name="targetX">The X-coordinate of the destination.</param>
-        /// <param name="targetY">The Y-coordinate of the destination.</param>
-        /// <returns><c>true</c> if the destination is within the palace; otherwise, <c>false</c>.</returns>
-        protected override bool IsDestinationLegalFull(Board board, int targetX, int targetY)
-        {
-            if (!board.GameRules.CanAdvisorLeavePalace)
-            {
-                // Only can stay in palace (九宮格)
-                if (!board.IsInPalace(Side, targetX, targetY))
-                    return false;
-            }
-            else
-            {
-                if (!board.IsInBoard(targetX, targetY))
-                    return false;
-            }
-
-            return true;
-        }
-
-        /// <summary>
-        /// Checks whether the Advisor can move to the target position according to Chinese Chess rules.
-        /// The Advisor must move exactly one step diagonally, remain in its palace, and cannot capture allied pieces.
+        /// Determines whether a move to the target position is valid according to Chinese Chess rules.
+        /// <para>
+        /// - Can move 1 step forward anytime.  
+        /// - Can move 1 step horizontally only after crossing the river.  
+        /// - Cannot move backward.  
+        /// - Cannot capture a piece from the same side.
+        /// </para>
         /// </summary>
         /// <param name="targetX">The X-coordinate of the target position.</param>
         /// <param name="targetY">The Y-coordinate of the target position.</param>
-        /// <param name="board">The current game board instance, used to check piece positions.</param>
-        /// <returns><c>true</c> if the move is valid; otherwise, <c>false</c>.</returns>
+        /// <param name="board">The current board state used to check piece positions.</param>
+        /// <returns><c>true</c> if the move is valid for the Soldier; otherwise, <c>false</c>.</returns>
         protected override bool IsValidMoveFull(Board board, int targetX, int targetY)
         {
             // Check if still in valid area
@@ -68,13 +54,13 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
                 return false;
 
             // Check if general will see general after move
-            if (targetX != X && !board.GameRules.CanGeneralSeeGeneral && board.IsGeneralFaceToFaceAfterMove(X))
+            if (targetX != X && targetX != X && !board.GameRules.CanGeneralSeeGeneral && board.IsGeneralFaceToFaceAfterMove(X))
                 return false;
 
             int dx = targetX - X;
             int dy = targetY - Y;
 
-            var directions = MovePatterns.GetDiagonalOneStep(Side);
+            var directions = MovePatterns.GetSoldierDirections(Side, HasCrossedRiver(Y));
 
             // Check if match move rule
             bool matched = false;
@@ -97,20 +83,17 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         }
 
         /// <summary>
-        /// Gets a list of all legal moves this Advisor can make from its current position.
-        /// Each move is represented as a tuple of (x, y) coordinates.
+        /// Gets all legal moves the Soldier can make from its current position.
         /// </summary>
-        /// <param name="x">The current X-coordinate of the Advisor.</param>
-        /// <param name="y">The current Y-coordinate of the Advisor.</param>
-        /// <param name="board">The current game board state.</param>
-        /// <returns>
-        /// A list of all possible (x, y) positions the Advisor can legally move to.
-        /// </returns>
+        /// <param name="x">The current X-coordinate of the Soldier.</param>
+        /// <param name="y">The current Y-coordinate of the Soldier.</param>
+        /// <param name="board">The current board state.</param>
+        /// <returns>A list of all possible (x, y) positions the Soldier can legally move to.</returns>
         protected override List<(int x, int y)> GetLegalMovesFull(Board board)
         {
             List<(int x, int y)> legalMoves = new List<(int x, int y)>();
 
-            var directions = MovePatterns.GetDiagonalOneStep(Side);
+            var directions = MovePatterns.GetSoldierDirections(Side, HasCrossedRiver(Y));
 
             foreach (var (dx, dy) in directions)
             {
@@ -148,6 +131,28 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
             List<(int x, int y)> legalMoves = new List<(int x, int y)>();
             // Not implement yet
             return legalMoves;
+        }
+
+        /// <summary>
+        /// Determines whether the Soldier has crossed the river.
+        /// </summary>
+        /// <param name="y">The current Y-coordinate of the Soldier.</param>
+        /// <returns><c>true</c> if the Soldier has crossed the river; otherwise, <c>false</c>.</returns>
+        private bool HasCrossedRiver(int y)
+        {
+            switch (Side)
+            {
+                case PlayerSide.Black:
+                    return y >= BoardConstants.Full.RiverLineYBlackSide;
+
+                case PlayerSide.Red:
+                    return y <= BoardConstants.Full.RiverLineYRedSide;
+
+                case PlayerSide.None:
+                case PlayerSide.Neutral:
+                default:
+                    throw new Exception("Unknown player side");  // Defensive check
+            }
         }
     }
 }

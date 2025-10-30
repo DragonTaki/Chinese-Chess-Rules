@@ -9,9 +9,10 @@
 
 using System.Collections.Generic;
 
-using Chinese_Chess_v3.Game.Models;
+using Chinese_Chess_v3.Game.Core.Boards;
+using Chinese_Chess_v3.Game.Core.Movements;
 
-namespace Chinese_Chess_v3.Game.Core
+namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
 {
     /// <summary>
     /// Represents the <b>General (帥/將)</b> piece in Chinese Chess.

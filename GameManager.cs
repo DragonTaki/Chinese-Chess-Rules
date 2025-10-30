@@ -10,15 +10,18 @@
 using System;
 using System.Collections.Generic;
 
-using Chinese_Chess_v3.Game.Models;
-using Chinese_Chess_v3.Game.UI.Screens.Games.Sidebars.LoggerBoxes;
+using Chinese_Chess_v3.Game.Core.Boards;
+using Chinese_Chess_v3.Game.Core.Pieces;
+using Chinese_Chess_v3.Game.Core.Players;
+using Chinese_Chess_v3.Game.UI.Sidebars.LoggerBoxes;
+
 using Engine.Logging;
 
 namespace Chinese_Chess_v3.Game.Core
 {
     public class GameManager
     {
-        public LoggerBoxHandler Logger { get; private set; }
+        public UILoggerBoxHandler Logger { get; private set; }
         public Board Board { get; private set; }
         public Player Red { get; private set; }
         public Player Black { get; private set; }
@@ -78,15 +81,15 @@ namespace Chinese_Chess_v3.Game.Core
             Board.Initialize(BoardConfigLoader.Load());
             CurrentTurn = PlayerSide.Red;
             selectedPiece = null;
-            Red = new Player(PlayerSide.Red, TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(5));
-            Black = new Player(PlayerSide.Black, TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(5));
+            Red = new Player(PlayerSide.Red, TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(5), null, true);
+            Black = new Player(PlayerSide.Black, TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(5), null, true);
 
             // notify UI that board is ready
             BoardReset?.Invoke();
             foreach (var p in Board.GetAllPieces())
                 PieceAdded?.Invoke(p);
         }
-        public void SetLogger(LoggerBoxHandler loggerHandler)
+        public void SetLogger(UILoggerBoxHandler loggerHandler)
         {
             Logger = loggerHandler ?? throw new ArgumentNullException(nameof(loggerHandler));
         }

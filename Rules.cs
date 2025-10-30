@@ -8,7 +8,9 @@
 /* ----- ----- ----- ----- */
 
 using System.Collections.Generic;
-using Chinese_Chess_v3.Game.Models;
+
+using Chinese_Chess_v3.Game.Core.Pieces;
+using Chinese_Chess_v3.Game.Core.Players;
 
 namespace Chinese_Chess_v3.Game.Core
 {
@@ -19,6 +21,16 @@ namespace Chinese_Chess_v3.Game.Core
     /// </summary>
     public class Rules
     {
+        #region Timer Setting
+
+        public bool EnableStepTimer { get; set; } = true;
+
+        public TimerMode TimerMode { get; set; } = TimerMode.CountDown;
+
+        public bool EndGameWhenTimesUp { get; set; } = true;
+
+        #endregion
+
         #region Full Board Rules (大盤規則設定)
 
         /// <summary>

@@ -10,10 +10,11 @@
 using System;
 using System.Collections.Generic;
 
-using Chinese_Chess_v3.Game.Constants.Game;
-using Chinese_Chess_v3.Game.Models;
+using Chinese_Chess_v3.Game.Core.Boards;
+using Chinese_Chess_v3.Game.Core.Movements;
+using Chinese_Chess_v3.Game.Core.Players;
 
-namespace Chinese_Chess_v3.Game.Core.Pieces
+namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
 {
     /// <summary>
     /// Represents the <b>Elephant (相/象)</b> piece in Chinese Chess.

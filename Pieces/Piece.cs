@@ -11,9 +11,10 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 
-using Chinese_Chess_v3.Game.Models;
+using Chinese_Chess_v3.Game.Core.Boards;
+using Chinese_Chess_v3.Game.Core.Players;
 
-namespace Chinese_Chess_v3.Game.Core
+namespace Chinese_Chess_v3.Game.Core.Pieces
 {
     /// <summary>
     /// Represents an abstract base class for all chess pieces in the Chinese Chess game.
