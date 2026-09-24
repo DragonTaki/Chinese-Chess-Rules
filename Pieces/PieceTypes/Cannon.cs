@@ -168,7 +168,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
                 return count == 0;
 
             int requiredScreens = board.GameRules.IsCannonMustJumpToCapture ? 1 : 0;
-            return count == requiredScreens && CanCaptureAtHalfCenter(board, targetX, targetY);
+            return count == requiredScreens && CanCaptureInDarkChess(board, targetX, targetY);
         }
 
         protected override List<(int x, int y)> GetLegalMovesHalfCenter(Board board)
@@ -199,7 +199,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
                         {
                             // No jump required — captures like a Chariot, at
                             // the first obstacle reached.
-                            if (CanCaptureAtHalfCenter(board, newX, newY))
+                            if (CanCaptureInDarkChess(board, newX, newY))
                                 legalMoves.Add((newX, newY));
                             break;
                         }
@@ -212,7 +212,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
                     {
                         if (target != null)
                         {
-                            if (CanCaptureAtHalfCenter(board, newX, newY))
+                            if (CanCaptureInDarkChess(board, newX, newY))
                                 legalMoves.Add((newX, newY));
                             break;
                         }
@@ -226,10 +226,82 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
             return legalMoves;
         }
 
+        /// <summary>
+        /// Same dark-chess mechanic as HalfCenter — see General.cs's
+        /// HalfCross note. <c>Rules.IsCannonMustJumpToCapture</c> still
+        /// governs the jump-to-capture requirement here too.
+        /// </summary>
+        protected override bool IsValidMoveHalfCross(Board board, int targetX, int targetY)
+        {
+            if (!board.IsInBoard(targetX, targetY))
+                return false;
+
+            int dx = targetX - X;
+            int dy = targetY - Y;
+
+            if (dx != 0 && dy != 0)
+                return false;
+
+            int count = CountPiecesBetween(X, Y, targetX, targetY, board);
+            Piece targetPiece = board.Grid[targetX, targetY];
+
+            if (targetPiece == null)
+                return count == 0;
+
+            int requiredScreens = board.GameRules.IsCannonMustJumpToCapture ? 1 : 0;
+            return count == requiredScreens && CanCaptureInDarkChess(board, targetX, targetY);
+        }
+
         protected override List<(int x, int y)> GetLegalMovesHalfCross(Board board)
         {
             List<(int x, int y)> legalMoves = new List<(int x, int y)>();
-            // Not implement yet
+            bool mustJump = board.GameRules.IsCannonMustJumpToCapture;
+
+            var directions = MovePatterns.GetOrthogonalOneStep(Side);
+
+            foreach (var (dx, dy) in directions)
+            {
+                bool jumped = false;
+
+                int newX = X + dx;
+                int newY = Y + dy;
+
+                while (board.IsInBoard(newX, newY))
+                {
+                    Piece target = board.Grid[newX, newY];
+
+                    if (!jumped)
+                    {
+                        if (target == null)
+                        {
+                            legalMoves.Add((newX, newY));
+                        }
+                        else if (!mustJump)
+                        {
+                            if (CanCaptureInDarkChess(board, newX, newY))
+                                legalMoves.Add((newX, newY));
+                            break;
+                        }
+                        else
+                        {
+                            jumped = true;
+                        }
+                    }
+                    else
+                    {
+                        if (target != null)
+                        {
+                            if (CanCaptureInDarkChess(board, newX, newY))
+                                legalMoves.Add((newX, newY));
+                            break;
+                        }
+                    }
+
+                    newX += dx;
+                    newY += dy;
+                }
+            }
+
             return legalMoves;
         }
 

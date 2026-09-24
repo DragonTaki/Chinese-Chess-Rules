@@ -146,16 +146,21 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         /// orthogonally like every other non-Cannon piece there.
         /// </summary>
         protected override bool IsValidMoveHalfCenter(Board board, int targetX, int targetY) =>
-            IsValidOrthogonalOneStepHalfCenter(board, targetX, targetY);
+            IsValidOrthogonalOneStepDarkChess(board, targetX, targetY);
 
         protected override List<(int x, int y)> GetLegalMovesHalfCenter(Board board) =>
-            GetOrthogonalOneStepMovesHalfCenter(board);
+            GetOrthogonalOneStepMovesDarkChess(board);
 
-        protected override List<(int x, int y)> GetLegalMovesHalfCross(Board board)
-        {
-            List<(int x, int y)> legalMoves = new List<(int x, int y)>();
-            // Not implement yet
-            return legalMoves;
-        }
+        /// <summary>
+        /// HalfCross (9×5, 三國半盤) is the same dark-chess mechanic as
+        /// HalfCenter, just shuffled onto a differently-shaped board and
+        /// with a full 32-piece Xiangqi set instead of HalfCenter's own set
+        /// (confirmed by the author — see docs/PLAN.md).
+        /// </summary>
+        protected override bool IsValidMoveHalfCross(Board board, int targetX, int targetY) =>
+            IsValidOrthogonalOneStepDarkChess(board, targetX, targetY);
+
+        protected override List<(int x, int y)> GetLegalMovesHalfCross(Board board) =>
+            GetOrthogonalOneStepMovesDarkChess(board);
     }
 }

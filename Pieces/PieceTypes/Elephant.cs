@@ -167,17 +167,17 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         /// the Full board).
         /// </summary>
         protected override bool IsValidMoveHalfCenter(Board board, int targetX, int targetY) =>
-            IsValidOrthogonalOneStepHalfCenter(board, targetX, targetY);
+            IsValidOrthogonalOneStepDarkChess(board, targetX, targetY);
 
         protected override List<(int x, int y)> GetLegalMovesHalfCenter(Board board) =>
-            GetOrthogonalOneStepMovesHalfCenter(board);
+            GetOrthogonalOneStepMovesDarkChess(board);
 
-        protected override List<(int x, int y)> GetLegalMovesHalfCross(Board board)
-        {
-            List<(int x, int y)> legalMoves = new List<(int x, int y)>();
-            // Not implement yet
-            return legalMoves;
-        }
+        /// <summary>Same dark-chess mechanic as HalfCenter — see General.cs's HalfCross note.</summary>
+        protected override bool IsValidMoveHalfCross(Board board, int targetX, int targetY) =>
+            IsValidOrthogonalOneStepDarkChess(board, targetX, targetY);
+
+        protected override List<(int x, int y)> GetLegalMovesHalfCross(Board board) =>
+            GetOrthogonalOneStepMovesDarkChess(board);
 
         private bool IsElephantEyeBlocked(Board board, int dx, int dy)
         {

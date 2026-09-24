@@ -145,7 +145,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         protected override bool IsValidMoveHalfCenter(Board board, int targetX, int targetY)
         {
             if (!board.GameRules.CanChariotRush)
-                return IsValidOrthogonalOneStepHalfCenter(board, targetX, targetY);
+                return IsValidOrthogonalOneStepDarkChess(board, targetX, targetY);
 
             if (!IsDestinationLegalHalfCenter(board, targetX, targetY))
                 return false;
@@ -171,13 +171,13 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
                 newY += stepY;
             }
 
-            return CanCaptureAtHalfCenter(board, targetX, targetY);
+            return CanCaptureInDarkChess(board, targetX, targetY);
         }
 
         protected override List<(int x, int y)> GetLegalMovesHalfCenter(Board board)
         {
             if (!board.GameRules.CanChariotRush)
-                return GetOrthogonalOneStepMovesHalfCenter(board);
+                return GetOrthogonalOneStepMovesDarkChess(board);
 
             List<(int x, int y)> legalMoves = new List<(int x, int y)>();
 
@@ -196,7 +196,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
                     }
                     else
                     {
-                        if (CanCaptureAtHalfCenter(board, newX, newY))
+                        if (CanCaptureInDarkChess(board, newX, newY))
                             legalMoves.Add((newX, newY));
                         break;
                     }
@@ -209,10 +209,76 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
             return legalMoves;
         }
 
+        /// <summary>
+        /// Same dark-chess mechanic as HalfCenter — see General.cs's
+        /// HalfCross note. <c>Rules.CanChariotRush</c> still governs
+        /// whether this Chariot gets its Full-board straight-line sweep
+        /// here too.
+        /// </summary>
+        protected override bool IsValidMoveHalfCross(Board board, int targetX, int targetY)
+        {
+            if (!board.GameRules.CanChariotRush)
+                return IsValidOrthogonalOneStepDarkChess(board, targetX, targetY);
+
+            if (!board.IsInBoard(targetX, targetY))
+                return false;
+
+            int dx = targetX - X;
+            int dy = targetY - Y;
+
+            if (dx != 0 && dy != 0)
+                return false;
+
+            int stepX = Math.Sign(dx);
+            int stepY = Math.Sign(dy);
+
+            int newX = X + stepX;
+            int newY = Y + stepY;
+
+            while (newX != targetX || newY != targetY)
+            {
+                if (board.Grid[newX, newY] != null)
+                    return false;
+
+                newX += stepX;
+                newY += stepY;
+            }
+
+            return CanCaptureInDarkChess(board, targetX, targetY);
+        }
+
         protected override List<(int x, int y)> GetLegalMovesHalfCross(Board board)
         {
+            if (!board.GameRules.CanChariotRush)
+                return GetOrthogonalOneStepMovesDarkChess(board);
+
             List<(int x, int y)> legalMoves = new List<(int x, int y)>();
-            // Not implement yet
+
+            foreach (var (dx, dy) in MovePatterns.GetOrthogonalOneStep(Side))
+            {
+                int newX = X + dx;
+                int newY = Y + dy;
+
+                while (board.IsInBoard(newX, newY))
+                {
+                    Piece obstacle = board.Grid[newX, newY];
+
+                    if (obstacle == null)
+                    {
+                        legalMoves.Add((newX, newY));
+                    }
+                    else
+                    {
+                        if (CanCaptureInDarkChess(board, newX, newY))
+                            legalMoves.Add((newX, newY));
+                        break;
+                    }
+
+                    newX += dx;
+                    newY += dy;
+                }
+            }
+
             return legalMoves;
         }
     }

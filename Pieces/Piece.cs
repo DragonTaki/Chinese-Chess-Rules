@@ -163,7 +163,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         /// is a state change the caller (not yet implemented — see
         /// docs/STATUS.md) applies after the move, not a legality question.
         /// </remarks>
-        protected bool CanCaptureAtHalfCenter(Board board, int targetX, int targetY)
+        protected bool CanCaptureInDarkChess(Board board, int targetX, int targetY)
         {
             var target = board.GetPiece(targetX, targetY);
             if (target == null)
@@ -190,14 +190,21 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         }
 
         /// <summary>
-        /// HalfCenter movement check for the five piece types that move
-        /// exactly one square orthogonally there by default (General,
-        /// Advisor, Elephant, Soldier always; Chariot/Horse only when their
-        /// respective "special movement" rule flag is off).
+        /// Movement check shared by HalfCenter and HalfCross — both are the
+        /// same dark-chess mechanic (see <see cref="CanCaptureInDarkChess"/>),
+        /// just on differently-shaped boards, and neither has a palace,
+        /// river, or any other board-shape restriction beyond "on the
+        /// board" — so this checks bounds directly via
+        /// <see cref="Board.IsInBoard"/> rather than going through either
+        /// board type's (identical, unoverridden) IsDestinationLegal*.
+        /// Five of the seven piece types move exactly one square
+        /// orthogonally by default this way (General, Advisor, Elephant,
+        /// Soldier always; Chariot/Horse only when their respective
+        /// "special movement" rule flag is off).
         /// </summary>
-        protected bool IsValidOrthogonalOneStepHalfCenter(Board board, int targetX, int targetY)
+        protected bool IsValidOrthogonalOneStepDarkChess(Board board, int targetX, int targetY)
         {
-            if (!IsDestinationLegalHalfCenter(board, targetX, targetY))
+            if (!board.IsInBoard(targetX, targetY))
                 return false;
 
             int dx = targetX - X;
@@ -215,11 +222,11 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
             if (!matched)
                 return false;
 
-            return CanCaptureAtHalfCenter(board, targetX, targetY);
+            return CanCaptureInDarkChess(board, targetX, targetY);
         }
 
-        /// <summary>See <see cref="IsValidOrthogonalOneStepHalfCenter"/>.</summary>
-        protected List<(int x, int y)> GetOrthogonalOneStepMovesHalfCenter(Board board)
+        /// <summary>See <see cref="IsValidOrthogonalOneStepDarkChess"/>.</summary>
+        protected List<(int x, int y)> GetOrthogonalOneStepMovesDarkChess(Board board)
         {
             List<(int x, int y)> legalMoves = new List<(int x, int y)>();
 
@@ -231,7 +238,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
                 if (!board.IsInBoard(newX, newY))
                     continue;
 
-                if (!CanCaptureAtHalfCenter(board, newX, newY))
+                if (!CanCaptureInDarkChess(board, newX, newY))
                     continue;
 
                 legalMoves.Add((newX, newY));

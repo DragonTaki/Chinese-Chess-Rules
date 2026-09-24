@@ -92,17 +92,26 @@ namespace Chinese_Chess_v3.Game.Core.Boards
             /*
                     X →           Black Side
                (0,Y)(1,Y)(2,Y)(3,Y)(4,Y)(5,Y)(6,Y)(7,Y)(8,Y)
-             (X, 0)  +---+---+---+---+---+---+---+---+ ← Y=0
+             (X, 0)  +---+---+---+---     ---+---+---+---+ ← Y=0
                      |   |   |   |   |   |   |   |   |
-             (X, 1)  +---+---+---+---+---+---+---+---+ ← Y=1
+             (X, 1)  +---+---+---+---     ---+---+---+---+ ← Y=1
+                                    ...cross...
+             (X, 2)                                        ← Y=2 (middle row)
+                                    ...cross...
+             (X, 3)  +---+---+---+---     ---+---+---+---+ ← Y=3
                      |   |   |   |   |   |   |   |   |
-             (X, 2)  +---+---+---+---+---+---+---+---+ ← Y=2
-                     |   |   |   |   |   |   |   |   |
-             (X, 3)  +---+---+---+---+---+---+---+---+ ← Y=3
-                     |   |   |   |   |   |   |   |   |
-             (X, 4)  +---+---+---+---+---+---+---+---+ ← Y=4
-                     0   1   2   3   4   5   6   7   8 
+             (X, 4)  +---+---+---+---     ---+---+---+---+ ← Y=4
+                     0   1   2   3   4   5   6   7   8
                     X →             Red Side
+
+               Confirmed by the author (2026/09): pieces sit on line
+               intersections (like the Full board), not inside cells. The
+               board is four 4-column × 2-row corner blocks — top-left
+               (X 0-3, Y 0-1), top-right (X 5-8, Y 0-1), bottom-left
+               (X 0-3, Y 3-4), bottom-right (X 5-8, Y 3-4) — around a
+               cross-shaped middle (column X=4 and row Y=2) that starts with
+               no pieces on it (still ordinary, walkable board — not carved
+               out of the board like the river's banks are in Full board).
             */
             // Left to right (x-axis): 0~8; Top to bottom (y-axis): 0~4
         }
