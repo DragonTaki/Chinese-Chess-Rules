@@ -151,7 +151,7 @@ namespace Chinese_Chess_v3.Game.Core
         /// hostile factions (confirmed by the author — not an alliance by
         /// color). <c>side</c> is the actual owning faction; <c>color</c> is
         /// only the visual color (a physical set only has two, so faction 3
-        /// necessarily reuses both — see <see cref="Players.PlayerSide.Yellow"/>).
+        /// necessarily reuses both — see <see cref="Players.PlayerSide.Player3"/>).
         /// Key: arbitrary faction number, Value: that faction's pieces.
         /// </summary>
         public Dictionary<int, List<(PieceType type, int count, PieceColor color, PlayerSide side)>> HalfCrossTeamSetup { get; set; }
@@ -160,32 +160,32 @@ namespace Chinese_Chess_v3.Game.Core
             // 陣營1
             [1] = new List<(PieceType, int, PieceColor, PlayerSide)>()
             {
-                (PieceType.Advisor,  2, PieceColor.Red, PlayerSide.Red),
-                (PieceType.Elephant, 2, PieceColor.Red, PlayerSide.Red),
-                (PieceType.Chariot,  2, PieceColor.Red, PlayerSide.Red),
-                (PieceType.Horse,    2, PieceColor.Red, PlayerSide.Red),
-                (PieceType.Cannon,   2, PieceColor.Red, PlayerSide.Red),
+                (PieceType.Advisor,  2, PieceColor.Red, PlayerSide.Player1),
+                (PieceType.Elephant, 2, PieceColor.Red, PlayerSide.Player1),
+                (PieceType.Chariot,  2, PieceColor.Red, PlayerSide.Player1),
+                (PieceType.Horse,    2, PieceColor.Red, PlayerSide.Player1),
+                (PieceType.Cannon,   2, PieceColor.Red, PlayerSide.Player1),
             },
 
             // 陣營2
             [2] = new List<(PieceType, int, PieceColor, PlayerSide)>()
             {
-                (PieceType.Advisor,  2, PieceColor.Black, PlayerSide.Black),
-                (PieceType.Elephant, 2, PieceColor.Black, PlayerSide.Black),
-                (PieceType.Chariot,  2, PieceColor.Black, PlayerSide.Black),
-                (PieceType.Horse,    2, PieceColor.Black, PlayerSide.Black),
-                (PieceType.Cannon,   2, PieceColor.Black, PlayerSide.Black),
+                (PieceType.Advisor,  2, PieceColor.Black, PlayerSide.Player2),
+                (PieceType.Elephant, 2, PieceColor.Black, PlayerSide.Player2),
+                (PieceType.Chariot,  2, PieceColor.Black, PlayerSide.Player2),
+                (PieceType.Horse,    2, PieceColor.Black, PlayerSide.Player2),
+                (PieceType.Cannon,   2, PieceColor.Black, PlayerSide.Player2),
             },
 
-            // 陣營3：將帥方 — its own independent faction (PlayerSide.Yellow),
+            // 陣營3：將帥方 — its own independent faction (PlayerSide.Player3),
             // even though half its pieces are colored to look like the
             // other two factions' pieces (see the field doc above).
             [3] = new List<(PieceType, int, PieceColor, PlayerSide)>()
             {
-                (PieceType.General, 1, PieceColor.Red,   PlayerSide.Yellow),
-                (PieceType.General, 1, PieceColor.Black, PlayerSide.Yellow),
-                (PieceType.Soldier, 5, PieceColor.Red,   PlayerSide.Yellow),
-                (PieceType.Soldier, 5, PieceColor.Black, PlayerSide.Yellow),
+                (PieceType.General, 1, PieceColor.Red,   PlayerSide.Player3),
+                (PieceType.General, 1, PieceColor.Black, PlayerSide.Player3),
+                (PieceType.Soldier, 5, PieceColor.Red,   PlayerSide.Player3),
+                (PieceType.Soldier, 5, PieceColor.Black, PlayerSide.Player3),
             },
         };
 

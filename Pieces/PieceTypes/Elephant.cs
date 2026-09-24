@@ -51,10 +51,10 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
 
             switch (Side)
             {
-                case PlayerSide.Black:
+                case PlayerSide.Player2:
                     return targetY <= BoardConstants.Full.RiverLineYBlackSide;
 
-                case PlayerSide.Red:
+                case PlayerSide.Player1:
                     return targetY >= BoardConstants.Full.RiverLineYRedSide;
 
                 case PlayerSide.None:

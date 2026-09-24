@@ -27,12 +27,12 @@ namespace Chinese_Chess_v3.Game.Core.Movements
         /// </summary>
         private static readonly Dictionary<PlayerSide, int[,]> matrixMap = new()
         {
-            [PlayerSide.Red] = new int[,]
+            [PlayerSide.Player1] = new int[,]
                 {
                     { 1, 0 },
                     { 0, 1 }
                 },  // Identity (Base)
-            [PlayerSide.Black] = new int[,]
+            [PlayerSide.Player2] = new int[,]
                 {
                     { -1,  0 },
                     {  0, -1 }
@@ -49,7 +49,7 @@ namespace Chinese_Chess_v3.Game.Core.Movements
                 return matrix;
 
             // Default to Red if side not found
-            return matrixMap[PlayerSide.Red];
+            return matrixMap[PlayerSide.Player1];
         }
 
         /// <summary>

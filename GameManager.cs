@@ -23,9 +23,9 @@ namespace Chinese_Chess_v3.Game.Core
     {
         public UILoggerBoxHandler Logger { get; private set; }
         public Board Board { get; private set; }
-        public Player Red { get; private set; }
-        public Player Black { get; private set; }
-        private PlayerSide currentTurn = PlayerSide.Red;
+        public Player Player1 { get; private set; }
+        public Player Player2 { get; private set; }
+        private PlayerSide currentTurn = PlayerSide.Player1;
         public PlayerSide CurrentTurn
         {
             get => currentTurn;
@@ -79,10 +79,10 @@ namespace Chinese_Chess_v3.Game.Core
             // Initialize the board
             Board = new Board();
             Board.Initialize(BoardConfigLoader.Load());
-            CurrentTurn = PlayerSide.Red;
+            CurrentTurn = PlayerSide.Player1;
             selectedPiece = null;
-            Red = new Player(PlayerSide.Red, TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(5), null, true);
-            Black = new Player(PlayerSide.Black, TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(5), null, true);
+            Player1 = new Player(PlayerSide.Player1, TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(5), null, true);
+            Player2 = new Player(PlayerSide.Player2, TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(5), null, true);
 
             // notify UI that board is ready
             BoardReset?.Invoke();
@@ -108,7 +108,7 @@ namespace Chinese_Chess_v3.Game.Core
             // Reset selected piece
             selectedPiece = null;
             // Reset side
-            CurrentTurn = PlayerSide.Red;
+            CurrentTurn = PlayerSide.Player1;
 
             // Inform UI
             BoardReset?.Invoke();
@@ -129,7 +129,7 @@ namespace Chinese_Chess_v3.Game.Core
             // Reset selected piece
             selectedPiece = null;
             // Reset side
-            CurrentTurn = PlayerSide.Red;
+            CurrentTurn = PlayerSide.Player1;
 
             // Inform UI
             BoardReset?.Invoke();
@@ -149,7 +149,7 @@ namespace Chinese_Chess_v3.Game.Core
             // Reset selected piece
             selectedPiece = null;
             // Reset side
-            CurrentTurn = PlayerSide.Red;
+            CurrentTurn = PlayerSide.Player1;
 
             // Inform UI
             BoardReset?.Invoke();
@@ -276,17 +276,17 @@ namespace Chinese_Chess_v3.Game.Core
 
         private void SwitchTurn()
         {
-            if (CurrentTurn == PlayerSide.Red)
+            if (CurrentTurn == PlayerSide.Player1)
             {
-                Red.Timer.EndStep();
-                Black.Timer.StartStep();
-                CurrentTurn = PlayerSide.Black;
+                Player1.Timer.EndStep();
+                Player2.Timer.StartStep();
+                CurrentTurn = PlayerSide.Player2;
             }
             else
             {
-                Black.Timer.EndStep();
-                Red.Timer.StartStep();
-                CurrentTurn = PlayerSide.Red;
+                Player2.Timer.EndStep();
+                Player1.Timer.StartStep();
+                CurrentTurn = PlayerSide.Player1;
             }
         }
         

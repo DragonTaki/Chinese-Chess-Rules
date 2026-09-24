@@ -337,14 +337,14 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         /// </returns>
         public bool IsInPalace(PlayerSide side, int x, int y)
         {
-            if (side == PlayerSide.Red)
+            if (side == PlayerSide.Player1)
             {
                 return x >= BoardConstants.Full.PalaceXRange.MinX &&
                        x <= BoardConstants.Full.PalaceXRange.MaxX &&
                        y >= BoardConstants.Full.RedPalaceYRange.MinY &&
                        y <= BoardConstants.Full.RedPalaceYRange.MaxY;
             }
-            else if (side == PlayerSide.Black)
+            else if (side == PlayerSide.Player2)
             {
                 return x >= BoardConstants.Full.PalaceXRange.MinX &&
                        x <= BoardConstants.Full.PalaceXRange.MaxX &&
@@ -363,9 +363,9 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         /// </summary>
         public bool IsPassRiver(PlayerSide side, int y)
         {
-            if (side == PlayerSide.Red)
+            if (side == PlayerSide.Player1)
                 return y < BoardConstants.Full.RiverLineYRedSide;
-            else if (side == PlayerSide.Black)
+            else if (side == PlayerSide.Player2)
                 return y > BoardConstants.Full.RiverLineYBlackSide;
             else
                 return true;
@@ -389,8 +389,8 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         /// </summary>
         public bool IsGeneralFaceToFaceAfterMove(int currentX)
         {
-            var redGenerals = QueryPieces(type: PieceType.General, side: PlayerSide.Red);
-            var blackGenerals = QueryPieces(type: PieceType.General,  side: PlayerSide.Black);
+            var redGenerals = QueryPieces(type: PieceType.General, side: PlayerSide.Player1);
+            var blackGenerals = QueryPieces(type: PieceType.General,  side: PlayerSide.Player2);
 
             if (redGenerals.Count != 1 || blackGenerals.Count != 1)
                 throw new Exception("Expected exactly one general per side.");
@@ -432,8 +432,8 @@ namespace Chinese_Chess_v3.Game.Core.Boards
             // Determine scanning direction based on side
             int step = side switch
             {
-                PlayerSide.Red   => -1,  // Red scans upwards (Y--)
-                PlayerSide.Black =>  1,  // Black scans downwards (Y++)
+                PlayerSide.Player1   => -1,  // Red scans upwards (Y--)
+                PlayerSide.Player2 =>  1,  // Black scans downwards (Y++)
                 _ => throw new Exception("Unknown side type")
             };
 
