@@ -84,6 +84,12 @@ namespace Chinese_Chess_v3.Game.Core
             Player1 = new Player(PlayerSide.Player1, TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(5), null, true);
             Player2 = new Player(PlayerSide.Player2, TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(5), null, true);
 
+            // Player1 moves first, so their step timer needs to actually be
+            // running from the start — SwitchTurn() only starts Player1's
+            // timer again *after* Player2's first move, leaving Player1's
+            // opening move untimed otherwise.
+            Player1.Timer.StartStep();
+
             // notify UI that board is ready
             BoardReset?.Invoke();
             foreach (var p in Board.GetAllPieces())

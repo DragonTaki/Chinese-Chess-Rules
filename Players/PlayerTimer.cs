@@ -54,13 +54,42 @@ namespace Chinese_Chess_v3.Game.Core.Players
         public void StartStep()
         {
             if (State is TimerState.Idle)
+            {
+                // _lastUpdate defaults to DateTime.MinValue (never set
+                // before the first step) — without stamping it here, the
+                // very first Update() call after starting would compute a
+                // multi-thousand-year delta and instantly terminate the
+                // timer via the time-limit check in OnUpdate.
+                _lastUpdate = DateTime.UtcNow;
                 State = TimerState.Active;
+            }
         }
 
         public void EndStep()
         {
             if (State is TimerState.Active)
-                State = TimerState.StepEnded;
+            {
+                // Finalize immediately rather than transitioning to
+                // TimerState.StepEnded and waiting for a future Update()
+                // call to process it: Update() only invokes OnUpdate while
+                // State == Active (see below), so the StepEnded case in
+                // OnUpdate's switch can never actually run — leaving the
+                // timer permanently stuck at StepEnded (and StartStep()
+                // unable to restart it, since it only accepts Idle).
+                var now = DateTime.UtcNow;
+                var delta = now - _lastUpdate;
+                _lastUpdate = now;
+
+                if (EnableStepTimer)
+                    CurrentStepTime += delta;
+                CurrentTotalTime += delta;
+
+                if (Mode == TimerMode.CountDown)
+                    CurrentTotalTime -= IncrementPerMove;
+
+                CurrentStepTime = TimeSpan.Zero;
+                State = TimerState.Idle;
+            }
         }
 
         public void Pause()
@@ -72,7 +101,13 @@ namespace Chinese_Chess_v3.Game.Core.Players
         public void Resume()
         {
             if (State is TimerState.Paused)
+            {
+                // Same reasoning as StartStep(): without restamping here,
+                // the wall-clock time spent paused would be counted as
+                // elapsed active time on the next Update() call.
+                _lastUpdate = DateTime.UtcNow;
                 State = TimerState.Active;
+            }
         }
 
         public void End()
@@ -116,6 +151,13 @@ namespace Chinese_Chess_v3.Game.Core.Players
                     break;
 
                 case TimerState.StepEnded:
+                    // Unreachable in practice — Update() only calls
+                    // OnUpdate() while State == Active (see above), and
+                    // EndStep() now finalizes this transition synchronously
+                    // itself instead of leaving State at StepEnded. Left
+                    // in place (not deleted) as a defensive fallback in
+                    // case something else ever sets State to StepEnded
+                    // directly.
                     // 步結束：將步時歸零，狀態轉回Idle等待下一步
                     if (EnableStepTimer)
                         CurrentStepTime += delta;
