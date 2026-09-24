@@ -12,6 +12,8 @@ using System.Collections.Generic;
 using System.Drawing;
 
 using Chinese_Chess_v3.Game.Core.Boards;
+using Chinese_Chess_v3.Game.Core.Movements;
+using Chinese_Chess_v3.Game.Core.Pieces.PieceTypes;
 using Chinese_Chess_v3.Game.Core.Players;
 
 namespace Chinese_Chess_v3.Game.Core.Pieces
@@ -82,6 +84,27 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         }
 
         /// <summary>
+        /// Creates the concrete <see cref="Piece"/> subclass matching
+        /// <paramref name="info"/>'s type. Single source of truth for the
+        /// type↔class mapping — <see cref="Board"/>'s own piece placement
+        /// calls this instead of duplicating the switch, and so does 揭棋's
+        /// hidden-piece movement delegation (see
+        /// <see cref="IsValidMoveAsOriginalPosition"/>), which needs a
+        /// throwaway instance of a *different* type at the same position.
+        /// </summary>
+        public static Piece Create(PieceInfo info) => info.Type switch
+        {
+            PieceType.General  => new General(info),
+            PieceType.Advisor  => new Advisor(info),
+            PieceType.Elephant => new Elephant(info),
+            PieceType.Horse    => new Horse(info),
+            PieceType.Chariot  => new Chariot(info),
+            PieceType.Cannon   => new Cannon(info),
+            PieceType.Soldier  => new Soldier(info),
+            _ => throw new Exception("Unknown piece type"),
+        };
+
+        /// <summary>
         /// 更新棋子狀態，只修改指定欄位，其餘保持原值。
         /// turnIndex 必須提供，用以紀錄該回合的行為。
         /// </summary>
@@ -124,6 +147,134 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         protected virtual bool IsValidMoveHalfCenter(Board board, int x, int targetY) => true;
         protected virtual bool IsValidMoveHalfCross(Board board, int x, int targetY) => true;
 
+        /// <summary>
+        /// HalfCenter (8×4, 明棋／暗棋半盤) capture-eligibility check for a
+        /// target square already confirmed on-board and reachable by the
+        /// piece's own movement shape — centralized here since every piece
+        /// type on this board moves differently but is captured-from the
+        /// same way, governed by <see cref="Rules.PieceRankings"/> and the
+        /// hidden-piece flags rather than by piece type.
+        /// </summary>
+        /// <remarks>
+        /// This only answers whether *attempting* the move is legal. If the
+        /// target is hidden and <see cref="Rules.CanCaptureHiddenPiece"/> is
+        /// enabled, whether the attacker also dies alongside the target once
+        /// its rank is revealed (<see cref="Rules.IsCaptureHiddenPieceStrongerSuiside"/>)
+        /// is a state change the caller (not yet implemented — see
+        /// docs/STATUS.md) applies after the move, not a legality question.
+        /// </remarks>
+        protected bool CanCaptureAtHalfCenter(Board board, int targetX, int targetY)
+        {
+            var target = board.GetPiece(targetX, targetY);
+            if (target == null)
+                return true;
+
+            // Capturing an allied piece is never allowed on this board type.
+            // CanCaptureOwnPiece is declared under Rules.cs's "Full Board
+            // Rules" region, so it's scoped to the Full board only.
+            if (target.Side == Side)
+                return false;
+
+            var rules = board.GameRules;
+
+            if (!target.CurrentInfo.IsFaceUp)
+                return rules.CanCaptureHiddenPiece;
+
+            int myRank = Array.IndexOf(rules.PieceRankings, Type);
+            int targetRank = Array.IndexOf(rules.PieceRankings, target.Type);
+
+            // PieceRankings is ordered strongest-first, so a lower index
+            // means a stronger piece; capturing requires being the same
+            // rank or stronger.
+            return myRank <= targetRank;
+        }
+
+        /// <summary>
+        /// HalfCenter movement check for the five piece types that move
+        /// exactly one square orthogonally there by default (General,
+        /// Advisor, Elephant, Soldier always; Chariot/Horse only when their
+        /// respective "special movement" rule flag is off).
+        /// </summary>
+        protected bool IsValidOrthogonalOneStepHalfCenter(Board board, int targetX, int targetY)
+        {
+            if (!IsDestinationLegalHalfCenter(board, targetX, targetY))
+                return false;
+
+            int dx = targetX - X;
+            int dy = targetY - Y;
+
+            bool matched = false;
+            foreach (var (dirX, dirY) in MoveDirections.OrthogonalOneStep)
+            {
+                if (dx == dirX && dy == dirY)
+                {
+                    matched = true;
+                    break;
+                }
+            }
+            if (!matched)
+                return false;
+
+            return CanCaptureAtHalfCenter(board, targetX, targetY);
+        }
+
+        /// <summary>See <see cref="IsValidOrthogonalOneStepHalfCenter"/>.</summary>
+        protected List<(int x, int y)> GetOrthogonalOneStepMovesHalfCenter(Board board)
+        {
+            List<(int x, int y)> legalMoves = new List<(int x, int y)>();
+
+            foreach (var (dx, dy) in MoveDirections.OrthogonalOneStep)
+            {
+                int newX = X + dx;
+                int newY = Y + dy;
+
+                if (!board.IsInBoard(newX, newY))
+                    continue;
+
+                if (!CanCaptureAtHalfCenter(board, newX, newY))
+                    continue;
+
+                legalMoves.Add((newX, newY));
+            }
+
+            return legalMoves;
+        }
+
+        /// <summary>
+        /// 揭棋 (Jieqi/FlipChess — see <see cref="Rules.IsJieqi"/>): a piece
+        /// that hasn't moved yet is still face-down, and its first move
+        /// must follow the movement rules of whichever piece type
+        /// canonically starts at this square in the classic layout — not
+        /// its own true identity, which stays secret until it moves. Since
+        /// each of the seven <c>PieceTypes</c> classes bakes its movement
+        /// logic into instance methods rather than static/stateless
+        /// functions, the least invasive way to "borrow" another type's
+        /// logic without duplicating or refactoring all seven is to
+        /// construct a throwaway instance of that type at the same
+        /// position/side and delegate to its own (already correct,
+        /// unmodified) <c>IsValidMoveFull</c>.
+        /// </summary>
+        protected bool IsValidMoveAsOriginalPosition(Board board, int targetX, int targetY)
+        {
+            var originalType = PieceConstants.GetClassicPieceTypeAt(X, Y);
+            if (originalType == Type)
+                return IsValidMoveFull(board, targetX, targetY);
+
+            var standIn = Create(new PieceInfo(originalType, X, Y, Color, Side, CurrentInfo.IsFaceUp, CurrentInfo.IsDead, CurrentInfo.TurnIndex));
+            return standIn.IsValidMoveFull(board, targetX, targetY);
+        }
+
+        /// <summary>See <see cref="IsValidMoveAsOriginalPosition"/>.</summary>
+        protected List<(int x, int y)> GetLegalMovesAsOriginalPosition(Board board)
+        {
+            var originalType = PieceConstants.GetClassicPieceTypeAt(X, Y);
+            if (originalType == Type)
+                return GetLegalMovesFull(board);
+
+            var standIn = Create(new PieceInfo(originalType, X, Y, Color, Side, CurrentInfo.IsFaceUp, CurrentInfo.IsDead, CurrentInfo.TurnIndex));
+            return standIn.GetLegalMovesFull(board);
+        }
+
         protected abstract List<(int x, int y)> GetLegalMovesFull(Board board);
         protected abstract List<(int x, int y)> GetLegalMovesHalfCenter(Board board);
         protected abstract List<(int x, int y)> GetLegalMovesHalfCross(Board board);
@@ -133,6 +284,21 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
             switch (boardType)
             {
                 case BoardType.Full:
+                    // 揭棋 (Jieqi/FlipChess): a still-hidden piece moves as
+                    // whatever canonically starts at its square, not as
+                    // itself — see IsValidMoveAsOriginalPosition. Once
+                    // revealed (IsFaceUp), it's back to moving as itself,
+                    // same as a normal Full-board game.
+                    if (board.GameRules.IsJieqi && !CurrentInfo.IsFaceUp)
+                    {
+                        return funcType switch
+                        {
+                            PieceFuncType.IsDestinationLegal => (T)(object)IsDestinationLegalFull(board, x, y),
+                            PieceFuncType.IsValidMove => (T)(object)IsValidMoveAsOriginalPosition(board, x, y),
+                            PieceFuncType.GetLegalMoves => (T)(object)GetLegalMovesAsOriginalPosition(board),
+                            _ => throw new NotImplementedException()
+                        };
+                    }
                     return funcType switch
                     {
                         PieceFuncType.IsDestinationLegal => (T)(object)IsDestinationLegalFull(board, x, y),

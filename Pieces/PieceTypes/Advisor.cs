@@ -39,6 +39,14 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         /// <returns><c>true</c> if the destination is within the palace; otherwise, <c>false</c>.</returns>
         protected override bool IsDestinationLegalFull(Board board, int targetX, int targetY)
         {
+            // 揭棋 (Jieqi/FlipChess — Rules.IsJieqi): once revealed, an
+            // Advisor can leave the palace freely. A still-hidden Advisor
+            // (IsFaceUp false) making its first move is not affected by
+            // this — it's bound by the normal palace restriction below,
+            // same as any other Full-board game.
+            if (board.GameRules.IsJieqi && CurrentInfo.IsFaceUp)
+                return board.IsInBoard(targetX, targetY);
+
             if (!board.GameRules.CanAdvisorLeavePalace)
             {
                 // Only can stay in palace (九宮格)
@@ -137,12 +145,16 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
             return legalMoves;
         }
 
-        protected override List<(int x, int y)> GetLegalMovesHalfCenter(Board board)
-        {
-            List<(int x, int y)> legalMoves = new List<(int x, int y)>();
-            // Not implement yet
-            return legalMoves;
-        }
+        /// <summary>
+        /// On HalfCenter (8×4, 明棋／暗棋半盤) there is no palace — the
+        /// Advisor just moves one square orthogonally like every other
+        /// non-Cannon piece there (not diagonally, unlike on the Full board).
+        /// </summary>
+        protected override bool IsValidMoveHalfCenter(Board board, int targetX, int targetY) =>
+            IsValidOrthogonalOneStepHalfCenter(board, targetX, targetY);
+
+        protected override List<(int x, int y)> GetLegalMovesHalfCenter(Board board) =>
+            GetOrthogonalOneStepMovesHalfCenter(board);
 
         protected override List<(int x, int y)> GetLegalMovesHalfCross(Board board)
         {

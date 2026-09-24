@@ -140,10 +140,89 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
             return legalMoves;
         }
 
+        /// <summary>
+        /// On HalfCenter (8×4, 明棋／暗棋半盤), the Cannon still slides any
+        /// number of empty squares like the Full-board version. Whether it
+        /// needs a screen piece to jump over before it can capture is
+        /// governed by <c>Rules.IsCannonMustJumpToCapture</c> (包跳吃子):
+        /// enabled (the default), it must jump exactly one piece to
+        /// capture, same as the Full board; disabled, it captures the same
+        /// way it moves — the first piece reached along an unobstructed
+        /// line, like a Chariot.
+        /// </summary>
+        protected override bool IsValidMoveHalfCenter(Board board, int targetX, int targetY)
+        {
+            if (!IsDestinationLegalHalfCenter(board, targetX, targetY))
+                return false;
+
+            int dx = targetX - X;
+            int dy = targetY - Y;
+
+            if (dx != 0 && dy != 0)
+                return false;
+
+            int count = CountPiecesBetween(X, Y, targetX, targetY, board);
+            Piece targetPiece = board.Grid[targetX, targetY];
+
+            if (targetPiece == null)
+                return count == 0;
+
+            int requiredScreens = board.GameRules.IsCannonMustJumpToCapture ? 1 : 0;
+            return count == requiredScreens && CanCaptureAtHalfCenter(board, targetX, targetY);
+        }
+
         protected override List<(int x, int y)> GetLegalMovesHalfCenter(Board board)
         {
             List<(int x, int y)> legalMoves = new List<(int x, int y)>();
-            // Not implement yet
+            bool mustJump = board.GameRules.IsCannonMustJumpToCapture;
+
+            var directions = MovePatterns.GetOrthogonalOneStep(Side);
+
+            foreach (var (dx, dy) in directions)
+            {
+                bool jumped = false;
+
+                int newX = X + dx;
+                int newY = Y + dy;
+
+                while (board.IsInBoard(newX, newY))
+                {
+                    Piece target = board.Grid[newX, newY];
+
+                    if (!jumped)
+                    {
+                        if (target == null)
+                        {
+                            legalMoves.Add((newX, newY));
+                        }
+                        else if (!mustJump)
+                        {
+                            // No jump required — captures like a Chariot, at
+                            // the first obstacle reached.
+                            if (CanCaptureAtHalfCenter(board, newX, newY))
+                                legalMoves.Add((newX, newY));
+                            break;
+                        }
+                        else
+                        {
+                            jumped = true;
+                        }
+                    }
+                    else
+                    {
+                        if (target != null)
+                        {
+                            if (CanCaptureAtHalfCenter(board, newX, newY))
+                                legalMoves.Add((newX, newY));
+                            break;
+                        }
+                    }
+
+                    newX += dx;
+                    newY += dy;
+                }
+            }
+
             return legalMoves;
         }
 

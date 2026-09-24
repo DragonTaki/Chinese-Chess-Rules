@@ -119,12 +119,17 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
             return legalMoves;
         }
 
-        protected override List<(int x, int y)> GetLegalMovesHalfCenter(Board board)
-        {
-            List<(int x, int y)> legalMoves = new List<(int x, int y)>();
-            // Not implement yet
-            return legalMoves;
-        }
+        /// <summary>
+        /// On HalfCenter (8×4, 明棋／暗棋半盤) there is no river — the
+        /// Soldier is just the weakest rank and moves one square
+        /// orthogonally in any direction, like every other non-Cannon piece
+        /// there (not forward-only, unlike on the Full board).
+        /// </summary>
+        protected override bool IsValidMoveHalfCenter(Board board, int targetX, int targetY) =>
+            IsValidOrthogonalOneStepHalfCenter(board, targetX, targetY);
+
+        protected override List<(int x, int y)> GetLegalMovesHalfCenter(Board board) =>
+            GetOrthogonalOneStepMovesHalfCenter(board);
 
         protected override List<(int x, int y)> GetLegalMovesHalfCross(Board board)
         {

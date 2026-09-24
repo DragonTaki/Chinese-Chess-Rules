@@ -138,18 +138,10 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         /// <exception cref="Exception">Thrown when an unknown piece type is encountered.</exception>
         private Piece CreatePieceFromInfo(PieceInfo info)
         {
-            // Determine which piece class to instantiate based on type
-            return info.Type switch
-            {
-                PieceType.General   => new General(info),
-                PieceType.Advisor   => new Advisor(info),
-                PieceType.Elephant  => new Elephant(info),
-                PieceType.Horse     => new Horse(info),
-                PieceType.Chariot   => new Chariot(info),
-                PieceType.Cannon    => new Cannon(info),
-                PieceType.Soldier   => new Soldier(info),
-                _ => throw new Exception("Unknown piece type"),  // Defensive check
-            };
+            // Single source of truth for the type↔class mapping lives on
+            // Piece itself — see Piece.Create, also used by 揭棋's
+            // hidden-piece movement delegation.
+            return Piece.Create(info);
         }
 
         /// <summary>

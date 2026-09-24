@@ -124,10 +124,59 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
             return legalMoves;
         }
 
+        /// <summary>
+        /// On HalfCenter (8×4, 明棋／暗棋半盤), the Horse moves one square
+        /// diagonally when <c>Rules.IsHorseMoveDiagonally</c> (馬斜) is
+        /// enabled; otherwise it moves one square orthogonally like every
+        /// other non-Cannon piece there (not its Full-board "L" shape).
+        /// </summary>
+        protected override bool IsValidMoveHalfCenter(Board board, int targetX, int targetY)
+        {
+            if (!board.GameRules.IsHorseMoveDiagonally)
+                return IsValidOrthogonalOneStepHalfCenter(board, targetX, targetY);
+
+            if (!IsDestinationLegalHalfCenter(board, targetX, targetY))
+                return false;
+
+            int dx = targetX - X;
+            int dy = targetY - Y;
+
+            bool matched = false;
+            foreach (var (dirX, dirY) in MoveDirections.DiagonalOneStep)
+            {
+                if (dx == dirX && dy == dirY)
+                {
+                    matched = true;
+                    break;
+                }
+            }
+            if (!matched)
+                return false;
+
+            return CanCaptureAtHalfCenter(board, targetX, targetY);
+        }
+
         protected override List<(int x, int y)> GetLegalMovesHalfCenter(Board board)
         {
+            if (!board.GameRules.IsHorseMoveDiagonally)
+                return GetOrthogonalOneStepMovesHalfCenter(board);
+
             List<(int x, int y)> legalMoves = new List<(int x, int y)>();
-            // Not implement yet
+
+            foreach (var (dx, dy) in MoveDirections.DiagonalOneStep)
+            {
+                int newX = X + dx;
+                int newY = Y + dy;
+
+                if (!board.IsInBoard(newX, newY))
+                    continue;
+
+                if (!CanCaptureAtHalfCenter(board, newX, newY))
+                    continue;
+
+                legalMoves.Add((newX, newY));
+            }
+
             return legalMoves;
         }
 

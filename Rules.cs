@@ -70,6 +70,23 @@ namespace Chinese_Chess_v3.Game.Core
 
         #endregion
 
+        #region Jieqi / FlipChess Rules (揭棋大盤規則設定)
+
+        /// <summary>
+        /// Whether the board is in 揭棋 (Jieqi/FlipChess) mode — same board
+        /// and starting piece counts as the Full board, but every piece
+        /// except the two Generals starts face-down and shuffled among its
+        /// own side's non-General starting squares. A still-hidden piece's
+        /// first move must follow the movement rules of whichever piece
+        /// type canonically starts at that square (see
+        /// <c>PieceConstants.GetClassicPieceTypeAt</c>), not its own true
+        /// identity; moving reveals it, after which it always moves as
+        /// itself. Default: false.
+        /// </summary>
+        public bool IsJieqi { get; set; } = false;
+
+        #endregion
+
         #region Half Board Rules (小盤規則設定)
 
         /// <summary>

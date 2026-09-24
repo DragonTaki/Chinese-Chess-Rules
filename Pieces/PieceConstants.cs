@@ -95,5 +95,21 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
                 isDead: false,
                 turnIndex: 0))
             .ToList();
+
+        // Keyed by (x, y) only — the classic layout never puts two
+        // different piece types on the same square regardless of side, so
+        // side doesn't need to be part of the key.
+        private static readonly Dictionary<(int x, int y), PieceType> _classicPositionTypeMap =
+            ClassicPieceData.ToDictionary(p => (p.x, p.y), p => p.type);
+
+        /// <summary>
+        /// Looks up which piece type canonically starts at (x, y) in the
+        /// classic Full-board layout, regardless of what's actually there
+        /// now. Used by 揭棋 (Jieqi/FlipChess — see <c>Rules.IsJieqi</c>): a
+        /// still-hidden piece's first move follows this square's canonical
+        /// type, not its own true identity.
+        /// </summary>
+        public static PieceType GetClassicPieceTypeAt(int x, int y) =>
+            _classicPositionTypeMap.TryGetValue((x, y), out var type) ? type : PieceType.None;
     }
 }

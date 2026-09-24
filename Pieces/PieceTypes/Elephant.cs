@@ -41,6 +41,14 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         /// <returns><c>true</c> if the destination is within the Elephant's allowed side; otherwise, <c>false</c>.</returns>
         protected override bool IsDestinationLegalFull(Board board, int targetX, int targetY)
         {
+            // 揭棋 (Jieqi/FlipChess — Rules.IsJieqi): once revealed, an
+            // Elephant can cross the river freely. A still-hidden Elephant
+            // (IsFaceUp false) making its first move is not affected by
+            // this — it's bound by the normal river restriction below, same
+            // as any other Full-board game.
+            if (board.GameRules.IsJieqi && CurrentInfo.IsFaceUp)
+                return board.IsInBoard(targetX, targetY);
+
             switch (Side)
             {
                 case PlayerSide.Black:
@@ -122,7 +130,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         {
             List<(int x, int y)> legalMoves = new List<(int x, int y)>();
 
-            var directions = MovePatterns.GetDiagonalLShape(Side);
+            var directions = MovePatterns.GetDiagonalTwoStep(Side);
 
             foreach (var (dx, dy) in directions)
             {
@@ -152,12 +160,17 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
             return legalMoves;
         }
 
-        protected override List<(int x, int y)> GetLegalMovesHalfCenter(Board board)
-        {
-            List<(int x, int y)> legalMoves = new List<(int x, int y)>();
-            // Not implement yet
-            return legalMoves;
-        }
+        /// <summary>
+        /// On HalfCenter (8×4, 明棋／暗棋半盤) there is no river — the
+        /// Elephant just moves one square orthogonally like every other
+        /// non-Cannon piece there (not two squares diagonally, unlike on
+        /// the Full board).
+        /// </summary>
+        protected override bool IsValidMoveHalfCenter(Board board, int targetX, int targetY) =>
+            IsValidOrthogonalOneStepHalfCenter(board, targetX, targetY);
+
+        protected override List<(int x, int y)> GetLegalMovesHalfCenter(Board board) =>
+            GetOrthogonalOneStepMovesHalfCenter(board);
 
         protected override List<(int x, int y)> GetLegalMovesHalfCross(Board board)
         {

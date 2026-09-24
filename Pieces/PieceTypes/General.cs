@@ -140,12 +140,16 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
             return legalMoves;
         }
 
-        protected override List<(int x, int y)> GetLegalMovesHalfCenter(Board board)
-        {
-            List<(int x, int y)> legalMoves = new List<(int x, int y)>();
-            // Not implement yet
-            return legalMoves;
-        }
+        /// <summary>
+        /// On HalfCenter (8×4, 明棋／暗棋半盤) there is no palace — the
+        /// General is just the strongest rank and moves one square
+        /// orthogonally like every other non-Cannon piece there.
+        /// </summary>
+        protected override bool IsValidMoveHalfCenter(Board board, int targetX, int targetY) =>
+            IsValidOrthogonalOneStepHalfCenter(board, targetX, targetY);
+
+        protected override List<(int x, int y)> GetLegalMovesHalfCenter(Board board) =>
+            GetOrthogonalOneStepMovesHalfCenter(board);
 
         protected override List<(int x, int y)> GetLegalMovesHalfCross(Board board)
         {
