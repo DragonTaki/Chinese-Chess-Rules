@@ -115,6 +115,7 @@ namespace Chinese_Chess_v3.Game.Core
             selectedPiece = null;
             // Reset side
             CurrentTurn = PlayerSide.Player1;
+            ResetTimers(startFirstTurn: true);
 
             // Inform UI
             BoardReset?.Invoke();
@@ -136,6 +137,7 @@ namespace Chinese_Chess_v3.Game.Core
             selectedPiece = null;
             // Reset side
             CurrentTurn = PlayerSide.Player1;
+            ResetTimers(startFirstTurn: true);
 
             // Inform UI
             BoardReset?.Invoke();
@@ -156,6 +158,7 @@ namespace Chinese_Chess_v3.Game.Core
             selectedPiece = null;
             // Reset side
             CurrentTurn = PlayerSide.Player1;
+            ResetTimers(startFirstTurn: false);
 
             // Inform UI
             BoardReset?.Invoke();
@@ -296,6 +299,17 @@ namespace Chinese_Chess_v3.Game.Core
             }
         }
         
+        /// <summary>
+        /// Clears both clocks for a new game; optionally starts Player1's first step.
+        /// </summary>
+        private void ResetTimers(bool startFirstTurn)
+        {
+            Player1.Timer.Reset();
+            Player2.Timer.Reset();
+            if (startFirstTurn)
+                Player1.Timer.StartStep();
+        }
+
         /// <summary>
         /// Advances both players' clocks; call once per frame. Only the side whose
         /// step is active actually accumulates time (see PlayerTimer.Update).
