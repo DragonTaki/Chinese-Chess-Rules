@@ -296,6 +296,16 @@ namespace Chinese_Chess_v3.Game.Core
             }
         }
         
+        /// <summary>
+        /// Advances both players' clocks; call once per frame. Only the side whose
+        /// step is active actually accumulates time (see PlayerTimer.Update).
+        /// </summary>
+        public void UpdateTimers()
+        {
+            Player1.Timer.Update();
+            Player2.Timer.Update();
+        }
+
         public void PauseGame() => IsPaused = true;
         public void ResumeGame() => IsPaused = false;
         public void TogglePause() => IsPaused = !IsPaused;
