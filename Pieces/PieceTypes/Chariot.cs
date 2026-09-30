@@ -50,7 +50,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
                 return false;
 
             // Check if general will see general after move
-            if (targetX != X && !board.GameRules.CanGeneralSeeGeneral && board.IsGeneralFaceToFaceAfterMove(X))
+            if (WouldExposeGeneralsFull(board, targetX, targetY))
                 return false;
 
             int dx = targetX - X;
@@ -105,24 +105,26 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
                 int newX = X + dx;
                 int newY = Y + dy;
 
-                // Skip if general will see general after move
-                if (newX != X && !board.GameRules.CanGeneralSeeGeneral && board.IsGeneralFaceToFaceAfterMove(X))
-                    return legalMoves;
-
                 // Continue scanning until reaching the edge of the board or an obstacle
                 while (board.IsInBoard(newX, newY))
                 {
                     Piece obstacle = board.Grid[newX, newY];
 
+                    // Skip squares where general would see general after move
+                    // (checked per square: moving along the Generals' column is
+                    // still legal while leaving it is not)
+                    bool exposes = WouldExposeGeneralsFull(board, newX, newY);
+
                     if (obstacle == null)
                     {
                         // No piece — legal move
-                        legalMoves.Add((newX, newY));
+                        if (!exposes)
+                            legalMoves.Add((newX, newY));
                     }
                     else
                     {
                         // Encounter piece — can capture if enemy, then stop
-                        if (obstacle.Side != this.Side)
+                        if (obstacle.Side != this.Side && !exposes)
                             // Add to legal moves
                             legalMoves.Add((newX, newY));
                         break;

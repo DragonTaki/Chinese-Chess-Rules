@@ -355,39 +355,57 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         }
 
         /// <summary>
-        /// Checks if after moving a general piece to targetX, the two generals would face each other.
-        /// Returns false if the move would cause face-to-face (illegal), true otherwise.
+        /// Checks whether moving the piece at (fromX, fromY) to (toX, toY) would leave the
+        /// two Generals facing each other on one column with nothing between them (王見王).
+        /// Returns true if the move would cause face-to-face (illegal unless
+        /// <see cref="Rules.CanGeneralSeeGeneral"/>), false otherwise.
         /// </summary>
-        public bool IsGeneralFaceToFaceAfterMove(int currentX)
+        /// <remarks>
+        /// The board after the move is evaluated without mutating it: the source square is
+        /// treated as empty and the destination as occupied. Only a piece that is the last
+        /// blocker between the Generals and actually leaves the segment between them
+        /// exposes them — a piece behind a General, or one that stays between them, does
+        /// not. If either side does not have exactly one General (e.g. one was captured, or
+        /// a custom layout), there is nothing to face, so this returns false instead of
+        /// throwing.
+        /// </remarks>
+        public bool IsGeneralFaceToFaceAfterMove(int fromX, int fromY, int toX, int toY)
         {
             var redGenerals = QueryPieces(type: PieceType.General, side: PlayerSide.Player1);
             var blackGenerals = QueryPieces(type: PieceType.General,  side: PlayerSide.Player2);
 
             if (redGenerals.Count != 1 || blackGenerals.Count != 1)
-                throw new Exception("Expected exactly one general per side.");
-
-            var redGeneral = redGenerals[0];
-            var blackGeneral = blackGenerals[0];
-
-            // Check if any general not in same X position with current piece
-            if (redGeneral.X != currentX || blackGeneral.X != currentX)
                 return false;
 
-            int x = currentX;
-            int yMin = Math.Min(redGeneral.Y, blackGeneral.Y) + 1;
-            int yMax = Math.Max(redGeneral.Y, blackGeneral.Y);
+            (int x, int y) red = (redGenerals[0].X, redGenerals[0].Y);
+            (int x, int y) black = (blackGenerals[0].X, blackGenerals[0].Y);
 
-            int count = 0;
+            // Capturing a General leaves no pair to face.
+            if ((toX, toY) == red || (toX, toY) == black)
+                return false;
+
+            // A moving General is at its destination afterwards.
+            if ((fromX, fromY) == red)
+                red = (toX, toY);
+            else if ((fromX, fromY) == black)
+                black = (toX, toY);
+
+            if (red.x != black.x)
+                return false;
+
+            int x = red.x;
+            int yMin = Math.Min(red.y, black.y) + 1;
+            int yMax = Math.Max(red.y, black.y);
+
             for (int y = yMin; y < yMax; y++)
             {
-                if (Grid[x, y] != null)
-                    count++;
-
-                if (count >= 2)
-                    return false; // 有兩顆以上棋子 → 合法
+                bool occupied = (x == toX && y == toY)
+                    || ((x != fromX || y != fromY) && Grid[x, y] != null);
+                if (occupied)
+                    return false;  // At least one blocker remains
             }
 
-            return true; // 中間棋子 ≤1 → 不合法
+            return true;  // Nothing between → face to face
         }
 
         /// <summary>
@@ -410,7 +428,7 @@ namespace Chinese_Chess_v3.Game.Core.Boards
 
             int y = targetY + step;
 
-            while (y >= 0 && y < BoardConstants.Full.Rows) // 假設 BoardConstants.Full.Height 為棋盤高度
+            while (y >= 0 && y < Rows)
             {
                 var piece = Grid[targetX, y];
                 if (piece != null)

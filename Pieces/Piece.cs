@@ -148,6 +148,14 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         protected virtual bool IsValidMoveHalfCross(Board board, int x, int targetY) => true;
 
         /// <summary>
+        /// Full-board flying-General check (王見王) for a non-General piece moving from its
+        /// current square to (targetX, targetY): true if the move would leave the Generals
+        /// facing each other and <see cref="Rules.CanGeneralSeeGeneral"/> is off.
+        /// </summary>
+        protected bool WouldExposeGeneralsFull(Board board, int targetX, int targetY) =>
+            !board.GameRules.CanGeneralSeeGeneral && board.IsGeneralFaceToFaceAfterMove(X, Y, targetX, targetY);
+
+        /// <summary>
         /// HalfCenter (8×4, 明棋／暗棋半盤) capture-eligibility check for a
         /// target square already confirmed on-board and reachable by the
         /// piece's own movement shape — centralized here since every piece

@@ -50,7 +50,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
                 return false;
 
             // Check if general will see general after move
-            if (targetX != X && !board.GameRules.CanGeneralSeeGeneral && board.IsGeneralFaceToFaceAfterMove(X))
+            if (WouldExposeGeneralsFull(board, targetX, targetY))
                 return false;
                 
             int dx = targetX - X;
@@ -99,10 +99,6 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
                 int newX = X + dx;
                 int newY = Y + dy;
 
-                // Skip if general will see general after move
-                if (newX != X && !board.GameRules.CanGeneralSeeGeneral && board.IsGeneralFaceToFaceAfterMove(X))
-                    return legalMoves;
-
                 // Continue scanning until reaching the edge of the board
                 while (board.IsInBoard(newX, newY))
                 {
@@ -112,8 +108,10 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
                     {
                         if (target == null)
                         {
-                            // Can move freely before jumping
-                            legalMoves.Add((newX, newY));
+                            // Can move freely before jumping (unless general
+                            // would see general after move — checked per square)
+                            if (!WouldExposeGeneralsFull(board, newX, newY))
+                                legalMoves.Add((newX, newY));
                         }
                         else
                         {
@@ -124,7 +122,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
                     else
                     {
                         // After jumping, the next piece encountered must be an enemy to capture
-                        if (target != null && target.Side != this.Side)
+                        if (target != null && target.Side != this.Side && !WouldExposeGeneralsFull(board, newX, newY))
                         {
                             // Add to legal moves
                             legalMoves.Add((newX, newY));

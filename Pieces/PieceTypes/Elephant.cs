@@ -84,7 +84,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
                 return false;
 
             // Check if general will see general after move
-            if (targetX != X && !board.GameRules.CanGeneralSeeGeneral && board.IsGeneralFaceToFaceAfterMove(X))
+            if (WouldExposeGeneralsFull(board, targetX, targetY))
                 return false;
 
             int dx = targetX - X;
@@ -142,8 +142,8 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
                     continue;
 
                 // Skip if general will see general after move
-                if (newX != X && !board.GameRules.CanGeneralSeeGeneral && board.IsGeneralFaceToFaceAfterMove(X))
-                    return legalMoves;
+                if (WouldExposeGeneralsFull(board, newX, newY))
+                    continue;
 
                 // Skip if elephant's eye is blocked
                 if (board.GameRules.CanElephantEyeBlockd && IsElephantEyeBlocked(board, dx, dy))
