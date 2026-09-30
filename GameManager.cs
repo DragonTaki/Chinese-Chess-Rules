@@ -174,6 +174,9 @@ namespace Chinese_Chess_v3.Game.Core
         /// </summary>
         public bool TryMove(int fromX, int fromY, int toX, int toY)
         {
+            if (IsPaused)
+                return false;
+
             var piece = Board.GetPiece(fromX, fromY);
             if (piece == null || piece.Side != CurrentTurn)
                 return false;
@@ -187,6 +190,11 @@ namespace Chinese_Chess_v3.Game.Core
 
         public void HandleClick(int x, int y)
         {
+            // A move while paused would end the paused (not active) step and start the
+            // other clock, leaving the paused clock stuck until a later Resume.
+            if (IsPaused)
+                return;
+
             var clickedPiece = Board.GetPiece(x, y);
             AppLogger.Log(
                 $"Current turn: {CurrentTurn}, holding: {(selectedPiece == null ? "null" : selectedPiece.Type.ToString())},\n" +
@@ -312,11 +320,13 @@ namespace Chinese_Chess_v3.Game.Core
         
         /// <summary>
         /// Clears both clocks for a new game; optionally starts Player1's first step.
+        /// Also clears the pause state, since Reset() drops a clock's Paused state.
         /// </summary>
         private void ResetTimers(bool startFirstTurn)
         {
             Player1.Timer.Reset();
             Player2.Timer.Reset();
+            IsPaused = false;
             if (startFirstTurn)
                 Player1.Timer.StartStep();
         }
@@ -331,8 +341,40 @@ namespace Chinese_Chess_v3.Game.Core
             Player2.Timer.Update();
         }
 
-        public void PauseGame() => IsPaused = true;
-        public void ResumeGame() => IsPaused = false;
-        public void TogglePause() => IsPaused = !IsPaused;
+        /// <summary>
+        /// Pauses the game: stops the running clock (PlayerTimer.Pause only affects the
+        /// side whose step is active) and ignores board input until resumed.
+        /// </summary>
+        public void PauseGame()
+        {
+            if (IsPaused)
+                return;
+
+            Player1.Timer.Pause();
+            Player2.Timer.Pause();
+            IsPaused = true;
+        }
+
+        /// <summary>
+        /// Resumes a paused game; the paused clock continues without counting the time
+        /// spent paused (PlayerTimer.Resume restamps its reference time).
+        /// </summary>
+        public void ResumeGame()
+        {
+            if (!IsPaused)
+                return;
+
+            Player1.Timer.Resume();
+            Player2.Timer.Resume();
+            IsPaused = false;
+        }
+
+        public void TogglePause()
+        {
+            if (IsPaused)
+                ResumeGame();
+            else
+                PauseGame();
+        }
     }
 }
