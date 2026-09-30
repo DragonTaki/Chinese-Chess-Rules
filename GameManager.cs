@@ -13,7 +13,6 @@ using System.Collections.Generic;
 using Chinese_Chess_v3.Game.Core.Boards;
 using Chinese_Chess_v3.Game.Core.Pieces;
 using Chinese_Chess_v3.Game.Core.Players;
-using Chinese_Chess_v3.Game.UI.Sidebars.LoggerBoxes;
 
 using Engine.Logging;
 
@@ -21,7 +20,7 @@ namespace Chinese_Chess_v3.Game.Core
 {
     public class GameManager
     {
-        public UILoggerBoxHandler Logger { get; private set; }
+        public IGameLog Logger { get; private set; }
         public Board Board { get; private set; }
         public Player Player1 { get; private set; }
         public Player Player2 { get; private set; }
@@ -95,7 +94,7 @@ namespace Chinese_Chess_v3.Game.Core
             foreach (var p in Board.GetAllPieces())
                 PieceAdded?.Invoke(p);
         }
-        public void SetLogger(UILoggerBoxHandler loggerHandler)
+        public void SetLogger(IGameLog loggerHandler)
         {
             Logger = loggerHandler ?? throw new ArgumentNullException(nameof(loggerHandler));
         }
@@ -199,7 +198,7 @@ namespace Chinese_Chess_v3.Game.Core
             AppLogger.Log(
                 $"Current turn: {CurrentTurn}, holding: {(selectedPiece == null ? "null" : selectedPiece.Type.ToString())},\n" +
                 $"clicked at ({x},{y}), on: {(clickedPiece == null ? "null" : clickedPiece.GetType().Name)}", LogLevel.DEBUG);
-            Logger.AddMessage($"Current turn: {CurrentTurn}, holding: {(selectedPiece == null ? "null" : selectedPiece.Type.ToString())},\n" +
+            Logger?.AddMessage($"Current turn: {CurrentTurn}, holding: {(selectedPiece == null ? "null" : selectedPiece.Type.ToString())},\n" +
                 $"clicked at ({x},{y}), on: {(clickedPiece == null ? "null" : clickedPiece.GetType().Name)}");
 
             // No selected piece, try to select one
@@ -209,7 +208,7 @@ namespace Chinese_Chess_v3.Game.Core
                 {
                     selectedPiece = clickedPiece;
                     AppLogger.Log($"(Action) Selected {clickedPiece.Type} at ({x},{y})", LogLevel.DEBUG);
-                    Logger.AddMessage($"(Action) Selected {clickedPiece.Type} at ({x},{y})");
+                    Logger?.AddMessage($"(Action) Selected {clickedPiece.Type} at ({x},{y})");
                     PieceSelected?.Invoke(selectedPiece);
                 }
                 return;
@@ -221,14 +220,14 @@ namespace Chinese_Chess_v3.Game.Core
                 if (clickedPiece == selectedPiece)
                 {
                     AppLogger.Log($"(Action) Un-selected {selectedPiece.Type} at ({x},{y})", LogLevel.DEBUG);
-                    Logger.AddMessage($"(Action) Un-selected {selectedPiece.Type} at ({x},{y})");
+                    Logger?.AddMessage($"(Action) Un-selected {selectedPiece.Type} at ({x},{y})");
                     PieceUnselected?.Invoke(selectedPiece);
                     selectedPiece = null;
                 }
                 else
                 {
                     AppLogger.Log($"(Action) Switched to {clickedPiece.Type} at ({x},{y})", LogLevel.DEBUG);
-                    Logger.AddMessage($"(Action) Switched to {clickedPiece.Type} at ({x},{y})");
+                    Logger?.AddMessage($"(Action) Switched to {clickedPiece.Type} at ({x},{y})");
                     PieceUnselected?.Invoke(selectedPiece);
                     selectedPiece = clickedPiece;
                     PieceSelected?.Invoke(selectedPiece);
@@ -244,7 +243,7 @@ namespace Chinese_Chess_v3.Game.Core
                 {
                     Board.RemovePiece(x, y);
                     AppLogger.Log($"(Action) Captured {clickedPiece.Type} at ({x},{y})", LogLevel.DEBUG);
-                    Logger.AddMessage($"(Action) Captured {clickedPiece.Type} at ({x},{y})");
+                    Logger?.AddMessage($"(Action) Captured {clickedPiece.Type} at ({x},{y})");
                     PieceCaptured?.Invoke(clickedPiece);
                     PieceRemoved?.Invoke(clickedPiece);
                 }
@@ -254,7 +253,7 @@ namespace Chinese_Chess_v3.Game.Core
                 int fromY = selectedPiece.Position.Y;
                 Board.MovePiece(fromX, fromY, x, y);
                 AppLogger.Log($"(Action) Moved {selectedPiece.Type} to ({x},{y})", LogLevel.DEBUG);
-                    Logger.AddMessage($"(Action) Moved {selectedPiece.Type} to ({x},{y})");
+                    Logger?.AddMessage($"(Action) Moved {selectedPiece.Type} to ({x},{y})");
 
                 // raise moved event AFTER board updated
                 PieceMoved?.Invoke(selectedPiece, x, y);
@@ -270,13 +269,13 @@ namespace Chinese_Chess_v3.Game.Core
                 if (clickedPiece == null)
                 {
                     AppLogger.Log($"(Action) Un-selected {selectedPiece.Type} at ({x},{y})", LogLevel.DEBUG);
-                    Logger.AddMessage($"(Action) Un-selected {selectedPiece.Type} at ({x},{y})");
+                    Logger?.AddMessage($"(Action) Un-selected {selectedPiece.Type} at ({x},{y})");
                 }
                 // Invalid catch
                 else
                 {
                     AppLogger.Log($"(Action) Invalid move to ({x},{y})", LogLevel.DEBUG);
-                    Logger.AddMessage($"(Action) Invalid move to ({x},{y})");
+                    Logger?.AddMessage($"(Action) Invalid move to ({x},{y})");
                 }
                 PieceUnselected?.Invoke(selectedPiece);
                 selectedPiece = null;
