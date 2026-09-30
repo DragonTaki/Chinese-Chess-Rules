@@ -71,8 +71,30 @@ namespace Chinese_Chess_v3.Game.Core
         /// <summary>The winning side of the ended game; <c>PlayerSide.None</c> while playing.</summary>
         public PlayerSide Winner { get; private set; } = PlayerSide.None;
 
-        /// <summary>Raised once when the game ends: (winner, reason). For the UI to show the result.</summary>
-        public event Action<PlayerSide, GameOverReason> GameOver;
+        /// <summary>How the ended game ended (see <see cref="GameOverInfo"/>); null while playing.</summary>
+        public GameOverInfo Result { get; private set; } = null;
+
+        /// <summary>
+        /// Raised once when the game ends, with winner, loser, reason and (for
+        /// checkmate/stalemate) the final position data. For the UI to show the result.
+        /// </summary>
+        public event Action<GameOverInfo> GameOver;
+
+        /// <summary>
+        /// True while the side to move (<see cref="CurrentTurn"/>) is in check (將軍).
+        /// Only set on boards that use check rules (<see cref="Board.UsesCheckRules"/>).
+        /// </summary>
+        public bool IsInCheck { get; private set; } = false;
+
+        /// <summary>
+        /// Raised after a move that puts the opponent in check but does not end the game,
+        /// with the side now in check (= the new <see cref="CurrentTurn"/>). A move that
+        /// checkmates raises <see cref="GameOver"/> instead.
+        /// </summary>
+        public event Action<PlayerSide> Check;
+
+        /// <summary>The most recent move of this game; null before the first move.</summary>
+        public MoveRecord LastMove { get; private set; } = null;
 
 #nullable enable
         // events for UI bridge
@@ -291,6 +313,8 @@ namespace Chinese_Chess_v3.Game.Core
 
             // If the destination has an (enemy) piece, capture it first
             var targetPiece = Board.GetPiece(toX, toY);
+            LastMove = new MoveRecord(piece.CurrentInfo.Clone(), fromX, fromY, toX, toY, targetPiece?.CurrentInfo.Clone());
+
             if (targetPiece != null)
             {
                 Board.RemovePiece(toX, toY);
@@ -315,7 +339,56 @@ namespace Chinese_Chess_v3.Game.Core
                 selectedPiece = null;
             }
 
+            // Standard xiangqi: the side about to move is evaluated right away. With no
+            // legal move it loses on the spot — checkmate if in check, otherwise stalemate
+            // (困斃, which also covers "every remaining move would face the Generals").
+            // The turn is not handed over, so the loser's clock never starts.
+            if (Board.UsesCheckRules)
+            {
+                var mover = piece.Side;
+                var opponent = OpponentOf(mover);
+                bool opponentInCheck = Board.IsSideInCheck(opponent);
+
+                if (!Board.HasAnyLegalMove(opponent))
+                {
+                    EndGame(mover, opponent, opponentInCheck ? GameOverReason.Checkmate : GameOverReason.Stalemate);
+                    return;
+                }
+
+                // Set before the turn switch so TurnChanged handlers already see it.
+                IsInCheck = opponentInCheck;
+                SwitchTurn();
+                if (opponentInCheck)
+                {
+                    AppLogger.Log($"(Check) {opponent} is in check", LogLevel.DEBUG);
+                    Logger?.AddMessage($"(Check) {opponent} is in check");
+                    Check?.Invoke(opponent);
+                }
+                return;
+            }
+
             SwitchTurn();
+        }
+
+        private static PlayerSide OpponentOf(PlayerSide side) =>
+            side == PlayerSide.Player1 ? PlayerSide.Player2 : PlayerSide.Player1;
+
+        /// <summary>
+        /// <paramref name="side"/> resigns and loses immediately (also allowed while
+        /// paused). Returns false if the game is already over or the side is not one of
+        /// the two players.
+        /// </summary>
+        public bool Resign(PlayerSide side)
+        {
+            if (IsGameOver || (side != PlayerSide.Player1 && side != PlayerSide.Player2))
+                return false;
+
+            // Leave the pause state first so the ended game is not also "paused".
+            if (IsPaused)
+                ResumeGame();
+
+            EndGame(OpponentOf(side), side, GameOverReason.Resign);
+            return true;
         }
 
         private void SwitchTurn()
@@ -346,6 +419,9 @@ namespace Chinese_Chess_v3.Game.Core
             IsPaused = false;
             IsGameOver = false;
             Winner = PlayerSide.None;
+            Result = null;
+            IsInCheck = false;
+            LastMove = null;
             if (startFirstTurn)
                 Player1.Timer.StartStep();
         }
@@ -368,20 +444,35 @@ namespace Chinese_Chess_v3.Game.Core
             }
 
             var winner = loser == Player1 ? Player2.Side : Player1.Side;
-            EndGame(winner, GameOverReason.TimeUp);
+            EndGame(winner, loser.Side, GameOverReason.TimeUp);
         }
 
         /// <summary>
         /// Ends the game: stops both clocks, drops the selection, blocks further input
-        /// and raises <see cref="GameOver"/>.
+        /// and raises <see cref="GameOver"/> with a snapshot of the final position (and,
+        /// for checkmate, the pieces giving check).
         /// </summary>
-        private void EndGame(PlayerSide winner, GameOverReason reason)
+        private void EndGame(PlayerSide winner, PlayerSide loser, GameOverReason reason)
         {
             if (IsGameOver)
                 return;
 
+            var finalBoard = new List<PieceInfo>();
+            foreach (var p in Board.GetAllPieces())
+                finalBoard.Add(p.CurrentInfo.Clone());
+
+            var checking = new List<PieceInfo>();
+            if (reason == GameOverReason.Checkmate)
+            {
+                foreach (var p in Board.GetCheckingPieces(loser))
+                    checking.Add(p.CurrentInfo.Clone());
+            }
+
             IsGameOver = true;
             Winner = winner;
+            // Nobody is "to move" any more; a checkmate is reported through Result.Reason.
+            IsInCheck = false;
+            Result = new GameOverInfo(winner, loser, reason, finalBoard, LastMove, checking);
 
             Player1.Timer.End();
             Player2.Timer.End();
@@ -394,7 +485,7 @@ namespace Chinese_Chess_v3.Game.Core
 
             AppLogger.Log($"(Game over) {winner} wins ({reason})", LogLevel.DEBUG);
             Logger?.AddMessage($"(Game over) {winner} wins ({reason})");
-            GameOver?.Invoke(winner, reason);
+            GameOver?.Invoke(Result);
         }
 
         /// <summary>
