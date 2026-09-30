@@ -62,6 +62,18 @@ namespace Chinese_Chess_v3.Game.Core
 
         public event Action<bool> PausedChanged;
 
+        /// <summary>
+        /// True once the game has ended (see <see cref="GameOver"/>); board input is
+        /// ignored and both clocks are stopped until a new game is set up.
+        /// </summary>
+        public bool IsGameOver { get; private set; } = false;
+
+        /// <summary>The winning side of the ended game; <c>PlayerSide.None</c> while playing.</summary>
+        public PlayerSide Winner { get; private set; } = PlayerSide.None;
+
+        /// <summary>Raised once when the game ends: (winner, reason). For the UI to show the result.</summary>
+        public event Action<PlayerSide, GameOverReason> GameOver;
+
 #nullable enable
         // events for UI bridge
         public event Action<Piece>? PieceSelected;
@@ -82,6 +94,10 @@ namespace Chinese_Chess_v3.Game.Core
             selectedPiece = null;
             Player1 = new Player(PlayerSide.Player1, TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(5), null, true);
             Player2 = new Player(PlayerSide.Player2, TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(5), null, true);
+
+            // The player whose clock runs out loses.
+            Player1.Timer.TimeUp += () => OnTimeUp(Player1);
+            Player2.Timer.TimeUp += () => OnTimeUp(Player2);
 
             // Player1 moves first, so their step timer needs to actually be
             // running from the start — SwitchTurn() only starts Player1's
@@ -174,7 +190,7 @@ namespace Chinese_Chess_v3.Game.Core
         /// </summary>
         public bool TryMove(int fromX, int fromY, int toX, int toY)
         {
-            if (IsPaused)
+            if (IsPaused || IsGameOver)
                 return false;
 
             var piece = Board.GetPiece(fromX, fromY);
@@ -192,7 +208,7 @@ namespace Chinese_Chess_v3.Game.Core
         {
             // A move while paused would end the paused (not active) step and start the
             // other clock, leaving the paused clock stuck until a later Resume.
-            if (IsPaused)
+            if (IsPaused || IsGameOver)
                 return;
 
             var clickedPiece = Board.GetPiece(x, y);
@@ -320,15 +336,65 @@ namespace Chinese_Chess_v3.Game.Core
         
         /// <summary>
         /// Clears both clocks for a new game; optionally starts Player1's first step.
-        /// Also clears the pause state, since Reset() drops a clock's Paused state.
+        /// Also clears the pause state (Reset() drops a clock's Paused state) and the
+        /// game-over state.
         /// </summary>
         private void ResetTimers(bool startFirstTurn)
         {
             Player1.Timer.Reset();
             Player2.Timer.Reset();
             IsPaused = false;
+            IsGameOver = false;
+            Winner = PlayerSide.None;
             if (startFirstTurn)
                 Player1.Timer.StartStep();
+        }
+
+        /// <summary>
+        /// A clock ran out (PlayerTimer has already set itself Terminated). With
+        /// <c>Rules.EndGameWhenTimesUp</c> (default) its owner loses; otherwise the game
+        /// goes on with that clock stopped.
+        /// </summary>
+        private void OnTimeUp(Player loser)
+        {
+            if (IsGameOver)
+                return;
+
+            if (!Board.GameRules.EndGameWhenTimesUp)
+            {
+                AppLogger.Log($"(Timer) {loser.Side} ran out of time (EndGameWhenTimesUp is off)", LogLevel.DEBUG);
+                Logger?.AddMessage($"(Timer) {loser.Side} ran out of time");
+                return;
+            }
+
+            var winner = loser == Player1 ? Player2.Side : Player1.Side;
+            EndGame(winner, GameOverReason.TimeUp);
+        }
+
+        /// <summary>
+        /// Ends the game: stops both clocks, drops the selection, blocks further input
+        /// and raises <see cref="GameOver"/>.
+        /// </summary>
+        private void EndGame(PlayerSide winner, GameOverReason reason)
+        {
+            if (IsGameOver)
+                return;
+
+            IsGameOver = true;
+            Winner = winner;
+
+            Player1.Timer.End();
+            Player2.Timer.End();
+
+            if (selectedPiece != null)
+            {
+                PieceUnselected?.Invoke(selectedPiece);
+                selectedPiece = null;
+            }
+
+            AppLogger.Log($"(Game over) {winner} wins ({reason})", LogLevel.DEBUG);
+            Logger?.AddMessage($"(Game over) {winner} wins ({reason})");
+            GameOver?.Invoke(winner, reason);
         }
 
         /// <summary>
@@ -347,7 +413,7 @@ namespace Chinese_Chess_v3.Game.Core
         /// </summary>
         public void PauseGame()
         {
-            if (IsPaused)
+            if (IsPaused || IsGameOver)
                 return;
 
             Player1.Timer.Pause();
