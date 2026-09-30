@@ -347,14 +347,58 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         public bool IsDestinationLegal(Board board, int targetX, int targetY) =>
             PieceFunc<bool>(PieceFuncType.IsDestinationLegal, board.Type, board, targetX, targetY);
 
-        public bool IsValidMove(Board board, int targetX, int targetY) =>
-            PieceFunc<bool>(PieceFuncType.IsValidMove, board.Type, board, targetX, targetY);
+        /// <summary>
+        /// Whether moving to (targetX, targetY) is legal: the piece's own movement rules
+        /// (<see cref="IsPseudoLegalMove"/>) and, on boards that use check rules (see
+        /// <see cref="Board.UsesCheckRules"/>), the move must not leave the mover's own
+        /// General attacked or the two Generals facing each other.
+        /// </summary>
+        public bool IsValidMove(Board board, int targetX, int targetY)
+        {
+            if (!IsPseudoLegalMove(board, targetX, targetY))
+                return false;
+
+            return !board.UsesCheckRules || !board.WouldMoveExposeOwnGeneral(this, targetX, targetY);
+        }
 
         public bool CanMoveTo(Board board, int targetX, int targetY) =>
             IsValidMove(board, targetX, targetY);
 
-        public List<(int x, int y)> GetLegalMoves(Board board) =>
+        /// <summary>
+        /// All legal destinations: <see cref="GetPseudoLegalMoves"/> filtered the same way
+        /// as <see cref="IsValidMove"/>, so the two always agree.
+        /// </summary>
+        public List<(int x, int y)> GetLegalMoves(Board board)
+        {
+            var moves = GetPseudoLegalMoves(board);
+            if (!board.UsesCheckRules)
+                return moves;
+
+            moves.RemoveAll(m => board.WouldMoveExposeOwnGeneral(this, m.x, m.y));
+            return moves;
+        }
+
+        /// <summary>
+        /// The piece's own movement/capture rules only, ignoring whether the move leaves
+        /// its own General in check. This is also "does this piece attack that square"
+        /// for check detection (see <see cref="Board.IsSideInCheck"/>).
+        /// </summary>
+        public bool IsPseudoLegalMove(Board board, int targetX, int targetY) =>
+            PieceFunc<bool>(PieceFuncType.IsValidMove, board.Type, board, targetX, targetY);
+
+        /// <summary>See <see cref="IsPseudoLegalMove"/>.</summary>
+        public List<(int x, int y)> GetPseudoLegalMoves(Board board) =>
             PieceFunc<List<(int x, int y)>>(PieceFuncType.GetLegalMoves, board.Type, board);
+
+        /// <summary>
+        /// Replaces <see cref="CurrentInfo"/> without recording a history snapshot. Only for
+        /// <see cref="Board"/>'s temporary move simulation, which restores the original
+        /// info afterwards.
+        /// </summary>
+        internal void SetInfoWithoutHistory(PieceInfo info)
+        {
+            CurrentInfo = info;
+        }
     }
 
     public enum PieceFuncType

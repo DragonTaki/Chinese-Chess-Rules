@@ -53,6 +53,13 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         private List<Piece> pieces = new List<Piece>();
 
         /// <summary>
+        /// The piece a temporary move simulation (<see cref="WouldMoveExposeOwnGeneral"/>)
+        /// has "captured": still in <see cref="pieces"/> (the list is never modified during
+        /// a simulation, so callers may be iterating it) but skipped by every lookup.
+        /// </summary>
+        private Piece simulatedCapture = null;
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="Board"/> class.
         /// Sets up the 9x10 grid layout and provides reference coordinate documentation.
         /// </summary>
@@ -445,6 +452,143 @@ namespace Chinese_Chess_v3.Game.Core.Boards
             return true;  // 沿線沒遇到對方將帥 → 合法
         }
 
+        /// <summary>
+        /// Whether this board plays by xiangqi check rules (self-check and facing Generals
+        /// make a move illegal; no legal move loses). Only the Full board (standard
+        /// xiangqi, and 揭棋 which shares it); the dark-chess boards have no such rule.
+        /// </summary>
+        public bool UsesCheckRules => Type == BoardType.Full;
+
+        /// <summary>
+        /// The General of <paramref name="side"/>, or null unless that side has exactly one
+        /// (none on a custom layout, or more than one on a malformed one).
+        /// </summary>
+        public Piece GetGeneral(PlayerSide side)
+        {
+            Piece found = null;
+            foreach (var p in pieces)
+            {
+                if (p == simulatedCapture || p.Type != PieceType.General || p.Side != side)
+                    continue;
+                if (found != null)
+                    return null;
+                found = p;
+            }
+            return found;
+        }
+
+        /// <summary>
+        /// Whether the two Generals currently stand on one column with nothing between
+        /// them (王見王). False if either side lacks exactly one General.
+        /// </summary>
+        public bool AreGeneralsFacing()
+        {
+            var red = GetGeneral(PlayerSide.Player1);
+            var black = GetGeneral(PlayerSide.Player2);
+            if (red == null || black == null || red.X != black.X)
+                return false;
+
+            int yMin = Math.Min(red.Y, black.Y) + 1;
+            int yMax = Math.Max(red.Y, black.Y);
+            for (int y = yMin; y < yMax; y++)
+            {
+                if (Grid[red.X, y] != null)
+                    return false;
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// Whether <paramref name="side"/>'s General is attacked: some opposing piece could
+        /// capture it by its own movement rules (<see cref="Piece.IsPseudoLegalMove"/>).
+        /// A pinned attacker still gives check, as in standard xiangqi. False if the side
+        /// has no (single) General.
+        /// </summary>
+        public bool IsSideInCheck(PlayerSide side) => GetCheckingPieces(side).Count > 0;
+
+        /// <summary>
+        /// The opposing pieces currently attacking <paramref name="side"/>'s General (empty
+        /// when not in check). Used for the game-over record of a checkmate.
+        /// </summary>
+        public List<Piece> GetCheckingPieces(PlayerSide side)
+        {
+            var result = new List<Piece>();
+            var general = GetGeneral(side);
+            if (general == null)
+                return result;
+
+            foreach (var p in pieces)
+            {
+                if (p != simulatedCapture && p.Side != side && p.IsPseudoLegalMove(this, general.X, general.Y))
+                    result.Add(p);
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// Whether moving <paramref name="piece"/> to (toX, toY) would leave its own General
+        /// attacked, or leave the two Generals facing each other (unless
+        /// <see cref="Rules.CanGeneralSeeGeneral"/>). Assumes the move is otherwise legal
+        /// for the piece's movement rules.
+        /// </summary>
+        /// <remarks>
+        /// The move is applied temporarily to the grid and the moving piece's coordinates
+        /// (without a history snapshot), and a captured piece is hidden from every lookup
+        /// (<see cref="simulatedCapture"/>), then everything is restored — so every piece's
+        /// own rule code sees a consistent board. The piece list itself is not modified,
+        /// so this is safe to call while iterating <see cref="GetAllPieces"/>.
+        /// </remarks>
+        public bool WouldMoveExposeOwnGeneral(Piece piece, int toX, int toY)
+        {
+            int fromX = piece.X;
+            int fromY = piece.Y;
+            if (!IsInBoard(toX, toY) || Grid[fromX, fromY] != piece)
+                return false;
+
+            var captured = Grid[toX, toY];
+            var originalInfo = piece.CurrentInfo;
+
+            simulatedCapture = captured;
+            Grid[fromX, fromY] = null;
+            Grid[toX, toY] = piece;
+            piece.SetInfoWithoutHistory(new PieceInfo(
+                originalInfo.Type, toX, toY, originalInfo.Color, originalInfo.Side,
+                originalInfo.IsFaceUp, originalInfo.IsDead, originalInfo.TurnIndex));
+
+            try
+            {
+                if (!GameRules.CanGeneralSeeGeneral && AreGeneralsFacing())
+                    return true;
+                return IsSideInCheck(piece.Side);
+            }
+            finally
+            {
+                piece.SetInfoWithoutHistory(originalInfo);
+                Grid[fromX, fromY] = piece;
+                Grid[toX, toY] = captured;
+                simulatedCapture = null;
+            }
+        }
+
+        /// <summary>
+        /// Whether <paramref name="side"/> has at least one legal move (see
+        /// <see cref="Piece.GetLegalMoves"/>). Stops at the first one found.
+        /// </summary>
+        public bool HasAnyLegalMove(PlayerSide side)
+        {
+            foreach (var p in pieces)
+            {
+                if (p.Side != side)
+                    continue;
+                foreach (var (x, y) in p.GetPseudoLegalMoves(this))
+                {
+                    if (!UsesCheckRules || !WouldMoveExposeOwnGeneral(p, x, y))
+                        return true;
+                }
+            }
+            return false;
+        }
+
         public List<Piece> QueryPieces(
             PieceType? type = null,
             PlayerSide? side = null,
@@ -452,6 +596,7 @@ namespace Chinese_Chess_v3.Game.Core.Boards
             bool? isFaceUp = null)
         {
             return pieces.Where(p =>
+                p != simulatedCapture &&
                 (!type.HasValue || p.Type == type.Value) &&
                 (!side.HasValue || p.Side == side.Value) &&
                 (!isAlive.HasValue || (isAlive.Value ? !p.CurrentInfo.IsDead : p.CurrentInfo.IsDead)) &&
