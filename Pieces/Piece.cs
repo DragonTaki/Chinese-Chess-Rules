@@ -161,7 +161,9 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         /// piece's own movement shape — centralized here since every piece
         /// type on this board moves differently but is captured-from the
         /// same way, governed by <see cref="Rules.PieceRankings"/> and the
-        /// hidden-piece flags rather than by piece type.
+        /// hidden-piece flags rather than by piece type — except the one fixed
+        /// Soldier/General pair (a Soldier can capture a General, a General cannot
+        /// capture a Soldier). Cannon screens are the Cannon's own concern.
         /// </summary>
         /// <remarks>
         /// This only answers whether *attempting* the move is legal. If the
@@ -187,6 +189,14 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
 
             if (!target.CurrentInfo.IsFaceUp)
                 return rules.CanCaptureHiddenPiece;
+
+            // Standard dark-chess exception to the rank order: the weakest piece (Soldier)
+            // can capture the strongest (General), and the General cannot capture a
+            // Soldier. Every other pair follows PieceRankings.
+            if (Type == PieceType.Soldier && target.Type == PieceType.General)
+                return true;
+            if (Type == PieceType.General && target.Type == PieceType.Soldier)
+                return false;
 
             int myRank = Array.IndexOf(rules.PieceRankings, Type);
             int targetRank = Array.IndexOf(rules.PieceRankings, target.Type);
