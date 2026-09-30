@@ -12,6 +12,7 @@ using System.Collections.Generic;
 using System.Linq;
 
 using Chinese_Chess_v3.Game.Core.Boards;
+using Chinese_Chess_v3.Game.Core.Endgames;
 using Chinese_Chess_v3.Game.Core.Pieces;
 using Chinese_Chess_v3.Game.Core.Players;
 
@@ -130,6 +131,14 @@ namespace Chinese_Chess_v3.Game.Core
         /// <summary>The most recent move of this game; null before the first move.</summary>
         public MoveRecord LastMove { get; private set; } = null;
 
+        /// <summary>
+        /// The endgame puzzle the current game was started from (<see cref="StartEndgame"/>);
+        /// null for any other game. Cleared by <see cref="ResetBoardToDefault"/>,
+        /// <see cref="LoadCustomBoard"/> and <see cref="ClearBoard"/>. Already set when
+        /// <see cref="BoardReset"/> is raised for the puzzle's position.
+        /// </summary>
+        public EndgamePuzzle CurrentEndgame { get; private set; } = null;
+
 #nullable enable
         // events for UI bridge
         public event Action<Piece>? PieceSelected;
@@ -176,43 +185,60 @@ namespace Chinese_Chess_v3.Game.Core
         public void ResetBoardToDefault()
         {
             // Load default pieces
-            var defaultPieces = BoardConfigLoader.Load();
-
-            // Reset board:
-            // (A) Clear pieces
-            // (B) Reset turn
-            // (C) Recreate pieces
-            Board.Initialize(defaultPieces);
-
-            // Reset selected piece
-            selectedPiece = null;
-            // Reset side
-            CurrentTurn = PlayerSide.Player1;
-            ResetTimers(startFirstTurn: true);
-
-            // Inform UI
-            BoardReset?.Invoke();
-
-            // Inform pieces added
-            foreach (var p in Board.GetAllPieces())
-                PieceAdded?.Invoke(p);
-
-            UpdateHangingPieces();
+            SetUpPosition(BoardConfigLoader.Load(), PlayerSide.Player1, null);
         }
 
-        public void LoadCustomBoard(List<PieceInfo> customInitialPieces)
+        /// <summary>
+        /// Starts a game from <paramref name="customInitialPieces"/> with
+        /// <paramref name="firstTurn"/> (Player1 or Player2) to move first.
+        /// </summary>
+        public void LoadCustomBoard(List<PieceInfo> customInitialPieces, PlayerSide firstTurn = PlayerSide.Player1)
         {
+            SetUpPosition(customInitialPieces, firstTurn, null);
+        }
+
+        /// <summary>
+        /// Starts a game from <paramref name="puzzle"/>'s position (its FEN), with the side to
+        /// move from the FEN - Black (Player2) may move first - and keeps the puzzle as
+        /// <see cref="CurrentEndgame"/>. The puzzle's solution is not played.
+        /// </summary>
+        /// <exception cref="FormatException">The puzzle's FEN is not valid (puzzles from
+        /// <see cref="EndgameLoader"/> have already been checked).</exception>
+        public void StartEndgame(EndgamePuzzle puzzle)
+        {
+            ArgumentNullException.ThrowIfNull(puzzle);
+            var (pieces, sideToMove) = XiangqiFen.Parse(puzzle.Fen);
+            SetUpPosition(pieces, sideToMove, puzzle);
+            AppLogger.Log($"(Endgame) Started {puzzle.FileName}: {puzzle.Title}, {sideToMove} to move", LogLevel.DEBUG);
+            Logger?.AddMessage($"(Endgame) {puzzle.Title} ({puzzle.Goal})");
+        }
+
+        /// <summary>
+        /// Shared new-game setup: places <paramref name="pieces"/> (resetting the board's turn
+        /// counter), clears the selection, gives the move to <paramref name="firstTurn"/>,
+        /// resets both clocks and starts <paramref name="firstTurn"/>'s step, then informs the
+        /// UI (<see cref="BoardReset"/>, <see cref="PieceAdded"/> per piece) and recomputes
+        /// the hanging pieces.
+        /// </summary>
+        private void SetUpPosition(List<PieceInfo> pieces, PlayerSide firstTurn, EndgamePuzzle puzzle)
+        {
+            if (firstTurn != PlayerSide.Player1 && firstTurn != PlayerSide.Player2)
+                throw new ArgumentException($"The first turn must be Player1 or Player2, not {firstTurn}", nameof(firstTurn));
+
             // Reset board:
             // (A) Clear pieces
             // (B) Reset turn
             // (C) Recreate pieces
-            Board.Initialize(customInitialPieces);
+            Board.Initialize(pieces);
 
             // Reset selected piece
             selectedPiece = null;
+            CurrentEndgame = puzzle;
             // Reset side
-            CurrentTurn = PlayerSide.Player1;
+            CurrentTurn = firstTurn;
             ResetTimers(startFirstTurn: true);
+            // A custom position may start with the side to move already in check.
+            IsInCheck = Board.UsesCheckRules && Board.IsSideInCheck(firstTurn);
 
             // Inform UI
             BoardReset?.Invoke();
@@ -233,6 +259,7 @@ namespace Chinese_Chess_v3.Game.Core
 
             // Reset selected piece
             selectedPiece = null;
+            CurrentEndgame = null;
             // Reset side
             CurrentTurn = PlayerSide.Player1;
             ResetTimers(startFirstTurn: false);
@@ -491,7 +518,8 @@ namespace Chinese_Chess_v3.Game.Core
         }
         
         /// <summary>
-        /// Clears both clocks for a new game; optionally starts Player1's first step.
+        /// Clears both clocks for a new game; optionally starts the first step of the side
+        /// to move (<see cref="CurrentTurn"/>, set before this is called).
         /// Also clears the pause state (Reset() drops a clock's Paused state) and the
         /// game-over state.
         /// </summary>
@@ -506,7 +534,7 @@ namespace Chinese_Chess_v3.Game.Core
             IsInCheck = false;
             LastMove = null;
             if (startFirstTurn)
-                Player1.Timer.StartStep();
+                (CurrentTurn == PlayerSide.Player2 ? Player2 : Player1).Timer.StartStep();
         }
 
         /// <summary>
