@@ -121,13 +121,17 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
                     }
                     else
                     {
-                        // After jumping, the next piece encountered must be an enemy to capture
-                        if (target != null && target.Side != this.Side && !WouldExposeGeneralsFull(board, newX, newY))
+                        // After jumping, skip empty squares; the next piece
+                        // encountered must be an enemy to capture
+                        if (target != null)
                         {
-                            // Add to legal moves
-                            legalMoves.Add((newX, newY));
+                            if (target.Side != this.Side && !WouldExposeGeneralsFull(board, newX, newY))
+                            {
+                                // Add to legal moves
+                                legalMoves.Add((newX, newY));
+                            }
+                            break;  // Stop searching after a potential capture
                         }
-                        break;  // Stop searching after a potential capture
                     }
 
                     newX += dx;

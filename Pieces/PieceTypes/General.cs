@@ -121,8 +121,9 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
                 int newX = X + dx;
                 int newY = Y + dy;
 
-                // Skip if outside board bounds
-                if (!board.IsInBoard(newX, newY))
+                // Skip if outside this piece's legal area (board bounds plus
+                // palace / river, same as IsValidMoveFull)
+                if (!IsDestinationLegalFull(board, newX, newY))
                     continue;
 
                 // Skip if destination occupied by ally
