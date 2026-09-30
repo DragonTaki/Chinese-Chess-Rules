@@ -54,7 +54,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
                 return false;
 
             // Check if general will see general after move
-            if (targetX != X && targetX != X && !board.GameRules.CanGeneralSeeGeneral && board.IsGeneralFaceToFaceAfterMove(X))
+            if (targetX != X && !board.GameRules.CanGeneralSeeGeneral && board.IsGeneralFaceToFaceAfterMove(X))
                 return false;
 
             int dx = targetX - X;
@@ -147,11 +147,15 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         {
             switch (Side)
             {
+                // Player2's own half is Y 0-4 (RiverLineYBlackSide is its last
+                // row), Player1's is Y 5-9 (RiverLineYRedSide is its first row);
+                // a soldier has crossed only once it stands on the far half — the
+                // same test as Board.IsPassRiver.
                 case PlayerSide.Player2:
-                    return y >= BoardConstants.Full.RiverLineYBlackSide;
+                    return y > BoardConstants.Full.RiverLineYBlackSide;
 
                 case PlayerSide.Player1:
-                    return y <= BoardConstants.Full.RiverLineYRedSide;
+                    return y < BoardConstants.Full.RiverLineYRedSide;
 
                 case PlayerSide.None:
                 case PlayerSide.Neutral:
