@@ -11,7 +11,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-using Chinese_Chess_v3.Game.UI.Constants;
 using Chinese_Chess_v3.Game.Core.Pieces.PieceTypes;
 using Chinese_Chess_v3.Game.Core.Pieces;
 using Chinese_Chess_v3.Game.Core.Players;
@@ -151,34 +150,6 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         public List<Piece> GetAllPieces()
         {
             return pieces;
-        }
-
-        /// <summary>
-        /// Determine whether the pixel coordinates are within the board range
-        /// </summary>
-        public bool IsWithinBoard(float x, float y)
-        {
-            float boardX = UILayoutConstants.Board.Grid.Position.X;
-            float boardY = UILayoutConstants.Board.Grid.Position.Y;
-            float gridSize = UILayoutConstants.Board.Grid.CellSize;
-            return x >= boardX && x <= boardX + Columns * gridSize &&
-                   y >= boardY && y <= boardY + Rows * gridSize;
-        }
-
-        /// <summary>
-        /// Convert pixel coordinates within the board area to board coordinates
-        /// </summary>
-        /// <param name="pixelX">Mouse X coordinate</param>
-        /// <param name="pixelY">Mouse Y coordinate</param>
-        /// <param name="gridX">Grid coordinate X</param>
-        /// <param name="gridY">Grid coordinate Y</param>
-        public void PixelToGrid(float pixelX, float pixelY, out int gridX, out int gridY)
-        {
-            gridX = (int)((pixelX - UILayoutConstants.Board.Grid.Position.X) / UILayoutConstants.Board.Grid.CellSize + 0.5f);
-            gridY = (int)((pixelY - UILayoutConstants.Board.Grid.Position.Y) / UILayoutConstants.Board.Grid.CellSize + 0.5f);
-
-            gridX = Math.Clamp(gridX, 0, Columns - 1);
-            gridY = Math.Clamp(gridY, 0, Rows - 1);
         }
 
         /// <summary>
