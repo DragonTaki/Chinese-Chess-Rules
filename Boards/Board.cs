@@ -3,8 +3,8 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2025/05/06
-// Update Date: 2025/10/29
-// Version: v2.0
+// Update Date: 2026/09/30
+// Version: v2.1
 /* ----- ----- ----- ----- */
 
 using System;
@@ -53,11 +53,21 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         private List<Piece> pieces = new List<Piece>();
 
         /// <summary>
-        /// The piece a temporary move simulation (<see cref="WouldMoveExposeOwnGeneral"/>)
-        /// has "captured": still in <see cref="pieces"/> (the list is never modified during
-        /// a simulation, so callers may be iterating it) but skipped by every lookup.
+        /// The pieces the temporary move simulations in progress (<see cref="SimulateMove{T}"/>,
+        /// used by <see cref="WouldMoveExposeOwnGeneral"/>) have "captured": still in
+        /// <see cref="pieces"/> (the list is never modified during a simulation, so callers
+        /// may be iterating it) but skipped by every lookup. A list, not a single field,
+        /// because simulations nest (e.g. <see cref="BoardAnalysis"/> simulates a capture
+        /// and then checks the legality of the recapture, which simulates again).
         /// </summary>
-        private Piece simulatedCapture = null;
+        private readonly List<Piece> simulatedCaptures = new List<Piece>();
+
+        /// <summary>
+        /// Whether <paramref name="piece"/> is hidden by a move simulation in progress (it
+        /// has been "captured" there). Callers iterating <see cref="GetAllPieces"/> inside
+        /// <see cref="SimulateMove{T}"/> must skip such pieces.
+        /// </summary>
+        internal bool IsSimulatedCapture(Piece piece) => simulatedCaptures.Contains(piece);
 
         /// <summary>
         /// Initializes a new instance of the <see cref="Board"/> class.
@@ -468,7 +478,7 @@ namespace Chinese_Chess_v3.Game.Core.Boards
             Piece found = null;
             foreach (var p in pieces)
             {
-                if (p == simulatedCapture || p.Type != PieceType.General || p.Side != side)
+                if (IsSimulatedCapture(p) || p.Type != PieceType.General || p.Side != side)
                     continue;
                 if (found != null)
                     return null;
@@ -519,7 +529,7 @@ namespace Chinese_Chess_v3.Game.Core.Boards
 
             foreach (var p in pieces)
             {
-                if (p != simulatedCapture && p.Side != side && p.IsPseudoLegalMove(this, general.X, general.Y))
+                if (!IsSimulatedCapture(p) && p.Side != side && p.IsPseudoLegalMove(this, general.X, general.Y))
                     result.Add(p);
             }
             return result;
@@ -532,23 +542,44 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         /// for the piece's movement rules.
         /// </summary>
         /// <remarks>
-        /// The move is applied temporarily to the grid and the moving piece's coordinates
-        /// (without a history snapshot), and a captured piece is hidden from every lookup
-        /// (<see cref="simulatedCapture"/>), then everything is restored — so every piece's
-        /// own rule code sees a consistent board. The piece list itself is not modified,
-        /// so this is safe to call while iterating <see cref="GetAllPieces"/>.
+        /// Evaluated on the board after the move, via <see cref="SimulateMove{T}"/>.
         /// </remarks>
         public bool WouldMoveExposeOwnGeneral(Piece piece, int toX, int toY)
+        {
+            return SimulateMove(piece, toX, toY, () =>
+            {
+                if (!GameRules.CanGeneralSeeGeneral && AreGeneralsFacing())
+                    return true;
+                return IsSideInCheck(piece.Side);
+            }, fallback: false);
+        }
+
+        /// <summary>
+        /// Evaluates <paramref name="evaluate"/> on the board as it would be after moving
+        /// <paramref name="piece"/> to (toX, toY), then restores the board. Returns
+        /// <paramref name="fallback"/> without evaluating if the destination is off the board
+        /// or the piece is not on its own square. Does not check the move's legality.
+        /// </summary>
+        /// <remarks>
+        /// The move is applied temporarily to the grid and the moving piece's coordinates
+        /// (without a history snapshot), and a captured piece is hidden from every lookup
+        /// (<see cref="simulatedCaptures"/>), then everything is restored — so every piece's
+        /// own rule code sees a consistent board. The piece list itself is not modified,
+        /// so this is safe to call while iterating <see cref="GetAllPieces"/> (skip pieces
+        /// for which <see cref="IsSimulatedCapture"/> is true). Simulations may nest.
+        /// </remarks>
+        internal T SimulateMove<T>(Piece piece, int toX, int toY, Func<T> evaluate, T fallback)
         {
             int fromX = piece.X;
             int fromY = piece.Y;
             if (!IsInBoard(toX, toY) || Grid[fromX, fromY] != piece)
-                return false;
+                return fallback;
 
             var captured = Grid[toX, toY];
             var originalInfo = piece.CurrentInfo;
 
-            simulatedCapture = captured;
+            if (captured != null)
+                simulatedCaptures.Add(captured);
             Grid[fromX, fromY] = null;
             Grid[toX, toY] = piece;
             piece.SetInfoWithoutHistory(new PieceInfo(
@@ -557,16 +588,15 @@ namespace Chinese_Chess_v3.Game.Core.Boards
 
             try
             {
-                if (!GameRules.CanGeneralSeeGeneral && AreGeneralsFacing())
-                    return true;
-                return IsSideInCheck(piece.Side);
+                return evaluate();
             }
             finally
             {
                 piece.SetInfoWithoutHistory(originalInfo);
                 Grid[fromX, fromY] = piece;
                 Grid[toX, toY] = captured;
-                simulatedCapture = null;
+                if (captured != null)
+                    simulatedCaptures.RemoveAt(simulatedCaptures.LastIndexOf(captured));
             }
         }
 
@@ -596,7 +626,7 @@ namespace Chinese_Chess_v3.Game.Core.Boards
             bool? isFaceUp = null)
         {
             return pieces.Where(p =>
-                p != simulatedCapture &&
+                !IsSimulatedCapture(p) &&
                 (!type.HasValue || p.Type == type.Value) &&
                 (!side.HasValue || p.Side == side.Value) &&
                 (!isAlive.HasValue || (isAlive.Value ? !p.CurrentInfo.IsDead : p.CurrentInfo.IsDead)) &&

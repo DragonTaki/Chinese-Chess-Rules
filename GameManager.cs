@@ -3,8 +3,8 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2025/05/06
-// Update Date: 2025/10/31
-// Version: v1.2
+// Update Date: 2026/09/30
+// Version: v1.3
 /* ----- ----- ----- ----- */
 
 using System;
@@ -44,6 +44,29 @@ namespace Chinese_Chess_v3.Game.Core
         private Piece? selectedPiece;
         public Piece? SelectedPiece => selectedPiece;
 #nullable disable
+
+        /// <summary>
+        /// The legal destinations of <see cref="SelectedPiece"/> (empty when nothing is
+        /// selected), for the UI's move hints. Computed on each call - read it once per
+        /// selection (e.g. in a <see cref="PieceSelected"/> handler), not per frame.
+        /// </summary>
+        public List<(int x, int y)> SelectedPieceLegalMoves =>
+            selectedPiece == null ? new List<(int x, int y)>() : selectedPiece.GetLegalMoves(Board);
+
+        /// <summary>
+        /// Hanging pieces of both sides (無根子可被吃, see
+        /// <see cref="BoardAnalysis.GetHangingPieces"/>), for the UI's board hints.
+        /// Recomputed only after each move and when the board is reset, loaded or cleared;
+        /// <see cref="HangingPiecesChanged"/> is raised each time.
+        /// </summary>
+        public IReadOnlyList<Piece> HangingPieces { get; private set; } = new List<Piece>();
+
+        /// <summary>
+        /// Raised after <see cref="HangingPieces"/> is recomputed (after each move and after
+        /// a board reset/load/clear, following <see cref="BoardReset"/> and the
+        /// <see cref="PieceAdded"/> events), with the new list.
+        /// </summary>
+        public event Action<IReadOnlyList<Piece>> HangingPiecesChanged;
 
         private bool isPaused = false;
 
@@ -131,6 +154,8 @@ namespace Chinese_Chess_v3.Game.Core
             BoardReset?.Invoke();
             foreach (var p in Board.GetAllPieces())
                 PieceAdded?.Invoke(p);
+
+            UpdateHangingPieces();
         }
         public void SetLogger(IGameLog loggerHandler)
         {
@@ -160,6 +185,8 @@ namespace Chinese_Chess_v3.Game.Core
             // Inform pieces added
             foreach (var p in Board.GetAllPieces())
                 PieceAdded?.Invoke(p);
+
+            UpdateHangingPieces();
         }
 
         public void LoadCustomBoard(List<PieceInfo> customInitialPieces)
@@ -182,6 +209,8 @@ namespace Chinese_Chess_v3.Game.Core
             // Inform pieces added
             foreach (var p in Board.GetAllPieces())
                 PieceAdded?.Invoke(p);
+
+            UpdateHangingPieces();
         }
 
         public void ClearBoard()
@@ -199,6 +228,8 @@ namespace Chinese_Chess_v3.Game.Core
 
             // Inform UI
             BoardReset?.Invoke();
+
+            UpdateHangingPieces();
         }
 
         public List<Piece> GetCurrentPieces()
@@ -339,6 +370,9 @@ namespace Chinese_Chess_v3.Game.Core
                 selectedPiece = null;
             }
 
+            // Board hints for the new position (also when this move ends the game).
+            UpdateHangingPieces();
+
             // Standard xiangqi: the side about to move is evaluated right away. With no
             // legal move it loses on the spot — checkmate if in check, otherwise stalemate
             // (困斃, which also covers "every remaining move would face the Generals").
@@ -368,6 +402,13 @@ namespace Chinese_Chess_v3.Game.Core
             }
 
             SwitchTurn();
+        }
+
+        /// <summary>Recomputes <see cref="HangingPieces"/> and raises <see cref="HangingPiecesChanged"/>.</summary>
+        private void UpdateHangingPieces()
+        {
+            HangingPieces = BoardAnalysis.GetHangingPieces(Board);
+            HangingPiecesChanged?.Invoke(HangingPieces);
         }
 
         private static PlayerSide OpponentOf(PlayerSide side) =>
