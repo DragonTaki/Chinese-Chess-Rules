@@ -4,11 +4,12 @@
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2025/05/06
 // Update Date: 2026/09/30
-// Version: v1.3
+// Version: v1.4
 /* ----- ----- ----- ----- */
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 using Chinese_Chess_v3.Game.Core.Boards;
 using Chinese_Chess_v3.Game.Core.Pieces;
@@ -115,6 +116,16 @@ namespace Chinese_Chess_v3.Game.Core
         /// checkmates raises <see cref="GameOver"/> instead.
         /// </summary>
         public event Action<PlayerSide> Check;
+
+        /// <summary>
+        /// Raised once after each move that has at least one tactical event (將軍, 絕殺,
+        /// 抽車, 吃車, ... see <see cref="TacticalEventType"/>), with all of that move's
+        /// events in <see cref="TacticalEventType"/> order. Only on boards that use check
+        /// rules. Raised last, after <see cref="Check"/> / <see cref="GameOver"/>, so the
+        /// game state (turn, <see cref="IsInCheck"/>, <see cref="IsGameOver"/>) is final.
+        /// Intended for sound / visual effects; each event is also written to the game log.
+        /// </summary>
+        public event Action<IReadOnlyList<TacticalEvent>> TacticalEvents;
 
         /// <summary>The most recent move of this game; null before the first move.</summary>
         public MoveRecord LastMove { get; private set; } = null;
@@ -340,6 +351,9 @@ namespace Chinese_Chess_v3.Game.Core
             int fromX = piece.X;
             int fromY = piece.Y;
 
+            // Pre-move facts for the "newly ..." tactical events, taken on the unchanged board.
+            var tacticalBefore = Board.UsesCheckRules ? TacticalAnalysis.TakeSnapshot(Board, piece.Side) : null;
+
             Board.AdvanceTurn();
 
             // If the destination has an (enemy) piece, capture it first
@@ -383,9 +397,14 @@ namespace Chinese_Chess_v3.Game.Core
                 var opponent = OpponentOf(mover);
                 bool opponentInCheck = Board.IsSideInCheck(opponent);
 
+                // Evaluated before the game-over / turn-switch bookkeeping (the board is
+                // already final), raised after it.
+                var tactical = TacticalAnalysis.Analyze(Board, LastMove, tacticalBefore);
+
                 if (!Board.HasAnyLegalMove(opponent))
                 {
                     EndGame(mover, opponent, opponentInCheck ? GameOverReason.Checkmate : GameOverReason.Stalemate);
+                    RaiseTacticalEvents(tactical);
                     return;
                 }
 
@@ -398,10 +417,33 @@ namespace Chinese_Chess_v3.Game.Core
                     Logger?.AddMessage($"(Check) {opponent} is in check");
                     Check?.Invoke(opponent);
                 }
+                RaiseTacticalEvents(tactical);
                 return;
             }
 
             SwitchTurn();
+        }
+
+        /// <summary>
+        /// Writes one game-log line per tactical event (Chinese name, event type, mover,
+        /// move and involved pieces) and raises <see cref="TacticalEvents"/> if any.
+        /// </summary>
+        private void RaiseTacticalEvents(List<TacticalEvent> events)
+        {
+            if (events.Count == 0)
+                return;
+
+            foreach (var e in events)
+            {
+                var m = e.Move;
+                string involved = e.Pieces.Count == 0
+                    ? "-"
+                    : string.Join(", ", e.Pieces.Select(p => $"{p.Side} {p.Type} ({p.X},{p.Y})"));
+                string line = $"(Tactic) {e.ChineseName} [{e.Type}] {e.Mover} {m.Piece.Type} ({m.FromX},{m.FromY})->({m.ToX},{m.ToY}); pieces: {involved}";
+                AppLogger.Log(line, LogLevel.DEBUG);
+                Logger?.AddMessage(line);
+            }
+            TacticalEvents?.Invoke(events);
         }
 
         /// <summary>Recomputes <see cref="HangingPieces"/> and raises <see cref="HangingPiecesChanged"/>.</summary>
