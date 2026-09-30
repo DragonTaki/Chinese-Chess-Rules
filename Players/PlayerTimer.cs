@@ -234,7 +234,6 @@ namespace Chinese_Chess_v3.Game.Core.Players
                 int hours = (int)time.TotalHours;
                 int minutes = (int)time.TotalMinutes;
                 int seconds = time.Seconds;
-                double secondsInMinute = time.Seconds + time.Milliseconds / 1000.0;
                 double fractional = time.TotalSeconds - Math.Floor(time.TotalSeconds);
 
                 // --- 支援小數秒格式 {second.2}, {second.3} ---
@@ -244,7 +243,7 @@ namespace Chinese_Chess_v3.Game.Core.Players
                 result = System.Text.RegularExpressions.Regex.Replace(result, @"\{second\.(\d+)\}", m =>
                 {
                     int digits = int.Parse(m.Groups[1].Value);
-                    return secondsInMinute.ToString($"00.{new string('0', digits)}");
+                    return TruncatedSecondsInMinute(time, digits).ToString($"00.{new string('0', digits)}");
                 });
 
                 // 標準欄位
@@ -261,10 +260,28 @@ namespace Chinese_Chess_v3.Game.Core.Players
                 // fallback when error
                 double totalSeconds = time.TotalSeconds;
                 int minutes = (int)time.TotalMinutes;
-                double secondsInMinute = time.Seconds + time.Milliseconds / 1000.0;
+                double secondsInMinute = TruncatedSecondsInMinute(time, 2);
 
                 return $"{minutes:00}:{secondsInMinute:00.00}";
             }
+        }
+
+        /// <summary>
+        /// Seconds within the current minute, truncated (not rounded) to
+        /// <paramref name="digits"/> decimals. Rounding made e.g. 4:59.996 print as
+        /// "04:60.00" — a countdown shows that right after every step starts — so the
+        /// fraction is cut from the integer tick count instead.
+        /// </summary>
+        private static double TruncatedSecondsInMinute(TimeSpan time, int digits)
+        {
+            digits = Math.Clamp(digits, 0, 7);  // TimeSpan resolution is 10^-7 s
+            long scale = 1;
+            for (int i = 0; i < digits; i++)
+                scale *= 10;
+
+            long ticksInMinute = time.Ticks % TimeSpan.TicksPerMinute;
+            long units = ticksInMinute * scale / TimeSpan.TicksPerSecond;
+            return (double)units / scale;
         }
     }
 
