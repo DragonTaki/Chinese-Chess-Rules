@@ -4,7 +4,7 @@
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2025/05/06
 // Update Date: 2026/09/30
-// Version: v1.4
+// Version: v1.5
 /* ----- ----- ----- ----- */
 
 using System;
@@ -13,6 +13,7 @@ using System.Linq;
 
 using Chinese_Chess_v3.Game.Core.Boards;
 using Chinese_Chess_v3.Game.Core.Endgames;
+using Chinese_Chess_v3.Game.Core.Notation;
 using Chinese_Chess_v3.Game.Core.Pieces;
 using Chinese_Chess_v3.Game.Core.Players;
 
@@ -131,6 +132,29 @@ namespace Chinese_Chess_v3.Game.Core
         /// <summary>The most recent move of this game; null before the first move.</summary>
         public MoveRecord LastMove { get; private set; } = null;
 
+        private readonly List<MoveRecord> moves = new List<MoveRecord>();
+        private readonly IReadOnlyList<MoveRecord> movesView;
+
+        /// <summary>
+        /// Every move of the current game in order (<c>Moves[i].Ply == i + 1</c>; the last
+        /// one is <see cref="LastMove"/>). Emptied by every new game setup
+        /// (<see cref="ResetBoardToDefault"/>, <see cref="LoadCustomBoard"/>,
+        /// <see cref="StartEndgame"/>, <see cref="ClearBoard"/>). The base for PGN export,
+        /// undo and replay (docs/PLAN.md). Read-only view of the live list.
+        /// </summary>
+        public IReadOnlyList<MoveRecord> Moves => movesView;
+
+        /// <summary>The side that made (or makes) the first move of the current game; with <see cref="Moves"/> it fixes the move numbers.</summary>
+        public PlayerSide FirstTurn { get; private set; } = PlayerSide.Player1;
+
+        /// <summary>
+        /// Raised once per move after it is appended to <see cref="Moves"/> and the board is
+        /// updated (after <see cref="PieceMoved"/>), before the turn switch and before
+        /// <see cref="Check"/> / <see cref="GameOver"/> / <see cref="TacticalEvents"/>, so a
+        /// move list shows the mating move before the result.
+        /// </summary>
+        public event Action<MoveRecord> MoveRecorded;
+
         /// <summary>
         /// The endgame puzzle the current game was started from (<see cref="StartEndgame"/>);
         /// null for any other game. Cleared by <see cref="ResetBoardToDefault"/>,
@@ -152,6 +176,8 @@ namespace Chinese_Chess_v3.Game.Core
 
         public GameManager()
         {
+            movesView = moves.AsReadOnly();
+
             // Initialize the board
             Board = new Board();
             Board.Initialize(BoardConfigLoader.Load());
@@ -236,6 +262,7 @@ namespace Chinese_Chess_v3.Game.Core
             CurrentEndgame = puzzle;
             // Reset side
             CurrentTurn = firstTurn;
+            FirstTurn = firstTurn;
             ResetTimers(startFirstTurn: true);
             // A custom position may start with the side to move already in check.
             IsInCheck = Board.UsesCheckRules && Board.IsSideInCheck(firstTurn);
@@ -262,6 +289,7 @@ namespace Chinese_Chess_v3.Game.Core
             CurrentEndgame = null;
             // Reset side
             CurrentTurn = PlayerSide.Player1;
+            FirstTurn = PlayerSide.Player1;
             ResetTimers(startFirstTurn: false);
 
             // Inform UI
@@ -381,11 +409,24 @@ namespace Chinese_Chess_v3.Game.Core
             // Pre-move facts for the "newly ..." tactical events, taken on the unchanged board.
             var tacticalBefore = Board.UsesCheckRules ? TacticalAnalysis.TakeSnapshot(Board, piece.Side) : null;
 
+            // The notation also depends on the other pieces on the file (前/後), and whether the
+            // move gives check is simulated, so the record is complete before the board changes.
+            string notation = ChineseMoveNotation.Format(Board, fromX, fromY, toX, toY);
+            string iccs = Board.Type == BoardType.Full ? new IccsMove(fromX, fromY, toX, toY).ToString() : null;
+            var opponentSide = OpponentOf(piece.Side);
+            bool givesCheck = Board.UsesCheckRules &&
+                Board.SimulateMove(piece, toX, toY, () => Board.IsSideInCheck(opponentSide), fallback: false);
+
             Board.AdvanceTurn();
 
             // If the destination has an (enemy) piece, capture it first
             var targetPiece = Board.GetPiece(toX, toY);
-            LastMove = new MoveRecord(piece.CurrentInfo.Clone(), fromX, fromY, toX, toY, targetPiece?.CurrentInfo.Clone());
+            int ply = moves.Count + 1;
+            // Black-first games (endgames) number like PGN: Black's first move is 1, Red's reply 2.
+            int moveNumber = (ply - 1 + (FirstTurn == PlayerSide.Player2 ? 1 : 0)) / 2 + 1;
+            LastMove = new MoveRecord(piece.CurrentInfo.Clone(), fromX, fromY, toX, toY, targetPiece?.CurrentInfo.Clone(),
+                ply, moveNumber, givesCheck, notation, iccs);
+            moves.Add(LastMove);
 
             if (targetPiece != null)
             {
@@ -403,6 +444,15 @@ namespace Chinese_Chess_v3.Game.Core
 
             // raise moved event AFTER board updated
             PieceMoved?.Invoke(piece, toX, toY);
+
+            // Readable move-list line, in addition to the debug lines above.
+            if (LastMove.Notation != null)
+            {
+                string line = FormatMoveLine(LastMove);
+                AppLogger.Log(line, LogLevel.DEBUG);
+                Logger?.AddMessage(line);
+            }
+            MoveRecorded?.Invoke(LastMove);
 
             // unselect and notify
             if (selectedPiece != null)
@@ -480,6 +530,14 @@ namespace Chinese_Chess_v3.Game.Core
             HangingPiecesChanged?.Invoke(HangingPieces);
         }
 
+        /// <summary>
+        /// The game-log line of a move: <c>第{MoveNumber}手 紅：{Notation}</c> or
+        /// <c>第{MoveNumber}手 黑：{Notation}</c> (e.g. <c>第1手 紅：炮二平五</c>). The side name is
+        /// fixed by player (Player1 紅, Player2 黑) like the notation's piece characters.
+        /// </summary>
+        public static string FormatMoveLine(MoveRecord move) =>
+            $"第{move.MoveNumber}手 {(move.Side == PlayerSide.Player1 ? "紅" : "黑")}：{move.Notation}";
+
         private static PlayerSide OpponentOf(PlayerSide side) =>
             side == PlayerSide.Player1 ? PlayerSide.Player2 : PlayerSide.Player1;
 
@@ -533,6 +591,7 @@ namespace Chinese_Chess_v3.Game.Core
             Result = null;
             IsInCheck = false;
             LastMove = null;
+            moves.Clear();
             if (startFirstTurn)
                 (CurrentTurn == PlayerSide.Player2 ? Player2 : Player1).Timer.StartStep();
         }
