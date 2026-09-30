@@ -167,29 +167,22 @@ namespace Chinese_Chess_v3.Game.Core
         {
             return Board.GetAllPieces();
         }
+        /// <summary>
+        /// Moves the piece at (fromX, fromY) to (toX, toY) if it belongs to the side to
+        /// move and the move is legal. Same effect as selecting and clicking through
+        /// <see cref="HandleClick"/> (capture, log, events, selection cleared, turn switch).
+        /// </summary>
         public bool TryMove(int fromX, int fromY, int toX, int toY)
         {
             var piece = Board.GetPiece(fromX, fromY);
             if (piece == null || piece.Side != CurrentTurn)
                 return false;
 
-            if (piece.CanMoveTo(Board, toX, toY))
-            {
-                var targetPiece = Board.GetPiece(toX, toY);
-                if (targetPiece != null)
-                {
-                    Board.RemovePiece(toX, toY);
-                    PieceCaptured?.Invoke(targetPiece);
-                    PieceRemoved?.Invoke(targetPiece);
-                }
+            if (!piece.CanMoveTo(Board, toX, toY))
+                return false;
 
-                Board.MovePiece(fromX, fromY, toX, toY);
-                PieceMoved?.Invoke(piece, toX, toY);
-                SwitchTurn();
-                return true;
-            }
-
-            return false;
+            ExecuteMove(piece, toX, toY);
+            return true;
         }
 
         public void HandleClick(int x, int y)
@@ -238,30 +231,7 @@ namespace Chinese_Chess_v3.Game.Core
             // Has selected piece, try to move to 2nd selection
             if (selectedPiece.CanMoveTo(Board, x, y))
             {
-                // If 2nd selection point has enemy piece
-                if (clickedPiece != null && clickedPiece.Side != selectedPiece.Side)
-                {
-                    Board.RemovePiece(x, y);
-                    AppLogger.Log($"(Action) Captured {clickedPiece.Type} at ({x},{y})", LogLevel.DEBUG);
-                    Logger?.AddMessage($"(Action) Captured {clickedPiece.Type} at ({x},{y})");
-                    PieceCaptured?.Invoke(clickedPiece);
-                    PieceRemoved?.Invoke(clickedPiece);
-                }
-
-                // move logic
-                int fromX = selectedPiece.Position.X;
-                int fromY = selectedPiece.Position.Y;
-                Board.MovePiece(fromX, fromY, x, y);
-                AppLogger.Log($"(Action) Moved {selectedPiece.Type} to ({x},{y})", LogLevel.DEBUG);
-                    Logger?.AddMessage($"(Action) Moved {selectedPiece.Type} to ({x},{y})");
-
-                // raise moved event AFTER board updated
-                PieceMoved?.Invoke(selectedPiece, x, y);
-
-                // unselect and notify
-                PieceUnselected?.Invoke(selectedPiece);
-                selectedPiece = null;
-                SwitchTurn();
+                ExecuteMove(selectedPiece, x, y);
             }
             else
             {
@@ -280,6 +250,48 @@ namespace Chinese_Chess_v3.Game.Core
                 PieceUnselected?.Invoke(selectedPiece);
                 selectedPiece = null;
             }
+        }
+
+        /// <summary>
+        /// Applies an already-validated move: advances the board's turn counter (so the
+        /// pieces' history snapshots carry the move number), captures whatever stands on
+        /// the destination, moves the piece, clears the selection and switches the turn.
+        /// Shared by <see cref="HandleClick"/> and <see cref="TryMove"/>.
+        /// </summary>
+        private void ExecuteMove(Piece piece, int toX, int toY)
+        {
+            int fromX = piece.X;
+            int fromY = piece.Y;
+
+            Board.AdvanceTurn();
+
+            // If the destination has an (enemy) piece, capture it first
+            var targetPiece = Board.GetPiece(toX, toY);
+            if (targetPiece != null)
+            {
+                Board.RemovePiece(toX, toY);
+                AppLogger.Log($"(Action) Captured {targetPiece.Type} at ({toX},{toY})", LogLevel.DEBUG);
+                Logger?.AddMessage($"(Action) Captured {targetPiece.Type} at ({toX},{toY})");
+                PieceCaptured?.Invoke(targetPiece);
+                PieceRemoved?.Invoke(targetPiece);
+            }
+
+            // move logic
+            Board.MovePiece(fromX, fromY, toX, toY);
+            AppLogger.Log($"(Action) Moved {piece.Type} to ({toX},{toY})", LogLevel.DEBUG);
+            Logger?.AddMessage($"(Action) Moved {piece.Type} to ({toX},{toY})");
+
+            // raise moved event AFTER board updated
+            PieceMoved?.Invoke(piece, toX, toY);
+
+            // unselect and notify
+            if (selectedPiece != null)
+            {
+                PieceUnselected?.Invoke(selectedPiece);
+                selectedPiece = null;
+            }
+
+            SwitchTurn();
         }
 
         private void SwitchTurn()
