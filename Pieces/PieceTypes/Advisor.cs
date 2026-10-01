@@ -25,7 +25,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         /// <summary>
         /// Initializes a new instance of the <see cref="Advisor"/> class with the specified initial state.
         /// </summary>
-        /// <param name="info">The piece\'s initial state (type, position, color, side); copied.</param>
+        /// <param name="info">The piece's initial state (type, position, color, side); copied.</param>
         public Advisor(PieceInfo info)
             : base(info) { }
 

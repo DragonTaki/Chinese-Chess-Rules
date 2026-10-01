@@ -25,7 +25,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         /// <summary>
         /// Initializes a new instance of the <see cref="General"/> class with the specified initial state.
         /// </summary>
-        /// <param name="info">The piece\'s initial state (type, position, color, side); copied.</param>
+        /// <param name="info">The piece's initial state (type, position, color, side); copied.</param>
         public General(PieceInfo info)
             : base(info) { }
 
@@ -55,8 +55,8 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         /// <summary>
         /// Checks whether the General can move to the target position according to Chinese Chess rules.
         /// <para>
-        /// - Must move exactly 1 square horizontally or vertically.  
-        /// - Must remain within the palace (unless <see cref="Rules.CanGeneralLeavePalace"/>).  
+        /// - Must move exactly 1 square horizontally or vertically.
+        /// - Must remain within the palace (unless <see cref="Rules.CanGeneralLeavePalace"/>).
         /// - Cannot capture an allied piece.
         /// </para>
         /// </summary>

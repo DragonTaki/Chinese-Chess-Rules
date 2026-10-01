@@ -12,7 +12,7 @@ using Chinese_Chess_v3.Game.Core.Players;
 namespace Chinese_Chess_v3.Game.Core.Pieces
 {
     /// <summary>
-    /// Defines the visible color of a piece.  
+    /// Defines the visible color of a piece.
     /// This can differ from its owning player's side in multi-faction variants (e.g., Three Kingdoms Chess).
     /// </summary>
     public enum PieceColor
@@ -24,7 +24,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
     }
 
     /// <summary>
-    /// Stores runtime state of a single chess piece.  
+    /// Stores runtime state of a single chess piece.
     /// Used for both in-game logic and state snapshots (e.g., replay, undo).
     /// </summary>
     public class PieceInfo

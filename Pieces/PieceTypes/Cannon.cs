@@ -17,7 +17,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
 {
     /// <summary>
     /// Represents the <b>Cannon (炮/包)</b> piece in Chinese Chess.
-    /// The Cannon moves like the Rook — any number of empty squares horizontally or vertically — 
+    /// The Cannon moves like the Rook — any number of empty squares horizontally or vertically —
     /// but captures differently: it must have exactly one piece between itself and its target when capturing.
     /// That is the Full board; on the dark-chess HalfCenter board it steps one square instead
     /// (see <see cref="IsValidMoveHalfCenter"/>).
@@ -27,15 +27,15 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         /// <summary>
         /// Initializes a new instance of the <see cref="Cannon"/> class with the specified initial state.
         /// </summary>
-        /// <param name="info">The piece\'s initial state (type, position, color, side); copied.</param>
+        /// <param name="info">The piece's initial state (type, position, color, side); copied.</param>
         public Cannon(PieceInfo info)
             : base(info) { }
 
         /// <summary>
         /// Checks whether the Cannon can move to the target position according to Chinese Chess rules.
         /// <para>
-        /// - The Cannon must move strictly in a straight line (horizontal or vertical).  
-        /// - For a normal move (non-capture), there must be no pieces in between.  
+        /// - The Cannon must move strictly in a straight line (horizontal or vertical).
+        /// - For a normal move (non-capture), there must be no pieces in between.
         /// - For a capture, there must be exactly one piece between the Cannon and its target, and the target must be an enemy.
         /// </para>
         /// </summary>
@@ -52,7 +52,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
             // Check if general will see general after move
             if (WouldExposeGeneralsFull(board, targetX, targetY))
                 return false;
-                
+
             int dx = targetX - X;
             int dy = targetY - Y;
 

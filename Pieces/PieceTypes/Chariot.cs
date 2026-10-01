@@ -25,15 +25,15 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         /// <summary>
         /// Initializes a new instance of the <see cref="Chariot"/> class with the specified initial state.
         /// </summary>
-        /// <param name="info">The piece\'s initial state (type, position, color, side); copied.</param>
+        /// <param name="info">The piece's initial state (type, position, color, side); copied.</param>
         public Chariot(PieceInfo info)
             : base(info) { }
 
         /// <summary>
         /// Checks whether the Chariot can move to the target position according to Chinese Chess rules.
         /// <para>
-        /// - The Chariot moves in a straight line horizontally or vertically.  
-        /// - It cannot jump over other pieces.  
+        /// - The Chariot moves in a straight line horizontally or vertically.
+        /// - It cannot jump over other pieces.
         /// - The destination cannot contain an allied piece.
         /// </para>
         /// </summary>

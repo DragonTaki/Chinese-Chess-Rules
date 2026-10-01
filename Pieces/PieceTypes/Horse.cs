@@ -17,7 +17,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
 {
     /// <summary>
     /// Represents the <b>Horse (傌/馬)</b> piece in Chinese Chess.
-    /// The Horse moves in an L-shape (two squares in one direction, one square in perpendicular direction) and 
+    /// The Horse moves in an L-shape (two squares in one direction, one square in perpendicular direction) and
     /// cannot jump over a piece directly adjacent in the primary direction ("horse leg" rule).
     /// </summary>
     public class Horse : Piece
@@ -25,15 +25,15 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         /// <summary>
         /// Initializes a new instance of the <see cref="Horse"/> class with the specified initial state.
         /// </summary>
-        /// <param name="info">The piece\'s initial state (type, position, color, side); copied.</param>
+        /// <param name="info">The piece's initial state (type, position, color, side); copied.</param>
         public Horse(PieceInfo info)
             : base(info) { }
 
         /// <summary>
         /// Checks whether the Horse can move to the target position according to Chinese Chess rules.
         /// <para>
-        /// - Must move in an "L" shape (1+2 or 2+1 squares).  
-        /// - Must not be blocked by a piece in the primary movement direction ("horse leg", when <see cref="Rules.CanHorseLegHobbled"/>).  
+        /// - Must move in an "L" shape (1+2 or 2+1 squares).
+        /// - Must not be blocked by a piece in the primary movement direction ("horse leg", when <see cref="Rules.CanHorseLegHobbled"/>).
         /// - Cannot capture an allied piece.
         /// </para>
         /// </summary>

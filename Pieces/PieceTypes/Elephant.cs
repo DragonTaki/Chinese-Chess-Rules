@@ -26,7 +26,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         /// <summary>
         /// Initializes a new instance of the <see cref="Elephant"/> class with the specified initial state.
         /// </summary>
-        /// <param name="info">The piece\'s initial state (type, position, color, side); copied.</param>
+        /// <param name="info">The piece's initial state (type, position, color, side); copied.</param>
         public Elephant(PieceInfo info)
             : base(info) { }
 
@@ -71,9 +71,9 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         /// <summary>
         /// Checks whether the Elephant can move to the target position according to Chinese Chess rules.
         /// <para>
-        /// - Must move exactly 2 squares diagonally.  
-        /// - Cannot cross the river.  
-        /// - Cannot jump over a piece ("elephant's eye" rule, when <see cref="Rules.CanElephantEyeBlocked"/>).  
+        /// - Must move exactly 2 squares diagonally.
+        /// - Cannot cross the river.
+        /// - Cannot jump over a piece ("elephant's eye" rule, when <see cref="Rules.CanElephantEyeBlocked"/>).
         /// - Cannot capture an allied piece.
         /// </para>
         /// </summary>

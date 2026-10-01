@@ -19,7 +19,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
     /// <summary>
     /// Represents the <b>Soldier (兵/卒)</b> piece in Chinese Chess.
     /// <para>
-    /// Soldiers move 1 step forward before crossing the river and can move horizontally 
+    /// Soldiers move 1 step forward before crossing the river and can move horizontally
     /// (left or right) after crossing the river. They cannot move backward.
     /// </para>
     /// </summary>
@@ -28,16 +28,16 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         /// <summary>
         /// Initializes a new instance of the <see cref="Soldier"/> class with the specified initial state.
         /// </summary>
-        /// <param name="info">The piece\'s initial state (type, position, color, side); copied.</param>
+        /// <param name="info">The piece's initial state (type, position, color, side); copied.</param>
         public Soldier(PieceInfo info)
             : base(info) { }
 
         /// <summary>
         /// Determines whether a move to the target position is valid according to Chinese Chess rules.
         /// <para>
-        /// - Can move 1 step forward anytime.  
-        /// - Can move 1 step horizontally only after crossing the river.  
-        /// - Cannot move backward.  
+        /// - Can move 1 step forward anytime.
+        /// - Can move 1 step horizontally only after crossing the river.
+        /// - Cannot move backward.
         /// - Cannot capture a piece from the same side.
         /// </para>
         /// </summary>
