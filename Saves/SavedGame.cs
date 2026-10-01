@@ -72,7 +72,7 @@ namespace Chinese_Chess_v3.Game.Core.Saves
         /// <summary>From <c>[TimeControl]</c> (<c>total+increment</c>, seconds): each side's total time (<see cref="Rules.TotalTimeLimit"/>).</summary>
         public TimeSpan? TotalTimeLimit { get; init; }
 
-        /// <summary>From <c>[TimeControl]</c>: the time added back after each move (<see cref="Rules.IncrementPerMove"/>).</summary>
+        /// <summary>From <c>[TimeControl]</c>: the time added back after each move (<see cref="Rules.IncrementPerMove"/>; only countdown clocks apply it).</summary>
         public TimeSpan? IncrementPerMove { get; init; }
 
         /// <summary>The <c>[StepTime]</c> tag (seconds): the per-move limit (<see cref="Rules.StepTimeLimit"/>).</summary>

@@ -32,11 +32,11 @@ namespace Chinese_Chess_v3.Game.Core.Saves
     /// <c>Origin</c> (the endgame puzzle / opening: <c>0001-七星聚會</c>, or just the title when
     /// it has no Id; only for those modes), <c>BoardType</c> (<c>Full</c>), <c>Format</c>
     /// (<c>ICCS</c>), then the time control and clocks - <c>TimeControl</c> (<c>total+increment</c>
-    /// in seconds, the standard PGN form), <c>StepTime</c> (seconds), <c>StepTimer</c>,
+    /// in seconds, the standard PGN form; the increment only affects countdown clocks), <c>StepTime</c> (seconds), <c>StepTimer</c>,
     /// <c>TimerMode</c> (<c>CountDown</c>/<c>CountUp</c>), <c>LoseOnTimeUp</c>,
     /// <c>RedTimeUsed</c>/<c>RedStepUsed</c>/<c>BlackTimeUsed</c>/<c>BlackStepUsed</c> (each
     /// clock's elapsed total and current step time when saved, seconds; the total can be
-    /// negative after increments) - and the Full-board rules in effect:
+    /// negative after countdown increments) - and the Full-board rules in effect:
     /// <c>GeneralCanSeeGeneral</c>, <c>GeneralCanLeavePalace</c>, <c>AdvisorCanLeavePalace</c>,
     /// <c>ElephantEyeBlocks</c>, <c>HorseLegBlocks</c>. Seconds use <c>.</c> and up to 3
     /// decimals; booleans are <c>true</c>/<c>false</c>. Movetext: every move in ICCS with move
@@ -237,7 +237,7 @@ namespace Chinese_Chess_v3.Game.Core.Saves
             if (terminationText != null && Enum.TryParse(terminationText, true, out GameOverReason reason))
                 termination = reason;
 
-            // Time control: "total+increment" (seconds); a bare "total" means no increment.
+            // Time control: "total+increment" (seconds); a bare "total" means no increment. (The increment only takes effect in countdown mode.)
             TimeSpan? totalLimit = null, increment = null;
             string timeControl = content.Optional(TimeControlTag);
             if (!string.IsNullOrWhiteSpace(timeControl))

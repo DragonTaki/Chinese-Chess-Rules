@@ -41,7 +41,7 @@ namespace Chinese_Chess_v3.Game.Core
         /// <summary>Time allowed per move (步時), when <see cref="EnableStepTimer"/>. Default: 5 minutes</summary>
         public TimeSpan StepTimeLimit { get; set; } = TimeSpan.FromMinutes(5);
 
-        /// <summary>Time added back to a side's total after each of its moves (每步加秒). Default: none</summary>
+        /// <summary>Time added back to a side's total after each of its moves (每步加秒); only countdown clocks apply it, count-up is plain timing. Default: none</summary>
         public TimeSpan IncrementPerMove { get; set; } = TimeSpan.Zero;
 
         /// <summary>Whether the per-move limit (步時) applies. Default: true</summary>
