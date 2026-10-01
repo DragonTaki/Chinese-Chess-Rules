@@ -3,8 +3,8 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2025/05/06
-// Update Date: 2025/10/30
-// Version: v2.1
+// Update Date: 2026/10/01
+// Version: v2.2
 /* ----- ----- ----- ----- */
 
 using System;
@@ -133,6 +133,22 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
 
             CurrentInfo = newInfo;
             History.Add(newInfo.Clone());
+        }
+
+        /// <summary>
+        /// Takes back the last <see cref="UpdateState"/>: drops the newest
+        /// <see cref="History"/> snapshot and makes the one before it current again. Used by
+        /// <see cref="Board.UnmakeMove"/> to undo a move (the mover's move, the captured
+        /// piece's death).
+        /// </summary>
+        /// <exception cref="InvalidOperationException">Only the initial snapshot is left.</exception>
+        internal void RevertLastState()
+        {
+            if (History.Count < 2)
+                throw new InvalidOperationException("No state change to revert");
+
+            History.RemoveAt(History.Count - 1);
+            CurrentInfo = History[History.Count - 1].Clone();
         }
 
         /* ----- 遊戲邏輯 ----- */

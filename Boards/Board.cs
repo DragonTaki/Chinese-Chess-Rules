@@ -3,8 +3,8 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2025/05/06
-// Update Date: 2026/09/30
-// Version: v2.1
+// Update Date: 2026/10/01
+// Version: v2.2
 /* ----- ----- ----- ----- */
 
 using System;
@@ -138,6 +138,16 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         public void AdvanceTurn()
         {
             Turn++;
+        }
+
+        /// <summary>
+        /// Steps the turn counter back by one (never below 0); the inverse of
+        /// <see cref="AdvanceTurn"/>, for undoing a move.
+        /// </summary>
+        public void RetreatTurn()
+        {
+            if (Turn > 0)
+                Turn--;
         }
 
         /// <summary>
@@ -301,6 +311,35 @@ namespace Chinese_Chess_v3.Game.Core.Boards
             Grid[x, y] = null;
 
             return true;
+        }
+
+        /// <summary>
+        /// Takes back a move made by <see cref="MovePiece"/> (and, for a capture, the
+        /// <see cref="RemovePiece"/> before it): <paramref name="piece"/>, now on (toX, toY),
+        /// returns to (fromX, fromY) with its previous state, and <paramref name="captured"/>
+        /// (the same object that was removed, or null) is put back on (toX, toY), alive again.
+        /// Each piece's last history snapshot is dropped (<see cref="Piece.RevertLastState"/>).
+        /// The turn counter is not changed (see <see cref="RetreatTurn"/>).
+        /// </summary>
+        /// <exception cref="InvalidOperationException"><paramref name="piece"/> is not on (toX, toY),
+        /// or (fromX, fromY) is occupied.</exception>
+        internal void UnmakeMove(Piece piece, int fromX, int fromY, int toX, int toY, Piece captured)
+        {
+            if (piece == null || Grid[toX, toY] != piece)
+                throw new InvalidOperationException($"The piece to take back is not on ({toX},{toY})");
+            if (Grid[fromX, fromY] != null)
+                throw new InvalidOperationException($"({fromX},{fromY}) is occupied; cannot take the move back");
+
+            piece.RevertLastState();
+            Grid[fromX, fromY] = piece;
+            Grid[toX, toY] = null;
+
+            if (captured != null)
+            {
+                captured.RevertLastState();
+                Grid[toX, toY] = captured;
+                pieces.Add(captured);
+            }
         }
 
         /// <summary>

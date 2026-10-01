@@ -158,6 +158,37 @@ namespace Chinese_Chess_v3.Game.Core
         /// </summary>
         public event Action<MoveRecord> MoveRecorded;
 
+        // Parallel to `moves`: the captured Piece object of each move (null for a quiet
+        // move), put back on the board by Undo, and both clocks as they were just before the
+        // move, restored by Undo.
+        private readonly List<Piece> capturedPieces = new List<Piece>();
+        private readonly List<(ClockState Player1, ClockState Player2)> clocksBeforeMove = new List<(ClockState, ClockState)>();
+
+        /// <summary>
+        /// How many leading moves of <see cref="Moves"/> cannot be undone: the opening line
+        /// played by <see cref="StartOpening"/> (its length); 0 for every other game (a normal
+        /// game undoes back to its start position, an endgame back to the puzzle's position).
+        /// Kept when a saved game is loaded (<c>[PresetPlies]</c>).
+        /// </summary>
+        public int UndoFloor { get; private set; } = 0;
+
+        /// <summary>
+        /// Whether <see cref="Undo"/> can take a move back: there is a move above
+        /// <see cref="UndoFloor"/>. Also true after the game has ended (undoing reopens it)
+        /// and while paused.
+        /// </summary>
+        public bool CanUndo => moves.Count > UndoFloor;
+
+        /// <summary>
+        /// Raised once per <see cref="Undo"/>, last, after the board, move list, turn, check
+        /// flag, game-over state, clocks and hanging pieces are all back to the position
+        /// before the move, with the record that was taken back (no longer in
+        /// <see cref="Moves"/>). The board change itself is raised before
+        /// it: <see cref="PieceMoved"/> for the piece going back to its from-square and
+        /// <see cref="PieceAdded"/> for a captured piece returning.
+        /// </summary>
+        public event Action<MoveRecord> MoveUndone;
+
         /// <summary>
         /// The endgame puzzle the current game was started from (<see cref="StartEndgame"/>);
         /// null for any other game. Cleared by <see cref="ResetBoardToDefault"/>,
@@ -290,6 +321,8 @@ namespace Chinese_Chess_v3.Game.Core
                 played++;
             }
 
+            // The opening line is the preset part of the game: it cannot be undone.
+            UndoFloor = played;
             if (!IsGameOver)
                 RestartClocks();
             AppLogger.Log($"(Opening) Started {opening.FileName}: {opening.Title}, {played} move(s) played, {CurrentTurn} to move", LogLevel.DEBUG);
@@ -466,6 +499,9 @@ namespace Chinese_Chess_v3.Game.Core
             int fromX = piece.X;
             int fromY = piece.Y;
 
+            // Both clocks as they are right before the move, for Undo.
+            var clocks = (Player1.Timer.GetClockState(), Player2.Timer.GetClockState());
+
             // Pre-move facts for the "newly ..." tactical events, taken on the unchanged board.
             var tacticalBefore = Board.UsesCheckRules ? TacticalAnalysis.TakeSnapshot(Board, piece.Side) : null;
 
@@ -487,6 +523,8 @@ namespace Chinese_Chess_v3.Game.Core
             LastMove = new MoveRecord(piece.CurrentInfo.Clone(), fromX, fromY, toX, toY, targetPiece?.CurrentInfo.Clone(),
                 ply, moveNumber, givesCheck, notation, iccs);
             moves.Add(LastMove);
+            capturedPieces.Add(targetPiece);
+            clocksBeforeMove.Add(clocks);
 
             if (targetPiece != null)
             {
@@ -598,6 +636,76 @@ namespace Chinese_Chess_v3.Game.Core
         public static string FormatMoveLine(MoveRecord move) =>
             $"第{move.MoveNumber}回合 {(move.Side == PlayerSide.Player1 ? "紅" : "黑")}：{move.Notation}";
 
+        /// <summary>
+        /// Takes back the last move (<see cref="Moves"/>' last record), if
+        /// <see cref="CanUndo"/>: the piece returns to its from-square and a captured piece to
+        /// the to-square (the same piece objects), the board's turn counter steps back, the
+        /// move leaves <see cref="Moves"/>, the mover is to move again, <see cref="IsInCheck"/>
+        /// is recomputed for the mover, the hanging pieces are recomputed, and an ended game
+        /// is reopened (game over cleared, whatever ended it - the undone move, a resignation
+        /// or a time-up). The selection is dropped first. Allowed while paused (the game stays
+        /// paused).
+        /// <para>
+        /// Clocks: both clocks go back to their state just before the undone move was made
+        /// (elapsed step and total time; the mover's increment for that move is taken back
+        /// with it), and the mover's step clock runs again from there (held paused when the
+        /// game is paused); the opponent's time spent on the undone position is not charged.
+        /// </para>
+        /// Events, in order: <see cref="PieceUnselected"/> (if a piece was selected),
+        /// <see cref="PieceMoved"/> (piece, fromX, fromY), <see cref="PieceAdded"/> (the
+        /// captured piece, if any), <see cref="TurnChanged"/>,
+        /// <see cref="HangingPiecesChanged"/>, <see cref="MoveUndone"/>.
+        /// </summary>
+        /// <returns>The record that was taken back; null when nothing could be undone.</returns>
+        public MoveRecord Undo()
+        {
+            if (!CanUndo)
+                return null;
+
+            if (selectedPiece != null)
+            {
+                PieceUnselected?.Invoke(selectedPiece);
+                selectedPiece = null;
+            }
+
+            int last = moves.Count - 1;
+            var record = moves[last];
+            var captured = capturedPieces[last];
+            var clocks = clocksBeforeMove[last];
+            var piece = Board.GetPiece(record.ToX, record.ToY);
+
+            Board.UnmakeMove(piece, record.FromX, record.FromY, record.ToX, record.ToY, captured);
+            Board.RetreatTurn();
+            moves.RemoveAt(last);
+            capturedPieces.RemoveAt(last);
+            clocksBeforeMove.RemoveAt(last);
+            LastMove = moves.Count > 0 ? moves[moves.Count - 1] : null;
+
+            AppLogger.Log($"(Undo) {piece.Type} back to ({record.FromX},{record.FromY})", LogLevel.DEBUG);
+            Logger?.AddMessage(record.Notation != null ? $"(Undo) {FormatMoveLine(record)}" : $"(Undo) {piece.Type} back to ({record.FromX},{record.FromY})");
+
+            PieceMoved?.Invoke(piece, record.FromX, record.FromY);
+            if (captured != null)
+                PieceAdded?.Invoke(captured);
+
+            // Reopen an ended game.
+            IsGameOver = false;
+            Winner = PlayerSide.None;
+            Result = null;
+
+            var mover = record.Side;
+            Player1.Timer.RestoreClockState(clocks.Player1, active: mover == PlayerSide.Player1, paused: IsPaused);
+            Player2.Timer.RestoreClockState(clocks.Player2, active: mover == PlayerSide.Player2, paused: IsPaused);
+
+            // Set before the turn switch so TurnChanged handlers already see it.
+            IsInCheck = Board.UsesCheckRules && Board.IsSideInCheck(mover);
+            CurrentTurn = mover;
+
+            UpdateHangingPieces();
+            MoveUndone?.Invoke(record);
+            return record;
+        }
+
         private static PlayerSide OpponentOf(PlayerSide side) =>
             side == PlayerSide.Player1 ? PlayerSide.Player2 : PlayerSide.Player1;
 
@@ -664,6 +772,9 @@ namespace Chinese_Chess_v3.Game.Core
             IsInCheck = false;
             LastMove = null;
             moves.Clear();
+            capturedPieces.Clear();
+            clocksBeforeMove.Clear();
+            UndoFloor = 0;
             if (startFirstTurn)
                 (CurrentTurn == PlayerSide.Player2 ? Player2 : Player1).Timer.StartStep();
         }

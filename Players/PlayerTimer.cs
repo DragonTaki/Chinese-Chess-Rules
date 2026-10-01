@@ -3,8 +3,8 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2025/10/28
-// Update Date: 2025/10/31
-// Version: v1.1
+// Update Date: 2026/10/01
+// Version: v1.2
 /* ----- ----- ----- ----- */
 
 using System;
@@ -194,6 +194,28 @@ namespace Chinese_Chess_v3.Game.Core.Players
             State = TimerState.Idle;
         }
 
+        /// <summary>
+        /// The clock's elapsed times right now (step and total), for restoring later with
+        /// <see cref="RestoreClockState"/> (undo). Does not include the time since the last
+        /// <see cref="Update"/> call.
+        /// </summary>
+        public ClockState GetClockState() => new ClockState(CurrentStepTime, CurrentTotalTime);
+
+        /// <summary>
+        /// Sets the elapsed times back to <paramref name="state"/> and puts the clock in the
+        /// given running state: <paramref name="active"/> = this side is to move (its step runs
+        /// from now on, or is held <see cref="TimerState.Paused"/> when
+        /// <paramref name="paused"/>); otherwise the clock is <see cref="TimerState.Idle"/>.
+        /// Revives a <see cref="TimerState.Terminated"/> clock. Used to undo a move.
+        /// </summary>
+        public void RestoreClockState(ClockState state, bool active, bool paused)
+        {
+            CurrentStepTime = state.StepTime;
+            CurrentTotalTime = state.TotalTime;
+            _lastUpdate = DateTime.UtcNow;
+            State = !active ? TimerState.Idle : (paused ? TimerState.Paused : TimerState.Active);
+        }
+
         // 切換計時模式
         public void SwitchMode(TimerMode mode)
         {
@@ -284,6 +306,9 @@ namespace Chinese_Chess_v3.Game.Core.Players
             return (double)units / scale;
         }
     }
+
+    /// <summary>A clock's elapsed step and total time at one moment (<see cref="PlayerTimer.GetClockState"/>).</summary>
+    public readonly record struct ClockState(TimeSpan StepTime, TimeSpan TotalTime);
 
     public enum TimerMode
     {
