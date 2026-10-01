@@ -39,7 +39,7 @@ namespace Chinese_Chess_v3.Game.Core.Boards
              (X, 8)  +---+---+---+---+---+---+---+---+ ← Y=8
                      |   |   |   | / | \ |   |   |   |
              (X, 9)  +---+---+---+---+---+---+---+---+ ← Y=9
-                     0   1   2   3   4   5   6   7   8 
+                     0   1   2   3   4   5   6   7   8
                     X →             Red Side
             */
             // Left to right (x-axis): 0~8; Top to bottom (y-axis): 0~9

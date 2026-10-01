@@ -11,7 +11,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-using Chinese_Chess_v3.Game.Core.Pieces.PieceTypes;
 using Chinese_Chess_v3.Game.Core.Pieces;
 using Chinese_Chess_v3.Game.Core.Players;
 
@@ -32,6 +31,7 @@ namespace Chinese_Chess_v3.Game.Core.Boards
     public class Board
     {
         public BoardType Type { get; private set; }
+
         /// <summary>
         /// Two-dimensional array that represents the chessboard grid.
         /// Each cell stores a reference to the <see cref="Piece"/> currently occupying that position.
@@ -61,24 +61,24 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         /// Internal list containing all active pieces on the board.
         /// This allows for quick iteration and management without traversing the grid.
         /// </summary>
-        private List<Piece> pieces = new List<Piece>();
+        private readonly List<Piece> _pieces = new List<Piece>();
 
         /// <summary>
         /// The pieces the temporary move simulations in progress (<see cref="SimulateMove{T}"/>,
         /// used by <see cref="WouldMoveExposeOwnGeneral"/>) have "captured": still in
-        /// <see cref="pieces"/> (the list is never modified during a simulation, so callers
+        /// <see cref="_pieces"/> (the list is never modified during a simulation, so callers
         /// may be iterating it) but skipped by every lookup. A list, not a single field,
         /// because simulations nest (e.g. <see cref="BoardAnalysis"/> simulates a capture
         /// and then checks the legality of the recapture, which simulates again).
         /// </summary>
-        private readonly List<Piece> simulatedCaptures = new List<Piece>();
+        private readonly List<Piece> _simulatedCaptures = new List<Piece>();
 
         /// <summary>
         /// Whether <paramref name="piece"/> is hidden by a move simulation in progress (it
         /// has been "captured" there). Callers iterating <see cref="GetAllPieces"/> inside
         /// <see cref="SimulateMove{T}"/> must skip such pieces.
         /// </summary>
-        internal bool IsSimulatedCapture(Piece piece) => simulatedCaptures.Contains(piece);
+        internal bool IsSimulatedCapture(Piece piece) => _simulatedCaptures.Contains(piece);
 
         /// <summary>
         /// Initializes a new instance of the <see cref="Board"/> class.
@@ -131,14 +131,14 @@ namespace Chinese_Chess_v3.Game.Core.Boards
             {
                 var piece = CreatePieceFromInfo(info);  // Create piece instance based on piece info
                 Grid[info.X, info.Y] = piece;           // Place the piece on the grid
-                pieces.Add(piece);                      // Add to the active piece list
+                _pieces.Add(piece);                      // Add to the active piece list
             }
         }
 
         public void Clear()
         {
             Array.Clear(Grid, 0, Grid.Length);
-            pieces.Clear();
+            _pieces.Clear();
 
             ResetTurn();
         }
@@ -168,7 +168,7 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         {
             Turn = 0;
         }
-        
+
         /// <summary>
         /// Creates a piece instance based on the provided <see cref="PieceInfo"/> configuration.
         /// </summary>
@@ -189,7 +189,7 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         /// <returns>A <see cref="List{T}"/> of <see cref="Piece"/> objects representing all existing pieces.</returns>
         public List<Piece> GetAllPieces()
         {
-            return pieces;
+            return _pieces;
         }
 
         /// <summary>
@@ -227,7 +227,7 @@ namespace Chinese_Chess_v3.Game.Core.Boards
             // Remove the piece already on the square first (if any)
             var existing = Grid[x, y];
             if (existing != null)
-                pieces.Remove(existing);
+                _pieces.Remove(existing);
 
             // Create the new PieceInfo
             var info = new PieceInfo(type, x, y, color, side, faceUp);
@@ -237,7 +237,7 @@ namespace Chinese_Chess_v3.Game.Core.Boards
 
             // Place it on the grid and in the piece list
             Grid[x, y] = piece;
-            pieces.Add(piece);
+            _pieces.Add(piece);
 
             return piece;
         }
@@ -307,7 +307,7 @@ namespace Chinese_Chess_v3.Game.Core.Boards
                 throw new ArgumentException($"A faction belongs to Player1 or Player2, not {side}", nameof(side));
 
             var other = side == PlayerSide.Player1 ? PlayerSide.Player2 : PlayerSide.Player1;
-            foreach (var p in pieces)
+            foreach (var p in _pieces)
             {
                 if (p.Side == PlayerSide.None)
                     p.UpdateState(Turn, side: p.Color == color ? side : other);
@@ -345,7 +345,7 @@ namespace Chinese_Chess_v3.Game.Core.Boards
                 return false;
 
             piece.UpdateState(Turn, isDead: true);
-            pieces.Remove(piece);
+            _pieces.Remove(piece);
             Grid[x, y] = null;
 
             return true;
@@ -376,7 +376,7 @@ namespace Chinese_Chess_v3.Game.Core.Boards
             {
                 captured.RevertLastState();
                 Grid[toX, toY] = captured;
-                pieces.Add(captured);
+                _pieces.Add(captured);
             }
         }
 
@@ -412,15 +412,15 @@ namespace Chinese_Chess_v3.Game.Core.Boards
             {
                 if (piece.CurrentInfo.IsDead)
                 {
-                    pieces.Remove(piece);
+                    _pieces.Remove(piece);
                     continue;
                 }
 
                 if (Grid[piece.X, piece.Y] != null)
                     throw new InvalidOperationException($"({piece.X},{piece.Y}) is occupied; cannot restore {piece.Type}");
                 Grid[piece.X, piece.Y] = piece;
-                if (!pieces.Contains(piece))
-                    pieces.Add(piece);
+                if (!_pieces.Contains(piece))
+                    _pieces.Add(piece);
             }
         }
 
@@ -603,7 +603,7 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         public Piece GetGeneral(PlayerSide side)
         {
             Piece found = null;
-            foreach (var p in pieces)
+            foreach (var p in _pieces)
             {
                 if (IsSimulatedCapture(p) || p.Type != PieceType.General || p.Side != side)
                     continue;
@@ -654,7 +654,7 @@ namespace Chinese_Chess_v3.Game.Core.Boards
             if (general == null)
                 return result;
 
-            foreach (var p in pieces)
+            foreach (var p in _pieces)
             {
                 if (!IsSimulatedCapture(p) && p.Side != side && p.IsPseudoLegalMove(this, general.X, general.Y))
                     result.Add(p);
@@ -690,7 +690,7 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         /// <remarks>
         /// The move is applied temporarily to the grid and the moving piece's coordinates
         /// (without a history snapshot), and a captured piece is hidden from every lookup
-        /// (<see cref="simulatedCaptures"/>), then everything is restored — so every piece's
+        /// (<see cref="_simulatedCaptures"/>), then everything is restored — so every piece's
         /// own rule code sees a consistent board. The piece list itself is not modified,
         /// so this is safe to call while iterating <see cref="GetAllPieces"/> (skip pieces
         /// for which <see cref="IsSimulatedCapture"/> is true). Simulations may nest.
@@ -706,7 +706,7 @@ namespace Chinese_Chess_v3.Game.Core.Boards
             var originalInfo = piece.CurrentInfo;
 
             if (captured != null)
-                simulatedCaptures.Add(captured);
+                _simulatedCaptures.Add(captured);
             Grid[fromX, fromY] = null;
             Grid[toX, toY] = piece;
             piece.SetInfoWithoutHistory(new PieceInfo(
@@ -723,7 +723,7 @@ namespace Chinese_Chess_v3.Game.Core.Boards
                 Grid[fromX, fromY] = piece;
                 Grid[toX, toY] = captured;
                 if (captured != null)
-                    simulatedCaptures.RemoveAt(simulatedCaptures.LastIndexOf(captured));
+                    _simulatedCaptures.RemoveAt(_simulatedCaptures.LastIndexOf(captured));
             }
         }
 
@@ -745,7 +745,7 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         /// </summary>
         public bool HasAnyLegalMove(PlayerSide side)
         {
-            foreach (var p in pieces)
+            foreach (var p in _pieces)
             {
                 if (p.Side != side && !(UsesDarkChessRules && p.Side == PlayerSide.None))
                     continue;
@@ -771,7 +771,7 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         {
             if (UsesDarkChessRules)
             {
-                foreach (var p in pieces)
+                foreach (var p in _pieces)
                 {
                     if (!IsSimulatedCapture(p) && !p.CurrentInfo.IsFaceUp)
                         return true;
@@ -786,7 +786,7 @@ namespace Chinese_Chess_v3.Game.Core.Boards
             bool? isAlive = null,
             bool? isFaceUp = null)
         {
-            return pieces.Where(p =>
+            return _pieces.Where(p =>
                 !IsSimulatedCapture(p) &&
                 (!type.HasValue || p.Type == type.Value) &&
                 (!side.HasValue || p.Side == side.Value) &&
