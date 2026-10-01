@@ -20,7 +20,7 @@ namespace Chinese_Chess_v3.Game.Core.Pgn
     /// <summary>
     /// Writes Chinese-chess PGN text in the shared format <see cref="PgnReader"/> reads: tag
     /// pairs (<c>[Name "value"]</c>, <c>\</c> and <c>"</c> escaped), a blank line, then the
-    /// movetext with one move number per line (<c>1. h2e2 {炮二平五} h9g7 {馬8進7}</c>; a game
+    /// movetext with one move number per line (<c>1. h2e2 {炮二平五} h9g7 {馬８進７}</c>; a game
     /// Black starts begins with <c>1... </c>), and the result token on its own line.
     /// </summary>
     public static class PgnWriter
