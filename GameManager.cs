@@ -14,6 +14,7 @@ using System.Linq;
 using Chinese_Chess_v3.Game.Core.Boards;
 using Chinese_Chess_v3.Game.Core.Endgames;
 using Chinese_Chess_v3.Game.Core.Notation;
+using Chinese_Chess_v3.Game.Core.Openings;
 using Chinese_Chess_v3.Game.Core.Pgn;
 using Chinese_Chess_v3.Game.Core.Pieces;
 using Chinese_Chess_v3.Game.Core.Players;
@@ -140,7 +141,8 @@ namespace Chinese_Chess_v3.Game.Core
         /// Every move of the current game in order (<c>Moves[i].Ply == i + 1</c>; the last
         /// one is <see cref="LastMove"/>). Emptied by every new game setup
         /// (<see cref="ResetBoardToDefault"/>, <see cref="LoadCustomBoard"/>,
-        /// <see cref="StartEndgame"/>, <see cref="ClearBoard"/>). The base for PGN export,
+        /// <see cref="StartEndgame"/>, <see cref="StartOpening"/> (before its line is
+        /// played), <see cref="ClearBoard"/>). The base for PGN export,
         /// undo and replay (docs/PLAN.md). Read-only view of the live list.
         /// </summary>
         public IReadOnlyList<MoveRecord> Moves => movesView;
@@ -163,6 +165,13 @@ namespace Chinese_Chess_v3.Game.Core
         /// <see cref="BoardReset"/> is raised for the puzzle's position.
         /// </summary>
         public EndgamePuzzle CurrentEndgame { get; private set; } = null;
+
+        /// <summary>
+        /// The opening the current game was started from (<see cref="StartOpening"/>); null
+        /// for any other game. Cleared like <see cref="CurrentEndgame"/>. Already set when
+        /// <see cref="BoardReset"/> is raised and while the opening line is played.
+        /// </summary>
+        public OpeningLine CurrentOpening { get; private set; } = null;
 
 #nullable enable
         // events for UI bridge
@@ -251,13 +260,51 @@ namespace Chinese_Chess_v3.Game.Core
         }
 
         /// <summary>
+        /// Starts a game from <paramref name="opening"/>: its position (the standard start
+        /// position unless the file has a <c>[FEN]</c>), then its line played move by move
+        /// through <see cref="TryMove"/>, so <see cref="Moves"/>, <see cref="MoveRecorded"/>
+        /// and the game log show it as if it had been played. The side to move afterwards is
+        /// <see cref="PgnGameFile.SideToMoveAfterMoves"/>; both clocks are then reset (the
+        /// line took no thinking time) and that side's step clock started. Keeps the opening
+        /// as <see cref="CurrentOpening"/>.
+        /// </summary>
+        /// <returns>The number of moves of the line that were played: all of them, unless a
+        /// move was not legal (openings from <see cref="OpeningLoader"/> have already been
+        /// checked), in which case the line stops there.</returns>
+        /// <exception cref="FormatException">The opening's FEN is not valid.</exception>
+        public int StartOpening(OpeningLine opening)
+        {
+            ArgumentNullException.ThrowIfNull(opening);
+            var (pieces, sideToMove) = XiangqiFen.Parse(opening.Fen);
+            SetUpPosition(pieces, sideToMove, opening);
+            Logger?.AddMessage(opening.Ecco != null ? $"(Opening) {opening.Title} ({opening.Ecco})" : $"(Opening) {opening.Title}");
+
+            int played = 0;
+            foreach (var move in opening.Moves)
+            {
+                if (!TryMove(move.FromX, move.FromY, move.ToX, move.ToY))
+                {
+                    AppLogger.Log($"(Opening) {opening.FileName}: move {played + 1} ({move}) is not legal here; line stopped", LogLevel.WARN);
+                    break;
+                }
+                played++;
+            }
+
+            if (!IsGameOver)
+                RestartClocks();
+            AppLogger.Log($"(Opening) Started {opening.FileName}: {opening.Title}, {played} move(s) played, {CurrentTurn} to move", LogLevel.DEBUG);
+            return played;
+        }
+
+        /// <summary>
         /// Shared new-game setup: places <paramref name="pieces"/> (resetting the board's turn
         /// counter), clears the selection, gives the move to <paramref name="firstTurn"/>,
         /// resets both clocks and starts <paramref name="firstTurn"/>'s step, then informs the
         /// UI (<see cref="BoardReset"/>, <see cref="PieceAdded"/> per piece) and recomputes
         /// the hanging pieces.
         /// </summary>
-        private void SetUpPosition(List<PieceInfo> pieces, PlayerSide firstTurn, EndgamePuzzle puzzle)
+        /// <param name="source">The file the game starts from (an endgame puzzle, an opening), or null.</param>
+        private void SetUpPosition(List<PieceInfo> pieces, PlayerSide firstTurn, PgnGameFile source)
         {
             if (firstTurn != PlayerSide.Player1 && firstTurn != PlayerSide.Player2)
                 throw new ArgumentException($"The first turn must be Player1 or Player2, not {firstTurn}", nameof(firstTurn));
@@ -270,7 +317,8 @@ namespace Chinese_Chess_v3.Game.Core
 
             // Reset selected piece
             selectedPiece = null;
-            CurrentEndgame = puzzle;
+            CurrentEndgame = source as EndgamePuzzle;
+            CurrentOpening = source as OpeningLine;
             // Reset side
             CurrentTurn = firstTurn;
             FirstTurn = firstTurn;
@@ -298,6 +346,7 @@ namespace Chinese_Chess_v3.Game.Core
             // Reset selected piece
             selectedPiece = null;
             CurrentEndgame = null;
+            CurrentOpening = null;
             // Reset side
             CurrentTurn = PlayerSide.Player1;
             FirstTurn = PlayerSide.Player1;
@@ -592,6 +641,18 @@ namespace Chinese_Chess_v3.Game.Core
         /// Also clears the pause state (Reset() drops a clock's Paused state) and the
         /// game-over state.
         /// </summary>
+        /// <summary>
+        /// Both clocks back to their start values and the side to move's step clock started,
+        /// keeping the moves and the game state (unlike <see cref="ResetTimers"/>). Used after
+        /// an opening line has been played onto the board.
+        /// </summary>
+        private void RestartClocks()
+        {
+            Player1.Timer.Reset();
+            Player2.Timer.Reset();
+            (CurrentTurn == PlayerSide.Player2 ? Player2 : Player1).Timer.StartStep();
+        }
+
         private void ResetTimers(bool startFirstTurn)
         {
             Player1.Timer.Reset();
