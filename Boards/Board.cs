@@ -737,13 +737,14 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         /// Whether <paramref name="side"/> has at least one legal move (see
         /// <see cref="Piece.GetLegalMoves"/>). Stops at the first one found. On a
         /// <see cref="UsesDarkChessRules"/> board a face-down piece has no moves (it can only
-        /// be flipped, see <see cref="HasAnyAction"/>).
+        /// be flipped, see <see cref="HasAnyAction"/>), and a face-up piece nobody owns yet
+        /// (明棋半盤 before the first move decides the factions) may be moved by either player.
         /// </summary>
         public bool HasAnyLegalMove(PlayerSide side)
         {
             foreach (var p in pieces)
             {
-                if (p.Side != side)
+                if (p.Side != side && !(UsesDarkChessRules && p.Side == PlayerSide.None))
                     continue;
                 if (UsesDarkChessRules && !p.CurrentInfo.IsFaceUp)
                     continue;

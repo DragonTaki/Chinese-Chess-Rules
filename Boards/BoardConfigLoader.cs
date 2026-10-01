@@ -73,8 +73,8 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         /// <param name="faceDown">
         /// true (暗棋, <c>Rules.IsHiddenChess</c>): every piece face down and owned by nobody
         /// (<c>PlayerSide.None</c>) — the first flip decides the factions. false (明棋半盤): every
-        /// piece face up, red owned by Player1 and black by Player2 (no standard rule for
-        /// this variant yet, see docs/DARK-CHESS-RULES.md §1.1).
+        /// piece face up and still owned by nobody — the first move decides the factions (the
+        /// mover gets the moved piece's colour, see <c>GameManager.ColorOf</c>).
         /// </param>
         /// <returns>32 pieces, one per square.</returns>
         /// <exception cref="ArgumentNullException"><paramref name="random"/> is null.</exception>
@@ -100,13 +100,12 @@ namespace Chinese_Chess_v3.Game.Core.Boards
             int next = 0;
             foreach (var color in new[] { PieceColor.Red, PieceColor.Black })
             {
-                var side = !faceDown ? (color == PieceColor.Red ? PlayerSide.Player1 : PlayerSide.Player2) : PlayerSide.None;
                 foreach (var (type, count) in PieceConstants.HalfCenterPieceSet)
                 {
                     for (int i = 0; i < count; i++)
                     {
                         var (x, y) = squares[next++];
-                        pieces.Add(new PieceInfo(type, x, y, color, side, isFaceUp: !faceDown));
+                        pieces.Add(new PieceInfo(type, x, y, color, PlayerSide.None, isFaceUp: !faceDown));
                     }
                 }
             }

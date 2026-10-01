@@ -79,7 +79,7 @@ namespace Chinese_Chess_v3.Game.Core.Boards
             int y = target.Y;
             foreach (var attacker in pieces)
             {
-                if (!IsIdentityKnown(board, attacker) || attacker.Side == target.Side || !attacker.CanMoveTo(board, x, y))
+                if (!IsIdentityKnown(board, attacker) || attacker.IsSameFaction(target) || !attacker.CanMoveTo(board, x, y))
                     continue;
 
                 // A single capture that cannot be answered is enough.
@@ -102,7 +102,7 @@ namespace Chinese_Chess_v3.Game.Core.Boards
             {
                 foreach (var defender in pieces)
                 {
-                    if (defender == target || !IsIdentityKnown(board, defender) || defender.Side != target.Side
+                    if (defender == target || !IsIdentityKnown(board, defender) || !defender.IsSameFaction(target)
                         || board.IsSimulatedCapture(defender))
                         continue;
                     if (defender.CanMoveTo(board, x, y))

@@ -158,6 +158,25 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
 
         /* ----- Game logic ----- */
 
+        /// <summary>
+        /// Whether <paramref name="other"/> belongs to the same player as this piece (an own
+        /// piece, never a capture target). Normally their <see cref="Side"/>s decide. On the
+        /// dark-chess board before the factions are decided (both <c>PlayerSide.None</c> —
+        /// 明棋半盤's face-up start, before the first move) the colour decides instead: whoever
+        /// moves a piece gets its colour, so a same-coloured piece will be the mover's own and an
+        /// other-coloured one the opponent's. Callers must not ask this about a face-down piece's
+        /// identity (hidden information).
+        /// </summary>
+        /// <param name="other">The other piece; null is never the same faction.</param>
+        public bool IsSameFaction(Piece other)
+        {
+            if (other == null)
+                return false;
+            if (Side == PlayerSide.None && other.Side == PlayerSide.None)
+                return Color == other.Color;
+            return Side == other.Side;
+        }
+
         // Only check destination location
         protected virtual bool IsDestinationLegalFull(Board board, int targetX, int targetY) => board.IsInBoard(targetX, targetY);
         protected virtual bool IsDestinationLegalHalfCenter(Board board, int targetX, int targetY) => board.IsInBoard(targetX, targetY);
@@ -224,8 +243,9 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
 
             // Capturing an allied piece is never allowed on this board type.
             // CanCaptureOwnPiece is declared under Rules.cs's "Full Board
-            // Rules" region, so it's scoped to the Full board only.
-            if (target.Side == Side)
+            // Rules" region, so it's scoped to the Full board only. Before the
+            // factions are decided (明棋半盤's first move) the colours tell them apart.
+            if (IsSameFaction(target))
                 return false;
 
             if (ignoreRank)

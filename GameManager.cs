@@ -356,9 +356,10 @@ namespace Chinese_Chess_v3.Game.Core
         /// <summary>
         /// Starts a new HalfCenter game (台灣暗棋半盤, 8×4): the 32 pieces shuffled
         /// (<see cref="BoardConfigLoader.CreateShuffledHalfCenter"/> with
-        /// <see cref="GlobalRandom.Instance"/>), face down and owned by nobody when
-        /// <see cref="Rules.IsHiddenChess"/> (the default rules decide), Player1 to act first —
-        /// its first flip decides who plays which colour (see <see cref="ColorOf"/>).
+        /// <see cref="GlobalRandom.Instance"/>) and owned by nobody, face down when
+        /// <see cref="Rules.IsHiddenChess"/> (the default rules decide), otherwise face up
+        /// (明棋半盤). Player1 acts first — its first flip (or, face up, its first move) decides
+        /// who plays which colour (see <see cref="ColorOf"/>).
         /// </summary>
         public void StartHalfCenter()
         {
@@ -681,10 +682,12 @@ namespace Chinese_Chess_v3.Game.Core
         /// <summary>
         /// The colour <paramref name="side"/> plays. Off the dark-chess board it is fixed:
         /// Player1 red, Player2 black. On a <see cref="Board.UsesDarkChessRules"/> board nobody
-        /// owns a colour until the first flip (<see cref="MoveKind.Flip"/>) decides it — the
-        /// flipping player gets the flipped piece's colour, the other player the other one —
-        /// so this is <see cref="PieceColor.None"/> before that (and again after the first flip
-        /// is undone). For the turn display and the log lines.
+        /// owns a colour until the first action decides it — the first flip
+        /// (<see cref="MoveKind.Flip"/>) gives the flipping player the flipped piece's colour;
+        /// in 明棋半盤 (all face up, <see cref="Rules.IsHiddenChess"/> off) the first move gives
+        /// the mover the moved piece's colour; the other player gets the other one — so this is
+        /// <see cref="PieceColor.None"/> before that (and again after that action is undone).
+        /// For the turn display and the log lines.
         /// </summary>
         /// <param name="side">Player1 or Player2 (any other side has no colour: None).</param>
         /// <returns>Red, Black, or None while undecided.</returns>
@@ -739,9 +742,13 @@ namespace Chinese_Chess_v3.Game.Core
         /// is that side's, and on a <see cref="Board.UsesDarkChessRules"/> board face up — a
         /// face-down piece is only ever flipped, so neither its side nor its type may decide
         /// anything (揭棋's face-down pieces on the Full board do move, as their square's type).
+        /// A face-up piece nobody owns yet (明棋半盤 before the first move) is anyone's: moving it
+        /// decides the factions.
         /// </summary>
         private bool IsSelectable(Piece piece) =>
-            piece != null && piece.Side == CurrentTurn && (!Board.UsesDarkChessRules || piece.CurrentInfo.IsFaceUp);
+            piece != null
+            && (piece.Side == CurrentTurn || (Board.UsesDarkChessRules && piece.Side == PlayerSide.None))
+            && (!Board.UsesDarkChessRules || piece.CurrentInfo.IsFaceUp);
 
         /// <summary>
         /// A piece for the click log lines: its type, or just "face-down" for a face-down piece
@@ -810,8 +817,10 @@ namespace Chinese_Chess_v3.Game.Core
                 return;
             }
 
-            // Has selected piece, but 2nd selection is another selectable (own, face-up) piece
-            if (IsSelectable(clickedPiece))
+            // Has selected piece, but 2nd selection is another selectable (own, face-up) piece.
+            // Before the factions are decided (明棋半盤) an other-coloured piece is a capture
+            // target, not a piece to switch to.
+            if (IsSelectable(clickedPiece) && clickedPiece.IsSameFaction(selectedPiece))
             {
                 if (clickedPiece == selectedPiece)
                 {
@@ -859,7 +868,11 @@ namespace Chinese_Chess_v3.Game.Core
         /// Applies an already-validated move: advances the board's turn counter (so the
         /// pieces' history snapshots carry the move number), captures whatever stands on
         /// the destination, moves the piece, clears the selection and switches the turn.
-        /// Shared by <see cref="HandleClick"/> and <see cref="TryMove"/>.
+        /// Shared by <see cref="HandleClick"/> and <see cref="TryMove"/>. On the dark-chess
+        /// board, moving a piece nobody owns yet (明棋半盤's first move) first gives the side to
+        /// move that piece's colour and the other player the other one
+        /// (<see cref="Board.AssignFactions"/>); the move is then undone like a dark-chess
+        /// action, which takes the decision back too.
         /// </summary>
         private void ExecuteMove(Piece piece, int toX, int toY)
         {
@@ -873,6 +886,10 @@ namespace Chinese_Chess_v3.Game.Core
 
             int fromX = piece.X;
             int fromY = piece.Y;
+            var mover = CurrentTurn;
+            bool decidesFactions = Board.UsesDarkChessRules && piece.Side == PlayerSide.None;
+            // Every piece's ownership changes with the decision: undo it piece by piece.
+            var historyBefore = decidesFactions ? SnapshotHistoryCounts() : null;
 
             // Both clocks as they are right before the move, for Undo.
             var clocks = (Player1.Timer.GetClockState(), Player2.Timer.GetClockState());
@@ -894,12 +911,15 @@ namespace Chinese_Chess_v3.Game.Core
             var targetPiece = Board.GetPiece(toX, toY);
             int ply = moves.Count + 1;
             LastMove = new MoveRecord(piece.CurrentInfo.Clone(), fromX, fromY, toX, toY, targetPiece?.CurrentInfo.Clone(),
-                ply, MoveNumberOf(ply), givesCheck, notation, iccs);
+                ply, MoveNumberOf(ply), givesCheck, notation, iccs, side: mover);
             moves.Add(LastMove);
             capturedPieces.Add(targetPiece);
             clocksBeforeMove.Add(clocks);
             stateChanges.Add(null);
             HasUnsavedChanges = true;
+
+            if (decidesFactions)
+                Board.AssignFactions(piece.Color, mover);
 
             if (targetPiece != null)
             {
@@ -914,6 +934,8 @@ namespace Chinese_Chess_v3.Game.Core
             Board.MovePiece(fromX, fromY, toX, toY);
             AppLogger.Log($"(Action) Moved {piece.Type} to ({toX},{toY})", LogLevel.DEBUG);
             Logger?.AddMessage($"(Action) Moved {piece.Type} to ({toX},{toY})");
+            if (decidesFactions)
+                stateChanges[stateChanges.Count - 1] = ChangesSince(historyBefore);
 
             // raise moved event AFTER board updated
             PieceMoved?.Invoke(piece, toX, toY);
@@ -927,6 +949,8 @@ namespace Chinese_Chess_v3.Game.Core
                 AppLogger.Log(line, LogLevel.DEBUG);
                 Logger?.AddMessage(line);
             }
+            if (decidesFactions)
+                LogFactions();
             MoveRecorded?.Invoke(LastMove);
 
             // unselect and notify
@@ -945,7 +969,6 @@ namespace Chinese_Chess_v3.Game.Core
             // The turn is not handed over, so the loser's clock never starts.
             if (Board.UsesCheckRules)
             {
-                var mover = piece.Side;
                 var opponent = OpponentOf(mover);
                 bool opponentInCheck = Board.IsSideInCheck(opponent);
 
@@ -1032,12 +1055,16 @@ namespace Chinese_Chess_v3.Game.Core
             RecordDarkChessAction(pieceBefore, piece.X, piece.Y, piece.X, piece.Y, MoveKind.Flip, mover,
                 piece.CurrentInfo.Clone(), null, clocks, before);
             if (decidesFactions)
-            {
-                string factions = $"(Faction) {PlayerSide.Player1} 執{ColorName(ColorOf(PlayerSide.Player1))}，{PlayerSide.Player2} 執{ColorName(ColorOf(PlayerSide.Player2))}";
-                AppLogger.Log(factions, LogLevel.DEBUG);
-                Logger?.AddMessage(factions);
-            }
+                LogFactions();
             EndDarkChessAction();
+        }
+
+        /// <summary>Writes the faction decision's log line (which player plays which colour).</summary>
+        private void LogFactions()
+        {
+            string factions = $"(Faction) {PlayerSide.Player1} 執{ColorName(ColorOf(PlayerSide.Player1))}，{PlayerSide.Player2} 執{ColorName(ColorOf(PlayerSide.Player2))}";
+            AppLogger.Log(factions, LogLevel.DEBUG);
+            Logger?.AddMessage(factions);
         }
 
         /// <summary>
