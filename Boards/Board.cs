@@ -19,14 +19,15 @@ namespace Chinese_Chess_v3.Game.Core.Boards
 {
     public enum BoardType
     {
-        Full,        // 大盤 9x10
-        HalfCenter,  // 半盤 8x4
-        HalfCross,   // 半盤三國 9x5
+        Full,        // Full board (大盤) 9x10
+        HalfCenter,  // Half board (半盤) 8x4
+        HalfCross,   // Three Kingdoms half board (三國半盤) 9x5
     }
 
     /// <summary>
     /// Represents the Chinese Chess board, managing all chess pieces, their positions, and interactions.
-    /// This class provides methods to initialize, place, move, and remove pieces on the 9x10 board grid.
+    /// This class provides methods to initialize, place, move, and remove pieces on the board grid
+    /// (9x10 for <see cref="BoardType.Full"/>; the size depends on the <see cref="BoardType"/>).
     /// </summary>
     public class Board
     {
@@ -40,7 +41,8 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         public int Rows { get; private set; }
 
         /// <summary>
-        /// Tracks the current turn number of the game.
+        /// Move counter of the game: advanced once per executed move (<see cref="AdvanceTurn"/>),
+        /// stored in the pieces' history snapshots as their turn index.
         /// Starts at 0 (before the first move).
         /// </summary>
         public int Turn { get; private set; } = 0;
@@ -80,7 +82,7 @@ namespace Chinese_Chess_v3.Game.Core.Boards
 
         /// <summary>
         /// Initializes a new instance of the <see cref="Board"/> class.
-        /// Sets up the 9x10 grid layout and provides reference coordinate documentation.
+        /// Sets up an empty grid sized for the board type (no pieces are placed yet, see <see cref="Initialize"/>).
         /// </summary>
         /// <param name="type">Board type (grid size).</param>
         /// <param name="rules">The rules this board plays by; null for the default <see cref="Rules"/>.</param>
@@ -116,15 +118,15 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         }
 
         /// <summary>
-        /// Initializes the board to its starting state by placing all pieces
-        /// according to the predefined positions in <see cref="PieceConstants.InitialPieces"/>.
+        /// Clears the board (and the turn counter), then places a new piece for each entry of
+        /// <paramref name="initialPieces"/> (e.g. <see cref="PieceConstants.InitialClassicPieces"/>).
         /// </summary>
         /// <param name="initialPieces">List of chess pieces to be placed</param>
         public void Initialize(List<PieceInfo> initialPieces)
         {
             Clear();
 
-            // Load preset positions from PieceConstants
+            // Place the given pieces
             foreach (var info in initialPieces)
             {
                 var piece = CreatePieceFromInfo(info);  // Create piece instance based on piece info
@@ -172,7 +174,7 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         /// </summary>
         /// <param name="info">The <see cref="PieceInfo"/> object containing type, position, and side data.</param>
         /// <returns>A newly created <see cref="Piece"/> instance corresponding to the given piece type.</returns>
-        /// <exception cref="Exception">Thrown when an unknown piece type is encountered.</exception>
+        /// <exception cref="Exception">Thrown when an unknown piece type is encountered (by <see cref="Piece.Create"/>).</exception>
         private Piece CreatePieceFromInfo(PieceInfo info)
         {
             // Single source of truth for the type↔class mapping lives on
@@ -222,18 +224,18 @@ namespace Chinese_Chess_v3.Game.Core.Boards
             if (!IsInBoard(x, y))
                 throw new ArgumentOutOfRangeException(nameof(x), "Position is out of board bounds.");
 
-            // 先移除原來的棋子（如果有）
+            // Remove the piece already on the square first (if any)
             var existing = Grid[x, y];
             if (existing != null)
                 pieces.Remove(existing);
 
-            // 建立新的 PieceInfo
+            // Create the new PieceInfo
             var info = new PieceInfo(type, x, y, color, side, faceUp);
 
-            // 建立對應 Piece 實例
+            // Create the matching Piece instance
             var piece = CreatePieceFromInfo(info);
 
-            // 放置到棋盤格與列表
+            // Place it on the grid and in the piece list
             Grid[x, y] = piece;
             pieces.Add(piece);
 
@@ -248,6 +250,7 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         /// <param name="fromY">The source Y-coordinate.</param>
         /// <param name="toX">The destination X-coordinate.</param>
         /// <param name="toY">The destination Y-coordinate.</param>
+        /// <returns>True if a piece was moved, false if there was no piece on the source square.</returns>
         public bool MovePiece(int fromX, int fromY, int toX, int toY)
         {
             var piece = Grid[fromX, fromY];
@@ -262,14 +265,14 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         }
 
         /// <summary>
-        /// 嘗試翻開指定座標的棋子（僅翻開 FaceUp = false 的棋子）。
+        /// Tries to flip the piece at the given coordinates face up (only a piece with FaceUp = false can be flipped).
         /// </summary>
-        /// <param name="x">棋盤 X 座標</param>
-        /// <param name="y">棋盤 Y 座標</param>
+        /// <param name="x">Board X coordinate</param>
+        /// <param name="y">Board Y coordinate</param>
         /// <returns>
-        /// null：該座標沒有棋子
-        /// false：棋子已翻開，無法翻開
-        /// true：成功翻開
+        /// null: there is no piece at the coordinates;
+        /// false: the piece is already face up, so it cannot be flipped;
+        /// true: flipped successfully.
         /// </returns>
         public bool? FlapPiece(int x, int y)
         {
@@ -278,20 +281,21 @@ namespace Chinese_Chess_v3.Game.Core.Boards
                 return null;
 
             if (piece.CurrentInfo.IsFaceUp)
-                return false; // 已翻開，不能翻開
+                return false; // Already face up, cannot be flipped
 
-            // 使用 Piece 的 UpdateState 翻開棋子
+            // Flip the piece through its UpdateState
             piece.UpdateState(Turn, isFaceUp: true);
 
-            // Grid 已經引用該 Piece，無需額外放回
+            // The grid already references this Piece, nothing to put back
             return true;
         }
 
         /// <summary>
         /// Marks a piece as dead (captured or eliminated logically, but not removed from history).
         /// </summary>
-        /// <param name="piece">The piece to mark as dead.</param>
-        /// <returns>True if the operation succeeded, false if piece is null or already dead.</returns>
+        /// <param name="x">The X-coordinate of the piece to mark as dead.</param>
+        /// <param name="y">The Y-coordinate of the piece to mark as dead.</param>
+        /// <returns>True if the operation succeeded, false if there is no piece at (x, y) or it is already dead.</returns>
         public bool MarkPieceDead(int x, int y)
         {
             var piece = GetPiece(x, y);
@@ -308,6 +312,7 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         /// </summary>
         /// <param name="x">The X-coordinate of the piece to remove.</param>
         /// <param name="y">The Y-coordinate of the piece to remove.</param>
+        /// <returns>True if a piece was removed, false if the square was empty.</returns>
         public bool RemovePiece(int x, int y)
         {
             var piece = Grid[x, y];
@@ -368,7 +373,7 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         /// </summary>
         /// <param name="x">The X-coordinate of the target position.</param>
         /// <param name="y">The Y-coordinate of the target position.</param>
-        /// <param name="side">The player side to check (Red or Black).</param>
+        /// <param name="side">The player side to check (Player1 or Player2).</param>
         /// <returns>
         /// <c>true</c> if the position is inside the palace for the given side,
         /// or if the side is not recognized (treated as unrestricted); otherwise, <c>false</c>.
@@ -476,8 +481,9 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         }
 
         /// <summary>
-        /// Checks if moving a piece at (targetX, targetY) is legal regarding the face-to-face rule.
-        /// The check scans vertically in the direction of the opponent's side.
+        /// Checks whether a General of <paramref name="side"/> standing on (targetX, targetY) would
+        /// be legal regarding the face-to-face rule (王見王). The check scans vertically from that
+        /// square in the direction of the opponent's side and stops at the first piece found.
         /// </summary>
         /// <param name="side">The side of the moving piece.</param>
         /// <param name="targetX">The X-coordinate of the target position.</param>
@@ -488,8 +494,8 @@ namespace Chinese_Chess_v3.Game.Core.Boards
             // Determine scanning direction based on side
             int step = side switch
             {
-                PlayerSide.Player1   => -1,  // Red scans upwards (Y--)
-                PlayerSide.Player2 =>  1,  // Black scans downwards (Y++)
+                PlayerSide.Player1   => -1,  // Player1 (Red) scans upwards (Y--)
+                PlayerSide.Player2 =>  1,  // Player2 (Black) scans downwards (Y++)
                 _ => throw new Exception("Unknown side type")
             };
 
@@ -501,15 +507,15 @@ namespace Chinese_Chess_v3.Game.Core.Boards
                 if (piece != null)
                 {
                     if (piece.Type == PieceType.General && piece.Side != side)
-                        return false;  // 遇到對方將帥 → 不合法
+                        return false;  // Hit the opposing General -> not legal
                     else
-                        return true;  // 遇到其他棋子 → 不阻擋王見王規則，停止掃描
+                        return true;  // Hit any other piece -> it blocks the line, so the face-to-face rule is not violated; stop scanning
                 }
 
                 y += step;
             }
 
-            return true;  // 沿線沒遇到對方將帥 → 合法
+            return true;  // No opposing General found along the line -> legal
         }
 
         /// <summary>

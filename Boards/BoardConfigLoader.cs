@@ -22,11 +22,11 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         /// <summary>
         /// Generates a complete chessboard configuration.
         /// Priority:
-        /// 1. parameterPieces (if provided)
+        /// 1. overridePieces (if provided and not empty; copied)
         /// 2. configFilePath (if provided and valid)
-        /// 3. PieceConstants.InitialPieces (default setup)
+        /// 3. PieceConstants.InitialClassicPieces (default setup; copied)
         /// </summary>
-        /// <param name="parameterPieces">Optional pre-defined chess pieces list.</param>
+        /// <param name="overridePieces">Optional pre-defined chess pieces list.</param>
         /// <param name="configFilePath">Optional JSON configuration file path.</param>
         /// <returns>A list of PieceInfo representing the chessboard state.</returns>
 #nullable enable
@@ -35,13 +35,13 @@ namespace Chinese_Chess_v3.Game.Core.Boards
             string? configFilePath = null)
 #nullable disable
         {
-            // 1. 若有程式參數提供的棋子，直接使用
+            // 1. Pieces supplied by the caller are used as they are
             if (overridePieces?.Count > 0)
             {
                 return DeepCopyPieces(overridePieces);
             }
 
-            // 2. 嘗試讀取檔案
+            // 2. Try to read the config file
             if (!string.IsNullOrEmpty(configFilePath) && File.Exists(configFilePath))
             {
                 try
@@ -57,7 +57,7 @@ namespace Chinese_Chess_v3.Game.Core.Boards
                 }
             }
 
-            // 3. 回傳預設棋盤
+            // 3. Fall back to the default board
             return DeepCopyPieces(PieceConstants.InitialClassicPieces);
         }
 
