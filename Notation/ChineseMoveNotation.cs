@@ -39,8 +39,8 @@ namespace Chinese_Chess_v3.Game.Core.Notation
     /// Several same pieces on one file (the file number is then dropped, keeping four
     /// characters): 2 -> 前/後, 3 -> 前/中/後, 4 or more -> 一/二/三/四/五 from the front
     /// (the spec writes these for soldiers; applied to any piece type so custom positions
-    /// still get a unique name). 仕/士 and 相/象 never take a prefix: on one file the front
-    /// one can only retreat and the back one only advance, so file + action is unique.
+    /// still get a unique name). 帥/將 (only one per side), 仕/士 and 相/象 never take a prefix: on one file the front
+    /// advisor/elephant can only retreat and the back one only advance, so file + action is unique.
     /// When two or more files each hold two or more of the pieces (in practice soldiers), all
     /// of those pieces are labelled 一, 二, ... together: files in the order of the side's own
     /// file numbers (right to left from that side), front to back within a file; pieces on
