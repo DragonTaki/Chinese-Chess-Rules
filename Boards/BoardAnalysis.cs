@@ -3,8 +3,8 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2026/09/30
-// Update Date: 2026/09/30
-// Version: v1.0
+// Update Date: 2026/10/01
+// Version: v1.1
 /* ----- ----- ----- ----- */
 
 using System.Collections.Generic;
@@ -34,6 +34,10 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         /// Generals themselves are never reported — an attacked General is check, shown by
         /// the check rules, not a piece that can be taken. On the dark-chess boards (no
         /// check rules, a General can be captured) they are treated like any other piece.
+        /// On the dark-chess boards a face-down piece is left out entirely — never reported,
+        /// never counted as an attacker or a defender (see <see cref="IsIdentityKnown"/>) —
+        /// so the hints never depend on, or reveal, a hidden piece's side or type. It still
+        /// counts as an occupied square (e.g. a Cannon screen), which is public.
         /// </remarks>
         public static List<Piece> GetHangingPieces(Board board)
         {
@@ -68,12 +72,14 @@ namespace Chinese_Chess_v3.Game.Core.Boards
                 return false;
             if (board.UsesCheckRules && target is General)
                 return false;
+            if (!IsIdentityKnown(board, target))
+                return false;
 
             int x = target.X;
             int y = target.Y;
             foreach (var attacker in pieces)
             {
-                if (attacker.Side == target.Side || !attacker.CanMoveTo(board, x, y))
+                if (!IsIdentityKnown(board, attacker) || attacker.Side == target.Side || !attacker.CanMoveTo(board, x, y))
                     continue;
 
                 // A single capture that cannot be answered is enough.
@@ -96,7 +102,8 @@ namespace Chinese_Chess_v3.Game.Core.Boards
             {
                 foreach (var defender in pieces)
                 {
-                    if (defender == target || defender.Side != target.Side || board.IsSimulatedCapture(defender))
+                    if (defender == target || !IsIdentityKnown(board, defender) || defender.Side != target.Side
+                        || board.IsSimulatedCapture(defender))
                         continue;
                     if (defender.CanMoveTo(board, x, y))
                         return true;
@@ -104,5 +111,16 @@ namespace Chinese_Chess_v3.Game.Core.Boards
                 return false;
             }, fallback: false);
         }
+
+        /// <summary>
+        /// Whether the analysis may use <paramref name="piece"/>'s side and type. On the
+        /// dark-chess boards (HalfCenter, HalfCross) only for a face-up piece: a face-down
+        /// one's identity is hidden information, and it cannot move before it is flipped
+        /// anyway, so it neither attacks nor defends. Always on the Full board — there a
+        /// face-down piece only exists in 揭棋 (<see cref="Rules.IsJieqi"/>), whose side is
+        /// public and which moves as the type its square starts with, not as itself.
+        /// </summary>
+        private static bool IsIdentityKnown(Board board, Piece piece) =>
+            board.Type == BoardType.Full || piece.CurrentInfo.IsFaceUp;
     }
 }

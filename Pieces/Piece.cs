@@ -186,6 +186,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         /// its rank is revealed (<see cref="Rules.IsCaptureHiddenPieceStrongerSuicide"/>)
         /// is a state change the caller (not yet implemented — see
         /// docs/STATUS.md) applies after the move, not a legality question.
+        /// The same goes for a hidden target that turns out to be one's own piece.
         /// </remarks>
         /// <param name="board">The board the move is made on.</param>
         /// <param name="targetX">Target square X.</param>
@@ -193,7 +194,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         /// <param name="ignoreRank">
         /// true for the Cannon's jump capture (炮隔子打), which takes an enemy piece of any
         /// rank, General included: the rank order and the Soldier/General pair are skipped,
-        /// everything else (own pieces, hidden pieces) still applies.
+        /// everything else (hidden pieces, own pieces) still applies.
         /// </param>
         /// <returns>Whether moving onto the target square is allowed as far as capturing goes.</returns>
         protected bool CanCaptureInDarkChess(Board board, int targetX, int targetY, bool ignoreRank = false)
@@ -201,17 +202,24 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
             var target = board.GetPiece(targetX, targetY);
             if (target == null)
                 return true;
+            if (target == this)
+                return false;
+
+            var rules = board.GameRules;
+
+            // A face-down target's identity (side and rank) is hidden information: it must
+            // never decide legality, or the legal-move hints would reveal which face-down
+            // pieces are one's own. With hidden capture (暗吃) on, every face-down target is
+            // a legal attempt — what happens once it is revealed is the caller's concern
+            // (see remarks); with it off, no face-down piece is ever a target.
+            if (!target.CurrentInfo.IsFaceUp)
+                return rules.CanCaptureHiddenPiece;
 
             // Capturing an allied piece is never allowed on this board type.
             // CanCaptureOwnPiece is declared under Rules.cs's "Full Board
             // Rules" region, so it's scoped to the Full board only.
             if (target.Side == Side)
                 return false;
-
-            var rules = board.GameRules;
-
-            if (!target.CurrentInfo.IsFaceUp)
-                return rules.CanCaptureHiddenPiece;
 
             if (ignoreRank)
                 return true;
