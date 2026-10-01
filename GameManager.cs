@@ -108,6 +108,13 @@ namespace Chinese_Chess_v3.Game.Core
         /// <summary>The winning side of the ended game; <c>PlayerSide.None</c> while playing.</summary>
         public PlayerSide Winner { get; private set; } = PlayerSide.None;
 
+        /// <summary>
+        /// True while <see cref="LoadSavedGame"/> replays a saved game: a <see cref="GameOver"/>
+        /// raised then is the saved game's old ending coming back, not a game just ended, so
+        /// the UI does not announce it.
+        /// </summary>
+        public bool IsReplaying { get; private set; } = false;
+
         /// <summary>How the ended game ended (see <see cref="GameOverInfo"/>); null while playing.</summary>
         public GameOverInfo Result { get; private set; } = null;
 
@@ -709,6 +716,20 @@ namespace Chinese_Chess_v3.Game.Core
             SetUpPosition(pieces, sideToMove, saved);
             Logger?.AddMessage($"(Load) {saved.Title}");
 
+            IsReplaying = true;
+            try
+            {
+                return ReplaySavedGame(saved);
+            }
+            finally
+            {
+                IsReplaying = false;
+            }
+        }
+
+        /// <summary>The replay and ending of <see cref="LoadSavedGame"/>, after the start position is set up.</summary>
+        private int ReplaySavedGame(SavedGame saved)
+        {
             int played = 0;
             foreach (var move in saved.Moves)
             {
