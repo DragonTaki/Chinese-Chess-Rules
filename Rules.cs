@@ -15,7 +15,6 @@ using Chinese_Chess_v3.Game.Core.Players;
 
 namespace Chinese_Chess_v3.Game.Core
 {
-
     /// <summary>
     /// Represents the rules configuration for different board types in Chinese Chess.
     /// Contains settings for Full board, Jieqi (揭棋), Half board, and HalfCross (三國) variants.

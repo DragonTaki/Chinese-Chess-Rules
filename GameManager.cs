@@ -38,25 +38,24 @@ namespace Chinese_Chess_v3.Game.Core
         public Board Board { get; private set; }
         public Player Player1 { get; private set; }
         public Player Player2 { get; private set; }
-        private PlayerSide currentTurn = PlayerSide.Player1;
+        private PlayerSide _currentTurn = PlayerSide.Player1;
         public PlayerSide CurrentTurn
         {
-            get => currentTurn;
+            get => _currentTurn;
             private set
             {
-                if (currentTurn != value)
+                if (_currentTurn != value)
                 {
-                    currentTurn = value;
-                    TurnChanged?.Invoke(currentTurn);
+                    _currentTurn = value;
+                    TurnChanged?.Invoke(_currentTurn);
                 }
             }
         }
         public event Action<PlayerSide> TurnChanged;
-        
 
 #nullable enable
-        private Piece? selectedPiece;
-        public Piece? SelectedPiece => selectedPiece;
+        private Piece? _selectedPiece;
+        public Piece? SelectedPiece => _selectedPiece;
 #nullable disable
 
         /// <summary>
@@ -65,7 +64,7 @@ namespace Chinese_Chess_v3.Game.Core
         /// selection (e.g. in a <see cref="PieceSelected"/> handler), not per frame.
         /// </summary>
         public List<(int x, int y)> SelectedPieceLegalMoves =>
-            selectedPiece == null ? new List<(int x, int y)>() : selectedPiece.GetLegalMoves(Board);
+            _selectedPiece == null ? new List<(int x, int y)>() : _selectedPiece.GetLegalMoves(Board);
 
         /// <summary>
         /// Hanging pieces of both sides (無根子可被吃, see
@@ -82,17 +81,17 @@ namespace Chinese_Chess_v3.Game.Core
         /// </summary>
         public event Action<IReadOnlyList<Piece>> HangingPiecesChanged;
 
-        private bool isPaused = false;
+        private bool _isPaused = false;
 
         public bool IsPaused
         {
-            get => isPaused;
+            get => _isPaused;
             private set
             {
-                if (isPaused != value)
+                if (_isPaused != value)
                 {
-                    isPaused = value;
-                    PausedChanged?.Invoke(isPaused);
+                    _isPaused = value;
+                    PausedChanged?.Invoke(_isPaused);
                 }
             }
         }
@@ -150,8 +149,8 @@ namespace Chinese_Chess_v3.Game.Core
         /// <summary>The most recent move of this game; null before the first move.</summary>
         public MoveRecord LastMove { get; private set; } = null;
 
-        private readonly List<MoveRecord> moves = new List<MoveRecord>();
-        private readonly IReadOnlyList<MoveRecord> movesView;
+        private readonly List<MoveRecord> _moves = new List<MoveRecord>();
+        private readonly IReadOnlyList<MoveRecord> _movesView;
 
         /// <summary>
         /// Every move of the current game in order (<c>Moves[i].Ply == i + 1</c>; the last
@@ -161,7 +160,7 @@ namespace Chinese_Chess_v3.Game.Core
         /// played), <see cref="ClearBoard"/>). The base for PGN export,
         /// undo and replay (docs/PLAN.md). Read-only view of the live list.
         /// </summary>
-        public IReadOnlyList<MoveRecord> Moves => movesView;
+        public IReadOnlyList<MoveRecord> Moves => _movesView;
 
         /// <summary>The side that made (or makes) the first move of the current game; with <see cref="Moves"/> it fixes the move numbers.</summary>
         public PlayerSide FirstTurn { get; private set; } = PlayerSide.Player1;
@@ -174,15 +173,15 @@ namespace Chinese_Chess_v3.Game.Core
         /// </summary>
         public event Action<MoveRecord> MoveRecorded;
 
-        // Parallel to `moves`: the captured Piece object of each move (null for a quiet
+        // Parallel to `_moves`: the captured Piece object of each move (null for a quiet
         // move), put back on the board by Undo, and both clocks as they were just before the
         // move, restored by Undo (null when unknown: moves replayed from a saved game).
-        private readonly List<Piece> capturedPieces = new List<Piece>();
-        private readonly List<(ClockState Player1, ClockState Player2)?> clocksBeforeMove = new List<(ClockState, ClockState)?>();
-        // Also parallel to `moves`: for a dark-chess flip or hidden capture, every piece the
+        private readonly List<Piece> _capturedPieces = new List<Piece>();
+        private readonly List<(ClockState Player1, ClockState Player2)?> _clocksBeforeMove = new List<(ClockState, ClockState)?>();
+        // Also parallel to `_moves`: for a dark-chess flip or hidden capture, every piece the
         // action changed and how many history snapshots it added (taken back by
         // Board.RevertStates); null for an ordinary move (taken back by Board.UnmakeMove).
-        private readonly List<List<(Piece piece, int snapshots)>> stateChanges = new List<List<(Piece piece, int snapshots)>>();
+        private readonly List<List<(Piece piece, int snapshots)>> _stateChanges = new List<List<(Piece piece, int snapshots)>>();
 
         /// <summary>The rules every new game starts with (the constructor's; the launchers pass the player settings' rules).</summary>
         public Rules DefaultRules { get; }
@@ -211,7 +210,7 @@ namespace Chinese_Chess_v3.Game.Core
         /// to move after Red's first move). Also true after the game has ended (undoing
         /// reopens it) and while paused.
         /// </summary>
-        public bool CanUndo => moves.Count - UndoFloor >= UndoRoundPlies;
+        public bool CanUndo => _moves.Count - UndoFloor >= UndoRoundPlies;
 
         /// <summary>
         /// Raised once per move taken back (twice per <see cref="Undo"/>, newest move first),
@@ -223,7 +222,7 @@ namespace Chinese_Chess_v3.Game.Core
         /// </summary>
         public event Action<MoveRecord> MoveUndone;
 
-        private bool hasUnsavedChanges = false;
+        private bool _hasUnsavedChanges = false;
 
         /// <summary>
         /// Whether the game has changed since it was last started, saved or loaded: set by
@@ -235,13 +234,13 @@ namespace Chinese_Chess_v3.Game.Core
         /// </summary>
         public bool HasUnsavedChanges
         {
-            get => hasUnsavedChanges;
+            get => _hasUnsavedChanges;
             private set
             {
-                if (hasUnsavedChanges != value)
+                if (_hasUnsavedChanges != value)
                 {
-                    hasUnsavedChanges = value;
-                    UnsavedChangesChanged?.Invoke(hasUnsavedChanges);
+                    _hasUnsavedChanges = value;
+                    UnsavedChangesChanged?.Invoke(_hasUnsavedChanges);
                 }
             }
         }
@@ -300,7 +299,7 @@ namespace Chinese_Chess_v3.Game.Core
         /// <see cref="CurrentEndgame"/> nor <see cref="CurrentOpening"/>, but restarts from its
         /// own start position and rules).
         /// </summary>
-        private PgnGameFile startSource = null;
+        private PgnGameFile _startSource = null;
 
         /// <summary>Whether the game can be saved (<see cref="SaveGame"/>): a Full-board game with a known <see cref="InitialFen"/>.</summary>
         public bool CanSave => Board.Type == BoardType.Full && InitialFen != null;
@@ -327,7 +326,7 @@ namespace Chinese_Chess_v3.Game.Core
         /// </summary>
         public GameManager(Rules rules)
         {
-            movesView = moves.AsReadOnly();
+            _movesView = _moves.AsReadOnly();
             rules ??= new Rules();
             DefaultRules = rules;
 
@@ -336,7 +335,7 @@ namespace Chinese_Chess_v3.Game.Core
             Board.Initialize(BoardConfigLoader.Load());
             CurrentTurn = PlayerSide.Player1;
             InitialFen = FormatInitialFen(PlayerSide.Player1);
-            selectedPiece = null;
+            _selectedPiece = null;
             Player1 = new Player(PlayerSide.Player1, rules.TotalTimeLimit, rules.StepTimeLimit, rules.IncrementPerMove, rules.EnableStepTimer, rules.TimerMode);
             Player2 = new Player(PlayerSide.Player2, rules.TotalTimeLimit, rules.StepTimeLimit, rules.IncrementPerMove, rules.EnableStepTimer, rules.TimerMode);
 
@@ -357,6 +356,7 @@ namespace Chinese_Chess_v3.Game.Core
 
             UpdateHangingPieces();
         }
+
         public void SetLogger(IGameLog loggerHandler)
         {
             Logger = loggerHandler ?? throw new ArgumentNullException(nameof(loggerHandler));
@@ -458,7 +458,7 @@ namespace Chinese_Chess_v3.Game.Core
             if (Board.Type != BoardType.Full)
                 throw new NotSupportedException($"Cannot restart a {Board.Type} game yet");
 
-            switch (startSource)
+            switch (_startSource)
             {
                 case EndgamePuzzle puzzle:
                     StartEndgame(puzzle);
@@ -589,8 +589,8 @@ namespace Chinese_Chess_v3.Game.Core
             Board.Initialize(pieces);
 
             // Reset selected piece
-            selectedPiece = null;
-            startSource = source;
+            _selectedPiece = null;
+            _startSource = source;
             CurrentEndgame = source as EndgamePuzzle;
             CurrentOpening = source as OpeningLine;
             (Mode, OriginId, OriginTitle) = source switch
@@ -743,7 +743,7 @@ namespace Chinese_Chess_v3.Game.Core
 
             UndoFloor = Math.Min(saved.PresetPlies, played);
 
-            // An ending that is not a move (resignation, time-up) is not replayed by the moves.
+            // An ending that is not a move (resignation, time-up) is not replayed by the _moves.
             if (!IsGameOver && played == saved.Moves.Count && saved.Winner != PlayerSide.None &&
                 saved.Termination is GameOverReason.Resign or GameOverReason.TimeUp)
             {
@@ -751,8 +751,8 @@ namespace Chinese_Chess_v3.Game.Core
             }
 
             // The clocks recorded while replaying are not the game's: unknown for undo.
-            for (int i = 0; i < clocksBeforeMove.Count; i++)
-                clocksBeforeMove[i] = null;
+            for (int i = 0; i < _clocksBeforeMove.Count; i++)
+                _clocksBeforeMove[i] = null;
 
             if (saved.RedClock != null || saved.BlackClock != null)
                 RestoreSavedClocks(saved.RedClock ?? default, saved.BlackClock ?? default);
@@ -787,8 +787,8 @@ namespace Chinese_Chess_v3.Game.Core
             Board.Clear();
 
             // Reset selected piece
-            selectedPiece = null;
-            startSource = null;
+            _selectedPiece = null;
+            _startSource = null;
             CurrentEndgame = null;
             CurrentOpening = null;
             Mode = GameMode.Normal;
@@ -811,6 +811,7 @@ namespace Chinese_Chess_v3.Game.Core
         {
             return Board.GetAllPieces();
         }
+
         /// <summary>
         /// The colour <paramref name="side"/> plays. Off the dark-chess board it is fixed:
         /// Player1 red, Player2 black. On a <see cref="Board.UsesDarkChessRules"/> board nobody
@@ -926,13 +927,13 @@ namespace Chinese_Chess_v3.Game.Core
 
             var clickedPiece = Board.GetPiece(x, y);
             AppLogger.Log(
-                $"Current turn: {CurrentTurn}, holding: {(selectedPiece == null ? "null" : selectedPiece.Type.ToString())},\n" +
+                $"Current turn: {CurrentTurn}, holding: {(_selectedPiece == null ? "null" : _selectedPiece.Type.ToString())},\n" +
                 $"clicked at ({x},{y}), on: {DescribeForLog(clickedPiece)}", LogLevel.DEBUG);
-            Logger?.AddMessage($"Current turn: {CurrentTurn}, holding: {(selectedPiece == null ? "null" : selectedPiece.Type.ToString())},\n" +
+            Logger?.AddMessage($"Current turn: {CurrentTurn}, holding: {(_selectedPiece == null ? "null" : _selectedPiece.Type.ToString())},\n" +
                 $"clicked at ({x},{y}), on: {DescribeForLog(clickedPiece)}");
 
             // No selected piece: flip a face-down piece (dark chess), or try to select one
-            if (selectedPiece == null)
+            if (_selectedPiece == null)
             {
                 if (clickedPiece != null && Board.UsesDarkChessRules && !clickedPiece.CurrentInfo.IsFaceUp)
                 {
@@ -941,10 +942,10 @@ namespace Chinese_Chess_v3.Game.Core
                 }
                 if (IsSelectable(clickedPiece))
                 {
-                    selectedPiece = clickedPiece;
+                    _selectedPiece = clickedPiece;
                     AppLogger.Log($"(Action) Selected {clickedPiece.Type} at ({x},{y})", LogLevel.DEBUG);
                     Logger?.AddMessage($"(Action) Selected {clickedPiece.Type} at ({x},{y})");
-                    PieceSelected?.Invoke(selectedPiece);
+                    PieceSelected?.Invoke(_selectedPiece);
                 }
                 return;
             }
@@ -952,38 +953,38 @@ namespace Chinese_Chess_v3.Game.Core
             // Has selected piece, but 2nd selection is another selectable (own, face-up) piece.
             // Before the factions are decided (明棋半盤) an other-coloured piece is a capture
             // target, not a piece to switch to.
-            if (IsSelectable(clickedPiece) && clickedPiece.IsSameFaction(selectedPiece))
+            if (IsSelectable(clickedPiece) && clickedPiece.IsSameFaction(_selectedPiece))
             {
-                if (clickedPiece == selectedPiece)
+                if (clickedPiece == _selectedPiece)
                 {
-                    AppLogger.Log($"(Action) Un-selected {selectedPiece.Type} at ({x},{y})", LogLevel.DEBUG);
-                    Logger?.AddMessage($"(Action) Un-selected {selectedPiece.Type} at ({x},{y})");
-                    PieceUnselected?.Invoke(selectedPiece);
-                    selectedPiece = null;
+                    AppLogger.Log($"(Action) Un-selected {_selectedPiece.Type} at ({x},{y})", LogLevel.DEBUG);
+                    Logger?.AddMessage($"(Action) Un-selected {_selectedPiece.Type} at ({x},{y})");
+                    PieceUnselected?.Invoke(_selectedPiece);
+                    _selectedPiece = null;
                 }
                 else
                 {
                     AppLogger.Log($"(Action) Switched to {clickedPiece.Type} at ({x},{y})", LogLevel.DEBUG);
                     Logger?.AddMessage($"(Action) Switched to {clickedPiece.Type} at ({x},{y})");
-                    PieceUnselected?.Invoke(selectedPiece);
-                    selectedPiece = clickedPiece;
-                    PieceSelected?.Invoke(selectedPiece);
+                    PieceUnselected?.Invoke(_selectedPiece);
+                    _selectedPiece = clickedPiece;
+                    PieceSelected?.Invoke(_selectedPiece);
                 }
                 return;
             }
 
             // Has selected piece, try to move to 2nd selection
-            if (selectedPiece.CanMoveTo(Board, x, y))
+            if (_selectedPiece.CanMoveTo(Board, x, y))
             {
-                ExecuteMove(selectedPiece, x, y);
+                ExecuteMove(_selectedPiece, x, y);
             }
             else
             {
                 // If 2nd selection point is empty, unselected
                 if (clickedPiece == null)
                 {
-                    AppLogger.Log($"(Action) Un-selected {selectedPiece.Type} at ({x},{y})", LogLevel.DEBUG);
-                    Logger?.AddMessage($"(Action) Un-selected {selectedPiece.Type} at ({x},{y})");
+                    AppLogger.Log($"(Action) Un-selected {_selectedPiece.Type} at ({x},{y})", LogLevel.DEBUG);
+                    Logger?.AddMessage($"(Action) Un-selected {_selectedPiece.Type} at ({x},{y})");
                 }
                 // Invalid catch
                 else
@@ -991,8 +992,8 @@ namespace Chinese_Chess_v3.Game.Core
                     AppLogger.Log($"(Action) Invalid move to ({x},{y})", LogLevel.DEBUG);
                     Logger?.AddMessage($"(Action) Invalid move to ({x},{y})");
                 }
-                PieceUnselected?.Invoke(selectedPiece);
-                selectedPiece = null;
+                PieceUnselected?.Invoke(_selectedPiece);
+                _selectedPiece = null;
             }
         }
 
@@ -1041,13 +1042,13 @@ namespace Chinese_Chess_v3.Game.Core
 
             // If the destination has an (enemy) piece, capture it first
             var targetPiece = Board.GetPiece(toX, toY);
-            int ply = moves.Count + 1;
+            int ply = _moves.Count + 1;
             LastMove = new MoveRecord(piece.CurrentInfo.Clone(), fromX, fromY, toX, toY, targetPiece?.CurrentInfo.Clone(),
                 ply, MoveNumberOf(ply), givesCheck, notation, iccs, side: mover);
-            moves.Add(LastMove);
-            capturedPieces.Add(targetPiece);
-            clocksBeforeMove.Add(clocks);
-            stateChanges.Add(null);
+            _moves.Add(LastMove);
+            _capturedPieces.Add(targetPiece);
+            _clocksBeforeMove.Add(clocks);
+            _stateChanges.Add(null);
             HasUnsavedChanges = true;
 
             if (decidesFactions)
@@ -1067,7 +1068,7 @@ namespace Chinese_Chess_v3.Game.Core
             AppLogger.Log($"(Action) Moved {piece.Type} to ({toX},{toY})", LogLevel.DEBUG);
             Logger?.AddMessage($"(Action) Moved {piece.Type} to ({toX},{toY})");
             if (decidesFactions)
-                stateChanges[stateChanges.Count - 1] = ChangesSince(historyBefore);
+                _stateChanges[_stateChanges.Count - 1] = ChangesSince(historyBefore);
 
             // raise moved event AFTER board updated
             PieceMoved?.Invoke(piece, toX, toY);
@@ -1086,10 +1087,10 @@ namespace Chinese_Chess_v3.Game.Core
             MoveRecorded?.Invoke(LastMove);
 
             // unselect and notify
-            if (selectedPiece != null)
+            if (_selectedPiece != null)
             {
-                PieceUnselected?.Invoke(selectedPiece);
-                selectedPiece = null;
+                PieceUnselected?.Invoke(_selectedPiece);
+                _selectedPiece = null;
             }
 
             // Board hints for the new position (also when this move ends the game).
@@ -1285,14 +1286,14 @@ namespace Chinese_Chess_v3.Game.Core
         private void RecordDarkChessAction(PieceInfo pieceBefore, int fromX, int fromY, int toX, int toY, MoveKind kind,
             PlayerSide mover, PieceInfo revealed, Piece captured, (ClockState, ClockState) clocks, Dictionary<Piece, int> before)
         {
-            int ply = moves.Count + 1;
+            int ply = _moves.Count + 1;
             // The captured piece is the revealed target (as it was before being taken off).
             LastMove = new MoveRecord(pieceBefore, fromX, fromY, toX, toY, captured != null ? revealed : null, ply, MoveNumberOf(ply),
                 kind: kind, side: mover, revealed: revealed);
-            moves.Add(LastMove);
-            capturedPieces.Add(captured);
-            clocksBeforeMove.Add(clocks);
-            stateChanges.Add(ChangesSince(before));
+            _moves.Add(LastMove);
+            _capturedPieces.Add(captured);
+            _clocksBeforeMove.Add(clocks);
+            _stateChanges.Add(ChangesSince(before));
             HasUnsavedChanges = true;
 
             string line = FormatDarkChessLine(LastMove);
@@ -1308,10 +1309,10 @@ namespace Chinese_Chess_v3.Game.Core
         {
             MoveRecorded?.Invoke(LastMove);
 
-            if (selectedPiece != null)
+            if (_selectedPiece != null)
             {
-                PieceUnselected?.Invoke(selectedPiece);
-                selectedPiece = null;
+                PieceUnselected?.Invoke(_selectedPiece);
+                _selectedPiece = null;
             }
 
             UpdateHangingPieces();
@@ -1481,20 +1482,20 @@ namespace Chinese_Chess_v3.Game.Core
         /// <returns>The record that was taken back; null when nothing could be undone.</returns>
         private MoveRecord UndoLastMove()
         {
-            if (moves.Count <= UndoFloor)
+            if (_moves.Count <= UndoFloor)
                 return null;
 
-            if (selectedPiece != null)
+            if (_selectedPiece != null)
             {
-                PieceUnselected?.Invoke(selectedPiece);
-                selectedPiece = null;
+                PieceUnselected?.Invoke(_selectedPiece);
+                _selectedPiece = null;
             }
 
-            int last = moves.Count - 1;
-            var record = moves[last];
-            var captured = capturedPieces[last];
-            var clocks = clocksBeforeMove[last];
-            var changes = stateChanges[last];
+            int last = _moves.Count - 1;
+            var record = _moves[last];
+            var captured = _capturedPieces[last];
+            var clocks = _clocksBeforeMove[last];
+            var changes = _stateChanges[last];
 
             if (changes != null)
             {
@@ -1519,11 +1520,11 @@ namespace Chinese_Chess_v3.Game.Core
             }
 
             Board.RetreatTurn();
-            moves.RemoveAt(last);
-            capturedPieces.RemoveAt(last);
-            clocksBeforeMove.RemoveAt(last);
-            stateChanges.RemoveAt(last);
-            LastMove = moves.Count > 0 ? moves[moves.Count - 1] : null;
+            _moves.RemoveAt(last);
+            _capturedPieces.RemoveAt(last);
+            _clocksBeforeMove.RemoveAt(last);
+            _stateChanges.RemoveAt(last);
+            LastMove = _moves.Count > 0 ? _moves[_moves.Count - 1] : null;
             HasUnsavedChanges = true;
 
             // Reopen an ended game.
@@ -1616,7 +1617,7 @@ namespace Chinese_Chess_v3.Game.Core
                 CurrentTurn = PlayerSide.Player1;
             }
         }
-        
+
         /// <summary>
         /// Both clocks back to their start values and the side to move's step clock started,
         /// keeping the moves and the game state (unlike <see cref="ResetTimers"/>). Used after
@@ -1646,10 +1647,10 @@ namespace Chinese_Chess_v3.Game.Core
             Result = null;
             IsInCheck = false;
             LastMove = null;
-            moves.Clear();
-            capturedPieces.Clear();
-            clocksBeforeMove.Clear();
-            stateChanges.Clear();
+            _moves.Clear();
+            _capturedPieces.Clear();
+            _clocksBeforeMove.Clear();
+            _stateChanges.Clear();
             UndoFloor = 0;
             HasUnsavedChanges = false;
             if (startFirstTurn)
@@ -1707,10 +1708,10 @@ namespace Chinese_Chess_v3.Game.Core
             Player1.Timer.End();
             Player2.Timer.End();
 
-            if (selectedPiece != null)
+            if (_selectedPiece != null)
             {
-                PieceUnselected?.Invoke(selectedPiece);
-                selectedPiece = null;
+                PieceUnselected?.Invoke(_selectedPiece);
+                _selectedPiece = null;
             }
 
             AppLogger.Log($"(Game over) {winner} wins ({reason})", LogLevel.DEBUG);
