@@ -34,6 +34,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         /// Determines whether the target position is within the legal area for the Elephant.
         /// Elephants cannot cross the river.
         /// </summary>
+        /// <param name="board">The board the move is made on.</param>
         /// <param name="targetX">The X-coordinate of the destination.</param>
         /// <param name="targetY">The Y-coordinate of the destination.</param>
         /// <returns><c>true</c> if the destination is within the Elephant's allowed side; otherwise, <c>false</c>.</returns>

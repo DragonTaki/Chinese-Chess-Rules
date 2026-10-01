@@ -33,6 +33,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         /// Determines whether the target position is within the legal area where this piece is allowed to stay.
         /// For the Advisor, this means staying inside its palace area.
         /// </summary>
+        /// <param name="board">The board the move is made on.</param>
         /// <param name="targetX">The X-coordinate of the destination.</param>
         /// <param name="targetY">The Y-coordinate of the destination.</param>
         /// <returns><c>true</c> if the destination is within the palace; otherwise, <c>false</c>.</returns>
