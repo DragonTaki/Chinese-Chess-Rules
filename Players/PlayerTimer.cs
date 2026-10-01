@@ -27,6 +27,19 @@ namespace Chinese_Chess_v3.Game.Core.Players
         private DateTime _lastUpdate;
         public TimerState State { get; private set; } = TimerState.Idle;
 
+        /// <summary>
+        /// Whether the step time is measured: always for a count-up clock (it only measures,
+        /// it has no limits), and for a countdown clock while <see cref="EnableStepTimer"/>.
+        /// </summary>
+        private bool MeasuresStep => EnableStepTimer || Mode == TimerMode.CountUp;
+
+        /// <summary>
+        /// Whether the limits apply (<see cref="TimeUp"/> can be raised): only a countdown clock
+        /// that is not <see cref="Unlimited"/>. A count-up clock (正數) only measures time: no
+        /// limit, never a time-up, no increment.
+        /// </summary>
+        public bool HasTimeLimit => Mode == TimerMode.CountDown && !Unlimited;
+
 #nullable enable
         public event Action? TimeUp;
 #nullable disable
@@ -81,7 +94,7 @@ namespace Chinese_Chess_v3.Game.Core.Players
                 var delta = now - _lastUpdate;
                 _lastUpdate = now;
 
-                if (EnableStepTimer)
+                if (MeasuresStep)
                     CurrentStepTime += delta;
                 CurrentTotalTime += delta;
 
@@ -134,11 +147,12 @@ namespace Chinese_Chess_v3.Game.Core.Players
             {
                 case TimerState.Active:
                     // Running: both the step time and the total time keep accumulating
-                    if (EnableStepTimer)
+                    if (MeasuresStep)
                         CurrentStepTime += delta;
                     CurrentTotalTime += delta;
 
-                    if (!Unlimited)  // Auto end game if time reach limit
+                    // Auto end game if time reach limit (countdown only: count-up just measures)
+                    if (HasTimeLimit)
                     {
                         if ((EnableStepTimer && CurrentStepTime >= StepTimeLimit) ||
                             CurrentTotalTime >= TotalTimeLimit)
@@ -160,7 +174,7 @@ namespace Chinese_Chess_v3.Game.Core.Players
                     // case something else ever sets State to StepEnded
                     // directly.
                     // Step ended: reset the step time and go back to Idle to wait for the next step
-                    if (EnableStepTimer)
+                    if (MeasuresStep)
                         CurrentStepTime += delta;
                     CurrentTotalTime += delta;
 
@@ -315,8 +329,8 @@ namespace Chinese_Chess_v3.Game.Core.Players
 
     public enum TimerMode
     {
-        CountUp,   // count elapsed time up
-        CountDown  // count remaining time down
+        CountUp,   // count elapsed time up (正數): only measures - no limit, no time-up, no increment
+        CountDown  // count remaining time down to the limits (倒數)
     }
 
     public enum TimerState

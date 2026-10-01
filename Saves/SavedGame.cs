@@ -69,7 +69,7 @@ namespace Chinese_Chess_v3.Game.Core.Saves
 
         // ----- Time control and clocks (null = tag missing: the current default is used) -----
 
-        /// <summary>From <c>[TimeControl]</c> (<c>total+increment</c>, seconds): each side's total time (<see cref="Rules.TotalTimeLimit"/>).</summary>
+        /// <summary>From <c>[TimeControl]</c> (<c>total+increment</c>, seconds): each side's total time (<see cref="Rules.TotalTimeLimit"/>); null for <c>-</c> (a count-up game: no time control).</summary>
         public TimeSpan? TotalTimeLimit { get; init; }
 
         /// <summary>From <c>[TimeControl]</c>: the time added back after each move (<see cref="Rules.IncrementPerMove"/>; only countdown clocks apply it).</summary>

@@ -1683,11 +1683,12 @@ namespace Chinese_Chess_v3.Game.Core
         /// <summary>
         /// A clock ran out (PlayerTimer has already set itself Terminated). With
         /// <c>Rules.EndGameWhenTimesUp</c> (default) its owner loses; otherwise the game
-        /// goes on with that clock stopped.
+        /// goes on with that clock stopped. Never happens with count-up clocks (正數, only
+        /// measuring: <see cref="PlayerTimer.HasTimeLimit"/>); ignored there just in case.
         /// </summary>
         private void OnTimeUp(Player loser)
         {
-            if (IsGameOver)
+            if (IsGameOver || Rules.TimerMode == TimerMode.CountUp)
                 return;
 
             if (!Board.GameRules.EndGameWhenTimesUp)

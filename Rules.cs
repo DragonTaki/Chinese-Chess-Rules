@@ -34,22 +34,22 @@ namespace Chinese_Chess_v3.Game.Core
         // Read by GameManager when it creates the two players' clocks (the defaults below
         // are what a game uses unless the player settings say otherwise, docs/SETTINGS.md).
 
-        /// <summary>Each side's total time (局時). Default: 30 minutes</summary>
+        /// <summary>Each side's total time (局時); countdown only (count-up has no limit). Default: 30 minutes</summary>
         public TimeSpan TotalTimeLimit { get; set; } = TimeSpan.FromMinutes(30);
 
-        /// <summary>Time allowed per move (步時), when <see cref="EnableStepTimer"/>. Default: 5 minutes</summary>
+        /// <summary>Time allowed per move (步時), when <see cref="EnableStepTimer"/>; countdown only. Default: 5 minutes</summary>
         public TimeSpan StepTimeLimit { get; set; } = TimeSpan.FromMinutes(5);
 
         /// <summary>Time added back to a side's total after each of its moves (每步加秒); only countdown clocks apply it, count-up is plain timing. Default: none</summary>
         public TimeSpan IncrementPerMove { get; set; } = TimeSpan.Zero;
 
-        /// <summary>Whether the per-move limit (步時) applies. Default: true</summary>
+        /// <summary>Whether the per-move limit (步時) applies (countdown only; a count-up clock always measures the step time, without a limit). Default: true</summary>
         public bool EnableStepTimer { get; set; } = true;
 
-        /// <summary>Whether the clocks count down to the limits or up from zero. Default: CountDown</summary>
+        /// <summary>Whether the clocks count down to the limits or up from zero (count-up only measures time: no limit, no time-up loss, no increment). Default: CountDown</summary>
         public TimerMode TimerMode { get; set; } = TimerMode.CountDown;
 
-        /// <summary>Whether a side whose clock runs out loses. Default: true</summary>
+        /// <summary>Whether a side whose clock runs out loses (countdown only: a count-up clock never runs out). Default: true</summary>
         public bool EndGameWhenTimesUp { get; set; } = true;
 
         #endregion

@@ -32,8 +32,10 @@ namespace Chinese_Chess_v3.Game.Core.Saves
     /// <c>Origin</c> (the endgame puzzle / opening: <c>0001-七星聚會</c>, or just the title when
     /// it has no Id; only for those modes), <c>BoardType</c> (<c>Full</c>), <c>Format</c>
     /// (<c>ICCS</c>), then the time control and clocks - <c>TimeControl</c> (<c>total+increment</c>
-    /// in seconds, the standard PGN form; the increment only affects countdown clocks), <c>StepTime</c> (seconds), <c>StepTimer</c>,
-    /// <c>TimerMode</c> (<c>CountDown</c>/<c>CountUp</c>), <c>LoseOnTimeUp</c>,
+    /// in seconds, the standard PGN form; <c>-</c>, PGN's "no time control", for count-up clocks,
+    /// which have no limit), <c>StepTime</c> (seconds), <c>StepTimer</c>,
+    /// <c>TimerMode</c> (<c>CountDown</c>/<c>CountUp</c>), <c>LoseOnTimeUp</c> (<c>StepTime</c>,
+    /// <c>StepTimer</c> and <c>LoseOnTimeUp</c> only for countdown clocks),
     /// <c>RedTimeUsed</c>/<c>RedStepUsed</c>/<c>BlackTimeUsed</c>/<c>BlackStepUsed</c> (each
     /// clock's elapsed total and current step time when saved, seconds; the total can be
     /// negative after countdown increments) - and the Full-board rules in effect:
@@ -130,17 +132,26 @@ namespace Chinese_Chess_v3.Game.Core.Saves
         public const string ElephantEyeBlocksTag = "ElephantEyeBlocks";
         public const string HorseLegBlocksTag = "HorseLegBlocks";
 
+        /// <summary>The <c>[TimeControl]</c> value for no time control (PGN standard), written for count-up clocks.</summary>
+        public const string NoTimeControl = "-";
+
         /// <summary>The time control, both clocks as they are now, and the rules in effect (<see cref="GameManager.Rules"/>).</summary>
         private static void AddClockAndRuleTags(List<KeyValuePair<string, string>> tags, GameManager game)
         {
             var rules = game.Rules;
             var red = game.Player1.Timer.GetClockState();
             var black = game.Player2.Timer.GetClockState();
-            tags.Add(new(TimeControlTag, $"{Seconds(rules.TotalTimeLimit)}+{Seconds(rules.IncrementPerMove)}"));
-            tags.Add(new(StepTimeTag, Seconds(rules.StepTimeLimit)));
-            tags.Add(new(StepTimerTag, Bool(rules.EnableStepTimer)));
+            // Count-up clocks only measure time: no limit, increment or time-up to record.
+            bool countDown = rules.TimerMode == Players.TimerMode.CountDown;
+            tags.Add(new(TimeControlTag, countDown ? $"{Seconds(rules.TotalTimeLimit)}+{Seconds(rules.IncrementPerMove)}" : NoTimeControl));
+            if (countDown)
+            {
+                tags.Add(new(StepTimeTag, Seconds(rules.StepTimeLimit)));
+                tags.Add(new(StepTimerTag, Bool(rules.EnableStepTimer)));
+            }
             tags.Add(new(TimerModeTag, rules.TimerMode.ToString()));
-            tags.Add(new(LoseOnTimeUpTag, Bool(rules.EndGameWhenTimesUp)));
+            if (countDown)
+                tags.Add(new(LoseOnTimeUpTag, Bool(rules.EndGameWhenTimesUp)));
             tags.Add(new(RedTimeUsedTag, Seconds(red.TotalTime)));
             tags.Add(new(RedStepUsedTag, Seconds(red.StepTime)));
             tags.Add(new(BlackTimeUsedTag, Seconds(black.TotalTime)));
@@ -238,9 +249,10 @@ namespace Chinese_Chess_v3.Game.Core.Saves
                 termination = reason;
 
             // Time control: "total+increment" (seconds); a bare "total" means no increment. (The increment only takes effect in countdown mode.)
+            // "-" (no time control, a count-up game) and "?" (unknown) leave both at the defaults.
             TimeSpan? totalLimit = null, increment = null;
             string timeControl = content.Optional(TimeControlTag);
-            if (!string.IsNullOrWhiteSpace(timeControl))
+            if (!string.IsNullOrWhiteSpace(timeControl) && timeControl.Trim() is not (NoTimeControl or "?"))
             {
                 string[] parts = timeControl.Trim().Split('+');
                 if (parts.Length > 2)
