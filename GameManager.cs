@@ -9,6 +9,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 
 using Chinese_Chess_v3.Game.Core.Boards;
@@ -18,6 +19,7 @@ using Chinese_Chess_v3.Game.Core.Openings;
 using Chinese_Chess_v3.Game.Core.Pgn;
 using Chinese_Chess_v3.Game.Core.Pieces;
 using Chinese_Chess_v3.Game.Core.Players;
+using Chinese_Chess_v3.Game.Core.Saves;
 
 using Engine.Logging;
 
@@ -230,6 +232,39 @@ namespace Chinese_Chess_v3.Game.Core
         /// </summary>
         public OpeningLine CurrentOpening { get; private set; } = null;
 
+        /// <summary>
+        /// What kind of game this is: <see cref="GameMode.Endgame"/> after
+        /// <see cref="StartEndgame"/>, <see cref="GameMode.Opening"/> after
+        /// <see cref="StartOpening"/>, <see cref="GameMode.Normal"/> after any other setup; a
+        /// loaded saved game gets the mode it was saved with. Decides the saved game's
+        /// <c>[Event]</c> and its save folder / file name.
+        /// </summary>
+        public GameMode Mode { get; private set; } = GameMode.Normal;
+
+        /// <summary>
+        /// The 4-digit Id of the endgame puzzle / opening file the game was started from (also
+        /// after loading a saved game of it, when <see cref="CurrentEndgame"/> /
+        /// <see cref="CurrentOpening"/> are null); null for a normal game or when unknown.
+        /// </summary>
+        public string OriginId { get; private set; } = null;
+
+        /// <summary>
+        /// The title of the endgame puzzle / opening the game was started from (kept like
+        /// <see cref="OriginId"/>); null for a normal game. Names the save file of those modes.
+        /// </summary>
+        public string OriginTitle { get; private set; } = null;
+
+        /// <summary>
+        /// The FEN of the position the current game started from (set by every new game setup;
+        /// for an opening the position before its preset line), with <see cref="FirstTurn"/>
+        /// to move: with <see cref="Moves"/> it is the whole game, the <c>[FEN]</c> of a saved
+        /// game. Null off the Full board and after <see cref="ClearBoard"/>.
+        /// </summary>
+        public string InitialFen { get; private set; } = null;
+
+        /// <summary>Whether the game can be saved (<see cref="SaveGame"/>): a Full-board game with a known <see cref="InitialFen"/>.</summary>
+        public bool CanSave => Board.Type == BoardType.Full && InitialFen != null;
+
 #nullable enable
         // events for UI bridge
         public event Action<Piece>? PieceSelected;
@@ -259,6 +294,7 @@ namespace Chinese_Chess_v3.Game.Core
             Board = new Board(BoardType.Full, rules);
             Board.Initialize(BoardConfigLoader.Load());
             CurrentTurn = PlayerSide.Player1;
+            InitialFen = FormatInitialFen(PlayerSide.Player1);
             selectedPiece = null;
             Player1 = new Player(PlayerSide.Player1, rules.TotalTimeLimit, rules.StepTimeLimit, rules.IncrementPerMove, rules.EnableStepTimer, rules.TimerMode);
             Player2 = new Player(PlayerSide.Player2, rules.TotalTimeLimit, rules.StepTimeLimit, rules.IncrementPerMove, rules.EnableStepTimer, rules.TimerMode);
@@ -364,7 +400,9 @@ namespace Chinese_Chess_v3.Game.Core
         /// UI (<see cref="BoardReset"/>, <see cref="PieceAdded"/> per piece) and recomputes
         /// the hanging pieces.
         /// </summary>
-        /// <param name="source">The file the game starts from (an endgame puzzle, an opening), or null.</param>
+        /// <param name="source">The file the game starts from (an endgame puzzle, an opening, a
+        /// saved game), or null; sets <see cref="Mode"/>, <see cref="OriginId"/> and
+        /// <see cref="OriginTitle"/>.</param>
         private void SetUpPosition(List<PieceInfo> pieces, PlayerSide firstTurn, PgnGameFile source)
         {
             if (firstTurn != PlayerSide.Player1 && firstTurn != PlayerSide.Player2)
@@ -380,9 +418,17 @@ namespace Chinese_Chess_v3.Game.Core
             selectedPiece = null;
             CurrentEndgame = source as EndgamePuzzle;
             CurrentOpening = source as OpeningLine;
+            (Mode, OriginId, OriginTitle) = source switch
+            {
+                EndgamePuzzle puzzle => (GameMode.Endgame, puzzle.Id, puzzle.Title),
+                OpeningLine opening => (GameMode.Opening, opening.Id, opening.Title),
+                SavedGame saved => (saved.Mode, saved.OriginId, saved.OriginTitle),
+                _ => (GameMode.Normal, (string)null, (string)null),
+            };
             // Reset side
             CurrentTurn = firstTurn;
             FirstTurn = firstTurn;
+            InitialFen = FormatInitialFen(firstTurn);
             ResetTimers(startFirstTurn: true);
             // A custom position may start with the side to move already in check.
             IsInCheck = Board.UsesCheckRules && Board.IsSideInCheck(firstTurn);
@@ -397,6 +443,107 @@ namespace Chinese_Chess_v3.Game.Core
             UpdateHangingPieces();
         }
 
+        /// <summary>The FEN of the board's current pieces with <paramref name="sideToMove"/>; null off the Full board or when the pieces cannot be written as FEN.</summary>
+        private string FormatInitialFen(PlayerSide sideToMove)
+        {
+            if (Board.Type != BoardType.Full)
+                return null;
+            try
+            {
+                return XiangqiFen.Format(Board, sideToMove);
+            }
+            catch (ArgumentException ex)
+            {
+                AppLogger.Log($"(Save) Start position has no FEN: {ex.Message}", LogLevel.WARN);
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// The current game as saved-game PGN text (<see cref="SavedGamePgn"/>): start position,
+        /// every move (ICCS with the Chinese notation as comments), mode, origin, preset plies,
+        /// result. Does not change <see cref="HasUnsavedChanges"/>.
+        /// </summary>
+        /// <param name="date">The <c>[Date]</c>; null for now.</param>
+        /// <exception cref="InvalidOperationException">Not <see cref="CanSave"/>.</exception>
+        public string ExportPgn(string redName, string blackName, DateTime? date = null) =>
+            SavedGamePgn.Write(this, redName, blackName, date ?? DateTime.Now);
+
+        /// <summary>
+        /// Writes the current game (<see cref="ExportPgn"/>) to <paramref name="filePath"/>
+        /// (UTF-8, its folder created when missing; an existing file is overwritten) and clears
+        /// <see cref="HasUnsavedChanges"/>. Where and under which name is the caller's choice
+        /// (the game's rules are in <c>SystemSettings</c> / <c>GameSaveFiles</c>).
+        /// </summary>
+        /// <returns><paramref name="filePath"/>.</returns>
+        /// <exception cref="InvalidOperationException">Not <see cref="CanSave"/>.</exception>
+        /// <exception cref="IOException">The file cannot be written (also
+        /// <see cref="UnauthorizedAccessException"/>).</exception>
+        public string SaveGame(string filePath, string redName, string blackName, DateTime? date = null)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
+            string text = ExportPgn(redName, blackName, date);
+
+            string folder = Path.GetDirectoryName(Path.GetFullPath(filePath));
+            if (!string.IsNullOrEmpty(folder))
+                Directory.CreateDirectory(folder);
+            File.WriteAllText(filePath, text);
+
+            HasUnsavedChanges = false;
+            AppLogger.Log($"(Save) Saved {Moves.Count} move(s) to {filePath}", LogLevel.DEBUG);
+            Logger?.AddMessage($"(Save) {Path.GetFileName(filePath)}");
+            return filePath;
+        }
+
+        /// <summary>
+        /// Starts <paramref name="saved"/> again: sets up its start position (<c>[FEN]</c>) and
+        /// replays every move through <see cref="TryMove"/> - so <see cref="Moves"/>,
+        /// <see cref="MoveRecorded"/>, the game log, check and a checkmate / stalemate come
+        /// back exactly as played. Restores <see cref="Mode"/>, <see cref="OriginId"/>,
+        /// <see cref="OriginTitle"/> and the undo floor (<c>[PresetPlies]</c>);
+        /// <see cref="CurrentEndgame"/> / <see cref="CurrentOpening"/> stay null (the original
+        /// file is not looked up). A game saved after a resignation or a time-up is ended the
+        /// same way again (<c>[Result]</c> + <c>[Termination]</c>). Clocks: both start fresh
+        /// (zero elapsed) and the side to move's step clock is started - the saved file holds
+        /// no clock times. Ends clean (<see cref="HasUnsavedChanges"/> false).
+        /// </summary>
+        /// <returns>The number of moves replayed: all of them unless one is not legal (files
+        /// from <see cref="SavedGameLoader"/> have already been checked), where replay stops.</returns>
+        /// <exception cref="FormatException">The saved game's FEN is not valid.</exception>
+        public int LoadSavedGame(SavedGame saved)
+        {
+            ArgumentNullException.ThrowIfNull(saved);
+            var (pieces, sideToMove) = XiangqiFen.Parse(saved.Fen);
+            SetUpPosition(pieces, sideToMove, saved);
+            Logger?.AddMessage($"(Load) {saved.Title}");
+
+            int played = 0;
+            foreach (var move in saved.Moves)
+            {
+                if (!TryMove(move.FromX, move.FromY, move.ToX, move.ToY))
+                {
+                    AppLogger.Log($"(Load) {saved.FileName}: move {played + 1} ({move}) is not legal here; replay stopped", LogLevel.WARN);
+                    break;
+                }
+                played++;
+            }
+
+            UndoFloor = Math.Min(saved.PresetPlies, played);
+
+            // An ending that is not a move (resignation, time-up) is not replayed by the moves.
+            if (!IsGameOver && played == saved.Moves.Count && saved.Winner != PlayerSide.None &&
+                saved.Termination is GameOverReason.Resign or GameOverReason.TimeUp)
+            {
+                EndGame(saved.Winner, OpponentOf(saved.Winner), saved.Termination.Value);
+            }
+
+            if (!IsGameOver)
+                RestartClocks();
+            HasUnsavedChanges = false;
+            AppLogger.Log($"(Load) Loaded {saved.FileName}: {played} move(s) replayed, {CurrentTurn} to move, over: {IsGameOver}", LogLevel.DEBUG);
+            return played;
+        }
+
         public void ClearBoard()
         {
             // Clear board:
@@ -408,6 +555,10 @@ namespace Chinese_Chess_v3.Game.Core
             selectedPiece = null;
             CurrentEndgame = null;
             CurrentOpening = null;
+            Mode = GameMode.Normal;
+            OriginId = null;
+            OriginTitle = null;
+            InitialFen = null;
             // Reset side
             CurrentTurn = PlayerSide.Player1;
             FirstTurn = PlayerSide.Player1;

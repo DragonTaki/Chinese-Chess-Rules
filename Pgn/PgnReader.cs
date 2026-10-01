@@ -4,7 +4,7 @@
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2026/10/01
 // Update Date: 2026/10/01
-// Version: v1.0
+// Version: v1.1
 /* ----- ----- ----- ----- */
 
 using System;
@@ -81,12 +81,27 @@ namespace Chinese_Chess_v3.Game.Core.Pgn
         /// Reads PGN <paramref name="text"/> of the file <paramref name="fileName"/>: the file
         /// name, the tag pairs and the main-line moves. No tag is required here.
         /// </summary>
+        /// <param name="numberedFileName">Whether the file name must follow the
+        /// <c>0001-名稱.pgn</c> rule (endgames, openings). Saved games are named differently
+        /// (<c>SystemSettings</c>): with false any <c>*.pgn</c> name is accepted, <c>Id</c> is
+        /// null and the name part is the file name without its extension.</param>
         /// <exception cref="FormatException">Bad file name, a malformed tag line or an
         /// unreadable movetext token.</exception>
-        public static PgnFileContent Read(string text, string fileName, PgnOrigin origin, string folderCategory = "", string filePath = null)
+        public static PgnFileContent Read(string text, string fileName, PgnOrigin origin, string folderCategory = "", string filePath = null, bool numberedFileName = true)
         {
-            if (!TryParseFileName(fileName, out var id, out var nameFromFile))
-                throw new FormatException($"file name '{fileName}' is not '<4 digits>-<name>.pgn'");
+            string id = null;
+            string nameFromFile;
+            if (numberedFileName)
+            {
+                if (!TryParseFileName(fileName, out id, out nameFromFile))
+                    throw new FormatException($"file name '{fileName}' is not '<4 digits>-<name>.pgn'");
+            }
+            else
+            {
+                nameFromFile = Path.GetFileNameWithoutExtension(fileName ?? string.Empty).Trim();
+                if (nameFromFile.Length == 0)
+                    throw new FormatException($"file name '{fileName}' has no name");
+            }
 
             var tags = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             string movetext = SplitTags(text ?? string.Empty, tags);
