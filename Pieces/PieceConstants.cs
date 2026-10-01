@@ -3,8 +3,8 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2025/05/06
-// Update Date: 2025/05/06
-// Version: v1.0
+// Update Date: 2026/10/01
+// Version: v1.1
 /* ----- ----- ----- ----- */
 
 using System.Collections.Generic;
@@ -101,6 +101,22 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         // side doesn't need to be part of the key.
         private static readonly Dictionary<(int x, int y), PieceType> _classicPositionTypeMap =
             ClassicPieceData.ToDictionary(p => (p.x, p.y), p => p.type);
+
+        /// <summary>
+        /// One colour's pieces in a HalfCenter (台灣暗棋半盤) game: a full xiangqi set — 1 General,
+        /// 2 each of Advisor, Elephant, Chariot, Horse and Cannon, 5 Soldiers (16). Both colours
+        /// have the same set, so the 32 pieces fill the 8×4 board exactly.
+        /// </summary>
+        public static readonly IReadOnlyList<(PieceType type, int count)> HalfCenterPieceSet = new[]
+        {
+            (PieceType.General,  1),
+            (PieceType.Advisor,  2),
+            (PieceType.Elephant, 2),
+            (PieceType.Chariot,  2),
+            (PieceType.Horse,    2),
+            (PieceType.Cannon,   2),
+            (PieceType.Soldier,  5),
+        };
 
         /// <summary>
         /// Looks up which piece type canonically starts at (x, y) in the

@@ -22,6 +22,7 @@ using Chinese_Chess_v3.Game.Core.Players;
 using Chinese_Chess_v3.Game.Core.Saves;
 
 using Engine.Logging;
+using Engine.Randomization;
 
 namespace Chinese_Chess_v3.Game.Core
 {
@@ -350,6 +351,21 @@ namespace Chinese_Chess_v3.Game.Core
         {
             // Load default pieces
             SetUpPosition(BoardConfigLoader.Load(), PlayerSide.Player1, null);
+        }
+
+        /// <summary>
+        /// Starts a new HalfCenter game (台灣暗棋半盤, 8×4): the 32 pieces shuffled
+        /// (<see cref="BoardConfigLoader.CreateShuffledHalfCenter"/> with
+        /// <see cref="GlobalRandom.Instance"/>), face down and owned by nobody when
+        /// <see cref="Rules.IsHiddenChess"/> (the default rules decide), Player1 to act first —
+        /// its first flip decides who plays which colour (see <see cref="ColorOf"/>).
+        /// </summary>
+        public void StartHalfCenter()
+        {
+            var pieces = BoardConfigLoader.CreateShuffledHalfCenter(GlobalRandom.Instance, DefaultRules.IsHiddenChess);
+            SetUpPosition(pieces, PlayerSide.Player1, null, BoardType.HalfCenter);
+            AppLogger.Log($"(DarkChess) Started a HalfCenter game, hidden: {DefaultRules.IsHiddenChess}", LogLevel.DEBUG);
+            Logger?.AddMessage("(DarkChess) 新局：台灣暗棋半盤");
         }
 
         /// <summary>
