@@ -183,7 +183,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         /// This only answers whether *attempting* the move is legal. If the
         /// target is hidden and <see cref="Rules.CanCaptureHiddenPiece"/> is
         /// enabled, whether the attacker also dies alongside the target once
-        /// its rank is revealed (<see cref="Rules.IsCaptureHiddenPieceStrongerSuiside"/>)
+        /// its rank is revealed (<see cref="Rules.IsCaptureHiddenPieceStrongerSuicide"/>)
         /// is a state change the caller (not yet implemented — see
         /// docs/STATUS.md) applies after the move, not a legality question.
         /// </remarks>

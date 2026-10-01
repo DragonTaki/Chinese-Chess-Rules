@@ -148,7 +148,7 @@ namespace Chinese_Chess_v3.Game.Core.Saves
             tags.Add(new(GeneralCanSeeGeneralTag, Bool(rules.CanGeneralSeeGeneral)));
             tags.Add(new(GeneralCanLeavePalaceTag, Bool(rules.CanGeneralLeavePalace)));
             tags.Add(new(AdvisorCanLeavePalaceTag, Bool(rules.CanAdvisorLeavePalace)));
-            tags.Add(new(ElephantEyeBlocksTag, Bool(rules.CanElephantEyeBlockd)));
+            tags.Add(new(ElephantEyeBlocksTag, Bool(rules.CanElephantEyeBlocked)));
             tags.Add(new(HorseLegBlocksTag, Bool(rules.CanHorseLegHobbled)));
         }
 
@@ -279,7 +279,7 @@ namespace Chinese_Chess_v3.Game.Core.Saves
                 CanGeneralSeeGeneral = ParseBool(content, GeneralCanSeeGeneralTag),
                 CanGeneralLeavePalace = ParseBool(content, GeneralCanLeavePalaceTag),
                 CanAdvisorLeavePalace = ParseBool(content, AdvisorCanLeavePalaceTag),
-                CanElephantEyeBlockd = ParseBool(content, ElephantEyeBlocksTag),
+                CanElephantEyeBlocked = ParseBool(content, ElephantEyeBlocksTag),
                 CanHorseLegHobbled = ParseBool(content, HorseLegBlocksTag),
                 Mode = ParseEvent(content.Optional("Event")),
                 OriginId = originId,

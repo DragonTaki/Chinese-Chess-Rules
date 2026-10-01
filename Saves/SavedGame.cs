@@ -107,8 +107,8 @@ namespace Chinese_Chess_v3.Game.Core.Saves
         /// <summary>The <c>[AdvisorCanLeavePalace]</c> tag (<see cref="Rules.CanAdvisorLeavePalace"/>).</summary>
         public bool? CanAdvisorLeavePalace { get; init; }
 
-        /// <summary>The <c>[ElephantEyeBlocks]</c> tag (<see cref="Rules.CanElephantEyeBlockd"/>).</summary>
-        public bool? CanElephantEyeBlockd { get; init; }
+        /// <summary>The <c>[ElephantEyeBlocks]</c> tag (<see cref="Rules.CanElephantEyeBlocked"/>).</summary>
+        public bool? CanElephantEyeBlocked { get; init; }
 
         /// <summary>The <c>[HorseLegBlocks]</c> tag (<see cref="Rules.CanHorseLegHobbled"/>).</summary>
         public bool? CanHorseLegHobbled { get; init; }
@@ -131,7 +131,7 @@ namespace Chinese_Chess_v3.Game.Core.Saves
             if (CanGeneralSeeGeneral is bool seeGeneral) rules.CanGeneralSeeGeneral = seeGeneral;
             if (CanGeneralLeavePalace is bool generalLeaves) rules.CanGeneralLeavePalace = generalLeaves;
             if (CanAdvisorLeavePalace is bool advisorLeaves) rules.CanAdvisorLeavePalace = advisorLeaves;
-            if (CanElephantEyeBlockd is bool elephantEye) rules.CanElephantEyeBlockd = elephantEye;
+            if (CanElephantEyeBlocked is bool elephantEye) rules.CanElephantEyeBlocked = elephantEye;
             if (CanHorseLegHobbled is bool horseLeg) rules.CanHorseLegHobbled = horseLeg;
             return rules;
         }

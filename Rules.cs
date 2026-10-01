@@ -75,7 +75,7 @@ namespace Chinese_Chess_v3.Game.Core
         /// <summary>
         /// Whether the Elephant's eye can be blocked (塞象眼). Default: true
         /// </summary>
-        public bool CanElephantEyeBlockd { get; set; } = true;
+        public bool CanElephantEyeBlocked { get; set; } = true;
 
         /// <summary>
         /// Whether the Horse's leg can be hobbled (蹩馬腳). Default: true
@@ -90,7 +90,7 @@ namespace Chinese_Chess_v3.Game.Core
         /// <summary>
         /// Whether a piece can kill itself (單獨自殺). Default: false
         /// </summary>
-        public bool CanSuiside { get; set; } = false;
+        public bool CanSuicide { get; set; } = false;
 
         #endregion
 
@@ -124,9 +124,12 @@ namespace Chinese_Chess_v3.Game.Core
         public bool CanCaptureHiddenPiece { get; set; } = false;
 
         /// <summary>
-        /// Capturing a stronger hidden piece counts as self-kill (吃到比自己大的子自殺). Default: true
+        /// What happens when a hidden-piece capture (暗吃) reveals a target stronger than the attacker
+        /// (吃到比自己大的子). One toggle, two outcomes. true: the attacker dies and the revealed
+        /// target stays. false: the attacker returns to its origin square alive and the target
+        /// becomes revealed. Equal rank is a plain capture. Default: true
         /// </summary>
-        public bool IsCaptureHiddenPieceStrongerSuiside { get; set; } = true;
+        public bool IsCaptureHiddenPieceStrongerSuicide { get; set; } = true;
 
         /// <summary>
         /// Whether multiple captures in a row are allowed (連吃). Default: false

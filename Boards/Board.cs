@@ -274,7 +274,7 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         /// false: the piece is already face up, so it cannot be flipped;
         /// true: flipped successfully.
         /// </returns>
-        public bool? FlapPiece(int x, int y)
+        public bool? FlipPiece(int x, int y)
         {
             var piece = GetPiece(x, y);
             if (piece == null)

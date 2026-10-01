@@ -70,7 +70,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         /// <para>
         /// - Must move exactly 2 squares diagonally.  
         /// - Cannot cross the river.  
-        /// - Cannot jump over a piece ("elephant's eye" rule, when <see cref="Rules.CanElephantEyeBlockd"/>).  
+        /// - Cannot jump over a piece ("elephant's eye" rule, when <see cref="Rules.CanElephantEyeBlocked"/>).  
         /// - Cannot capture an allied piece.
         /// </para>
         /// </summary>
@@ -107,7 +107,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
                 return false;
 
             // Check if elephant's eye is blocked
-            if (board.GameRules.CanElephantEyeBlockd && IsElephantEyeBlocked(board, dx, dy))
+            if (board.GameRules.CanElephantEyeBlocked && IsElephantEyeBlocked(board, dx, dy))
                 return false;
 
             // Check if there is an ally piece at the destination
@@ -146,7 +146,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
                     continue;
 
                 // Skip if elephant's eye is blocked
-                if (board.GameRules.CanElephantEyeBlockd && IsElephantEyeBlocked(board, dx, dy))
+                if (board.GameRules.CanElephantEyeBlocked && IsElephantEyeBlocked(board, dx, dy))
                     continue;
 
                 // Skip if destination occupied by ally
