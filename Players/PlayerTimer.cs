@@ -8,6 +8,7 @@
 /* ----- ----- ----- ----- */
 
 using System;
+using System.Globalization;
 
 namespace Chinese_Chess_v3.Game.Core.Players
 {
@@ -258,22 +259,24 @@ namespace Chinese_Chess_v3.Game.Core.Players
                 int seconds = time.Seconds;
                 double fractional = time.TotalSeconds - Math.Floor(time.TotalSeconds);
 
+                // Invariant culture throughout: the decimal point is always '.', whatever the
+                // system's regional settings.
                 // --- Supports fractional-second formats {second.2}, {second.3} ---
                 string result = template;
 
                 // Parse {second.X}
                 result = System.Text.RegularExpressions.Regex.Replace(result, @"\{second\.(\d+)\}", m =>
                 {
-                    int digits = int.Parse(m.Groups[1].Value);
-                    return TruncatedSecondsInMinute(time, digits).ToString($"00.{new string('0', digits)}");
+                    int digits = int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture);
+                    return TruncatedSecondsInMinute(time, digits).ToString($"00.{new string('0', digits)}", CultureInfo.InvariantCulture);
                 });
 
                 // Standard fields
                 result = result
-                    .Replace("{hour}", hours.ToString("00"))
-                    .Replace("{minute}", minutes.ToString("00"))
-                    .Replace("{second}", seconds.ToString("00"))
-                    .Replace("{totalSecond}", totalSeconds.ToString("0.##"));
+                    .Replace("{hour}", hours.ToString("00", CultureInfo.InvariantCulture))
+                    .Replace("{minute}", minutes.ToString("00", CultureInfo.InvariantCulture))
+                    .Replace("{second}", seconds.ToString("00", CultureInfo.InvariantCulture))
+                    .Replace("{totalSecond}", totalSeconds.ToString("0.##", CultureInfo.InvariantCulture));
 
                 return result;
             }
@@ -284,7 +287,7 @@ namespace Chinese_Chess_v3.Game.Core.Players
                 int minutes = (int)time.TotalMinutes;
                 double secondsInMinute = TruncatedSecondsInMinute(time, 2);
 
-                return $"{minutes:00}:{secondsInMinute:00.00}";
+                return string.Create(CultureInfo.InvariantCulture, $"{minutes:00}:{secondsInMinute:00.00}");
             }
         }
 
