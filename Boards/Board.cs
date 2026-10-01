@@ -73,7 +73,9 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         /// Initializes a new instance of the <see cref="Board"/> class.
         /// Sets up the 9x10 grid layout and provides reference coordinate documentation.
         /// </summary>
-        public Board(BoardType type = BoardType.Full)
+        /// <param name="type">Board type (grid size).</param>
+        /// <param name="rules">The rules this board plays by; null for the default <see cref="Rules"/>.</param>
+        public Board(BoardType type = BoardType.Full, Rules rules = null)
         {
             Type = type;
 
@@ -101,7 +103,7 @@ namespace Chinese_Chess_v3.Game.Core.Boards
             }
 
             Grid = new Piece[Columns, Rows];
-            GameRules = new Rules();
+            GameRules = rules ?? new Rules();
         }
 
         /// <summary>

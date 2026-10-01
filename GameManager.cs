@@ -174,17 +174,27 @@ namespace Chinese_Chess_v3.Game.Core
         public event Action? BoardReset;
 #nullable disable
 
-        public GameManager()
+        /// <summary>A game with the default <see cref="Rules"/>.</summary>
+        public GameManager() : this(null) { }
+
+        /// <summary>
+        /// A game played by <paramref name="rules"/> (null: the default <see cref="Rules"/>):
+        /// the board's rule toggles and the players' clocks (total / step time, increment,
+        /// step timer on/off, count mode) all come from it. The launchers pass the rules
+        /// built from the player settings (docs/SETTINGS.md).
+        /// </summary>
+        public GameManager(Rules rules)
         {
             movesView = moves.AsReadOnly();
+            rules ??= new Rules();
 
             // Initialize the board
-            Board = new Board();
+            Board = new Board(BoardType.Full, rules);
             Board.Initialize(BoardConfigLoader.Load());
             CurrentTurn = PlayerSide.Player1;
             selectedPiece = null;
-            Player1 = new Player(PlayerSide.Player1, TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(5), null, true);
-            Player2 = new Player(PlayerSide.Player2, TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(5), null, true);
+            Player1 = new Player(PlayerSide.Player1, rules.TotalTimeLimit, rules.StepTimeLimit, rules.IncrementPerMove, rules.EnableStepTimer, rules.TimerMode);
+            Player2 = new Player(PlayerSide.Player2, rules.TotalTimeLimit, rules.StepTimeLimit, rules.IncrementPerMove, rules.EnableStepTimer, rules.TimerMode);
 
             // The player whose clock runs out loses.
             Player1.Timer.TimeUp += () => OnTimeUp(Player1);

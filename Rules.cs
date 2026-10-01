@@ -3,10 +3,11 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2025/05/06
-// Update Date: 2025/10/29
+// Update Date: 2026/10/01
 // Version: v1.0
 /* ----- ----- ----- ----- */
 
+using System;
 using System.Collections.Generic;
 
 using Chinese_Chess_v3.Game.Core.Pieces;
@@ -23,10 +24,25 @@ namespace Chinese_Chess_v3.Game.Core
     {
         #region Timer Setting
 
+        // Read by GameManager when it creates the two players' clocks (the defaults below
+        // are what a game uses unless the player settings say otherwise, docs/SETTINGS.md).
+
+        /// <summary>Each side's total time (局時). Default: 30 minutes</summary>
+        public TimeSpan TotalTimeLimit { get; set; } = TimeSpan.FromMinutes(30);
+
+        /// <summary>Time allowed per move (步時), when <see cref="EnableStepTimer"/>. Default: 5 minutes</summary>
+        public TimeSpan StepTimeLimit { get; set; } = TimeSpan.FromMinutes(5);
+
+        /// <summary>Time added back to a side's total after each of its moves (每步加秒). Default: none</summary>
+        public TimeSpan IncrementPerMove { get; set; } = TimeSpan.Zero;
+
+        /// <summary>Whether the per-move limit (步時) applies. Default: true</summary>
         public bool EnableStepTimer { get; set; } = true;
 
+        /// <summary>Whether the clocks count down to the limits or up from zero. Default: CountDown</summary>
         public TimerMode TimerMode { get; set; } = TimerMode.CountDown;
 
+        /// <summary>Whether a side whose clock runs out loses. Default: true</summary>
         public bool EndGameWhenTimesUp { get; set; } = true;
 
         #endregion
