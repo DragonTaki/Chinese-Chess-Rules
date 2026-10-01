@@ -92,7 +92,7 @@ namespace Chinese_Chess_v3.Game.Core
             if (board == null || move == null || before == null || !board.UsesCheckRules)
                 return events;
 
-            var mover = move.Piece.Side;
+            var mover = move.Side;
             var opponent = OpponentOf(mover);
             var moved = board.GetPiece(move.ToX, move.ToY);
             var pieces = board.GetAllPieces().ToArray();
