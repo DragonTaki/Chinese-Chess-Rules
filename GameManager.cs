@@ -183,13 +183,21 @@ namespace Chinese_Chess_v3.Game.Core
         // Board.RevertStates); null for an ordinary move (taken back by Board.UnmakeMove).
         private readonly List<List<(Piece piece, int snapshots)>> _stateChanges = new List<List<(Piece piece, int snapshots)>>();
 
-        /// <summary>The rules every new game starts with (the constructor's; the launchers pass the player settings' rules).</summary>
+        /// <summary>
+        /// The rules every new game starts with (the constructor's; the launchers pass the player
+        /// settings' rules, and the settings menu edits this object in place). Never played by
+        /// directly: each game takes its own copy when it starts (see <see cref="Rules"/>), so
+        /// changing this only affects the next game started, never the one in progress.
+        /// </summary>
         public Rules DefaultRules { get; }
 
         /// <summary>
         /// The rules the current game is played by (the board's <see cref="Board.GameRules"/>,
-        /// also the clocks' limits): <see cref="DefaultRules"/>, except for a loaded saved game
-        /// whose file has its own time control / rules (<see cref="SavedGame.RulesFor"/>).
+        /// also the clocks' limits), fixed when the game starts: a copy of
+        /// <see cref="DefaultRules"/> as it was then, except for a loaded saved game, whose file's
+        /// time control / rules are put over that copy (<see cref="SavedGame.RulesFor"/>), and a
+        /// <see cref="Restart"/>, which keeps the restarted game's rules. A different object from
+        /// <see cref="DefaultRules"/> (later settings changes do not reach it).
         /// </summary>
         public Rules Rules => Board.GameRules;
 
@@ -330,8 +338,8 @@ namespace Chinese_Chess_v3.Game.Core
             rules ??= new Rules();
             DefaultRules = rules;
 
-            // Initialize the board
-            Board = new Board(BoardType.Full, rules);
+            // Initialize the board, with this first game's own copy of the rules.
+            Board = new Board(BoardType.Full, rules.Clone());
             Board.Initialize(BoardConfigLoader.Load());
             CurrentTurn = PlayerSide.Player1;
             InitialFen = FormatInitialFen(PlayerSide.Player1);
@@ -391,7 +399,12 @@ namespace Chinese_Chess_v3.Game.Core
         {
             var rules = DefaultRules.Clone();
             rules.IsHiddenChess = hiddenChess ?? DefaultRules.IsHiddenChess;
+            SetUpHalfCenter(rules, seed);
+        }
 
+        /// <summary><see cref="StartHalfCenter"/> played by <paramref name="rules"/> (this game's own copy; its <see cref="Rules.IsHiddenChess"/> picks the variant).</summary>
+        private void SetUpHalfCenter(Rules rules, int? seed)
+        {
             int shuffleSeed = seed ?? Environment.TickCount;
             var random = new RandomTable(HalfCenterShuffleTableSize, shuffleSeed);
             var pieces = BoardConfigLoader.CreateShuffledHalfCenter(random, rules.IsHiddenChess);
@@ -426,11 +439,14 @@ namespace Chinese_Chess_v3.Game.Core
         /// </summary>
         /// <exception cref="FormatException">The puzzle's FEN is not valid (puzzles from
         /// <see cref="EndgameLoader"/> have already been checked).</exception>
-        public void StartEndgame(EndgamePuzzle puzzle)
+        public void StartEndgame(EndgamePuzzle puzzle) => SetUpEndgame(puzzle, null);
+
+        /// <summary><see cref="StartEndgame"/> played by <paramref name="rules"/> (this game's own copy); null for a copy of <see cref="DefaultRules"/>.</summary>
+        private void SetUpEndgame(EndgamePuzzle puzzle, Rules rules)
         {
             ArgumentNullException.ThrowIfNull(puzzle);
             var (pieces, sideToMove) = XiangqiFen.Parse(puzzle.Fen);
-            SetUpPosition(pieces, sideToMove, puzzle);
+            SetUpPosition(pieces, sideToMove, puzzle, BoardType.Full, rules);
             AppLogger.Log($"(Endgame) Started {puzzle.FileName}: {puzzle.Title}, {sideToMove} to move", LogLevel.DEBUG);
             Logger?.AddMessage($"(Endgame) {puzzle.Title} ({puzzle.Goal})");
         }
@@ -450,9 +466,13 @@ namespace Chinese_Chess_v3.Game.Core
         /// <exception cref="NotSupportedException">The board type cannot be played yet (HalfCross).</exception>
         public void Restart()
         {
+            // The restarted game keeps its own rules (a fresh copy of them), not the current
+            // DefaultRules: rules are fixed per game.
+            var rules = Rules.Clone();
+
             if (Board.Type == BoardType.HalfCenter)
             {
-                StartHalfCenter(Rules.IsHiddenChess);
+                SetUpHalfCenter(rules, null);
                 return;
             }
             if (Board.Type != BoardType.Full)
@@ -461,22 +481,19 @@ namespace Chinese_Chess_v3.Game.Core
             switch (_startSource)
             {
                 case EndgamePuzzle puzzle:
-                    StartEndgame(puzzle);
+                    SetUpEndgame(puzzle, rules);
                     break;
                 case OpeningLine opening:
-                    StartOpening(opening);
+                    SetUpOpening(opening, rules);
                     break;
                 case SavedGame saved:
-                    RestartSavedGame(saved);
+                    RestartSavedGame(saved, rules);
                     break;
                 default:
-                    if (InitialFen == null)
-                    {
-                        ResetBoardToDefault();
-                        break;
-                    }
-                    var (pieces, sideToMove) = XiangqiFen.Parse(InitialFen);
-                    SetUpPosition(pieces, sideToMove, null);
+                    var (pieces, sideToMove) = InitialFen == null
+                        ? (BoardConfigLoader.Load(), PlayerSide.Player1)
+                        : XiangqiFen.Parse(InitialFen);
+                    SetUpPosition(pieces, sideToMove, null, BoardType.Full, rules);
                     break;
             }
             AppLogger.Log($"(Restart) Restarted the {Mode} game", LogLevel.DEBUG);
@@ -486,10 +503,10 @@ namespace Chinese_Chess_v3.Game.Core
         /// <see cref="Restart"/> of a loaded saved game: its start position and rules, then only
         /// its preset plies (<c>[PresetPlies]</c>, the undo floor) replayed.
         /// </summary>
-        private void RestartSavedGame(SavedGame saved)
+        private void RestartSavedGame(SavedGame saved, Rules rules)
         {
             var (pieces, sideToMove) = XiangqiFen.Parse(saved.Fen);
-            SetUpPosition(pieces, sideToMove, saved);
+            SetUpPosition(pieces, sideToMove, saved, BoardType.Full, rules);
             Logger?.AddMessage($"(Restart) {saved.Title}");
 
             int played = 0;
@@ -522,11 +539,14 @@ namespace Chinese_Chess_v3.Game.Core
         /// move was not legal (openings from <see cref="OpeningLoader"/> have already been
         /// checked), in which case the line stops there.</returns>
         /// <exception cref="FormatException">The opening's FEN is not valid.</exception>
-        public int StartOpening(OpeningLine opening)
+        public int StartOpening(OpeningLine opening) => SetUpOpening(opening, null);
+
+        /// <summary><see cref="StartOpening"/> played by <paramref name="rules"/> (this game's own copy); null for a copy of <see cref="DefaultRules"/>.</summary>
+        private int SetUpOpening(OpeningLine opening, Rules rules)
         {
             ArgumentNullException.ThrowIfNull(opening);
             var (pieces, sideToMove) = XiangqiFen.Parse(opening.Fen);
-            SetUpPosition(pieces, sideToMove, opening);
+            SetUpPosition(pieces, sideToMove, opening, BoardType.Full, rules);
             Logger?.AddMessage(opening.Ecco != null ? $"(Opening) {opening.Title} ({opening.Ecco})" : $"(Opening) {opening.Title}");
 
             int played = 0;
@@ -559,14 +579,16 @@ namespace Chinese_Chess_v3.Game.Core
         /// </summary>
         /// <param name="source">The file the game starts from (an endgame puzzle, an opening, a
         /// saved game), or null; sets <see cref="Mode"/>, <see cref="OriginId"/> and
-        /// <see cref="OriginTitle"/>, and the <see cref="Rules"/> (a saved game's own, otherwise
-        /// <see cref="DefaultRules"/>).</param>
+        /// <see cref="OriginTitle"/>, and the <see cref="Rules"/> (a saved game's own over a copy
+        /// of <see cref="DefaultRules"/>, otherwise a copy of <see cref="DefaultRules"/>).</param>
         /// <param name="boardType">The board the game is played on: the current <see cref="Board"/>
         /// is replaced by a new one when its type differs. Every FEN-based setup (endgames,
         /// openings, saved games, the default position) is Full.</param>
         /// <param name="rules">This game's rules when they differ from what
-        /// <paramref name="source"/> decides (e.g. <see cref="StartHalfCenter"/>'s 暗棋/明棋
-        /// choice); null for that default.</param>
+        /// <paramref name="source"/> decides (e.g. <see cref="StartHalfCenter"/>'s
+        /// 暗棋/明棋 choice, or the restarted game's rules for <see cref="Restart"/>); null for
+        /// that default. Must be this game's own object (a copy), never <see cref="DefaultRules"/>
+        /// itself.</param>
         private void SetUpPosition(List<PieceInfo> pieces, PlayerSide firstTurn, PgnGameFile source, BoardType boardType = BoardType.Full,
             Rules rules = null)
         {
@@ -578,9 +600,10 @@ namespace Chinese_Chess_v3.Game.Core
             if (Board.Type != boardType)
                 Board = new Board(boardType, Board.GameRules);
 
-            // A saved game is played by the rules it was saved with; every other game by the defaults
-            // (or the rules its setup passed).
-            ApplyRules(rules ?? (source is SavedGame savedGame ? savedGame.RulesFor(DefaultRules) : DefaultRules));
+            // A saved game is played by the rules it was saved with; every other game by a copy
+            // of the defaults as they are now (or the rules its setup passed). Always this game's
+            // own object, so a later settings change (to DefaultRules) does not reach it.
+            ApplyRules(rules ?? (source is SavedGame savedGame ? savedGame.RulesFor(DefaultRules) : DefaultRules.Clone()));
 
             // Reset board:
             // (A) Clear pieces
@@ -795,7 +818,7 @@ namespace Chinese_Chess_v3.Game.Core
             OriginId = null;
             OriginTitle = null;
             InitialFen = null;
-            ApplyRules(DefaultRules);
+            ApplyRules(DefaultRules.Clone());
             // Reset side
             CurrentTurn = PlayerSide.Player1;
             FirstTurn = PlayerSide.Player1;
