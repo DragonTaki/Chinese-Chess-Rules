@@ -18,7 +18,7 @@ namespace Chinese_Chess_v3.Game.Core
 
     /// <summary>
     /// Represents the rules configuration for different board types in Chinese Chess.
-    /// Contains settings for Full board, Half board, and HalfCross (三國) variants.
+    /// Contains settings for Full board, Jieqi (揭棋), Half board, and HalfCross (三國) variants.
     /// </summary>
     public class Rules
     {
@@ -73,7 +73,7 @@ namespace Chinese_Chess_v3.Game.Core
         public bool CanAdvisorLeavePalace { get; set; } = false;
 
         /// <summary>
-        /// Whether the Elephant's eye can be blocked (卡象眼). Default: true
+        /// Whether the Elephant's eye can be blocked (塞象眼). Default: true
         /// </summary>
         public bool CanElephantEyeBlockd { get; set; } = true;
 
@@ -181,7 +181,7 @@ namespace Chinese_Chess_v3.Game.Core
         public Dictionary<int, List<(PieceType type, int count, PieceColor color, PlayerSide side)>> HalfCrossTeamSetup { get; set; }
             = new Dictionary<int, List<(PieceType, int, PieceColor, PlayerSide)>>()
         {
-            // 陣營1
+            // Faction 1 (Player1, red pieces)
             [1] = new List<(PieceType, int, PieceColor, PlayerSide)>()
             {
                 (PieceType.Advisor,  2, PieceColor.Red, PlayerSide.Player1),
@@ -191,7 +191,7 @@ namespace Chinese_Chess_v3.Game.Core
                 (PieceType.Cannon,   2, PieceColor.Red, PlayerSide.Player1),
             },
 
-            // 陣營2
+            // Faction 2 (Player2, black pieces)
             [2] = new List<(PieceType, int, PieceColor, PlayerSide)>()
             {
                 (PieceType.Advisor,  2, PieceColor.Black, PlayerSide.Player2),
@@ -201,7 +201,7 @@ namespace Chinese_Chess_v3.Game.Core
                 (PieceType.Cannon,   2, PieceColor.Black, PlayerSide.Player2),
             },
 
-            // 陣營3：將帥方 — its own independent faction (PlayerSide.Player3),
+            // Faction 3: the Generals' side (將帥方) — its own independent faction (PlayerSide.Player3),
             // even though half its pieces are colored to look like the
             // other two factions' pieces (see the field doc above).
             [3] = new List<(PieceType, int, PieceColor, PlayerSide)>()

@@ -511,7 +511,7 @@ namespace Chinese_Chess_v3.Game.Core
         /// Writes the current game (<see cref="ExportPgn"/>) to <paramref name="filePath"/>
         /// (UTF-8, its folder created when missing; an existing file is overwritten) and clears
         /// <see cref="HasUnsavedChanges"/>. Where and under which name is the caller's choice
-        /// (the game's rules are in <c>SystemSettings</c> / <c>GameSaveFiles</c>).
+        /// (the folder and file name rules are in <c>SystemSettings</c> / <c>GameSaveFiles</c>).
         /// </summary>
         /// <returns><paramref name="filePath"/>.</returns>
         /// <exception cref="InvalidOperationException">Not <see cref="CanSave"/>.</exception>
@@ -1018,12 +1018,6 @@ namespace Chinese_Chess_v3.Game.Core
         }
         
         /// <summary>
-        /// Clears both clocks for a new game; optionally starts the first step of the side
-        /// to move (<see cref="CurrentTurn"/>, set before this is called).
-        /// Also clears the pause state (Reset() drops a clock's Paused state) and the
-        /// game-over state.
-        /// </summary>
-        /// <summary>
         /// Both clocks back to their start values and the side to move's step clock started,
         /// keeping the moves and the game state (unlike <see cref="ResetTimers"/>). Used after
         /// an opening line has been played onto the board.
@@ -1035,6 +1029,13 @@ namespace Chinese_Chess_v3.Game.Core
             (CurrentTurn == PlayerSide.Player2 ? Player2 : Player1).Timer.StartStep();
         }
 
+        /// <summary>
+        /// Clears both clocks for a new game; optionally starts the first step of the side
+        /// to move (<see cref="CurrentTurn"/>, set before this is called).
+        /// Also clears the pause, game-over and check state and the move history
+        /// (<see cref="Moves"/>, <see cref="LastMove"/>, <see cref="UndoFloor"/>,
+        /// <see cref="HasUnsavedChanges"/>).
+        /// </summary>
         private void ResetTimers(bool startFirstTurn)
         {
             Player1.Timer.Reset();

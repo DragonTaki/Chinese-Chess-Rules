@@ -158,7 +158,7 @@ namespace Chinese_Chess_v3.Game.Core
             if (newlyHanging.Count >= 2)
                 Add(TacticalEventType.DoubleAttack, newlyHanging);
 
-            // --- 閃擊 ---
+            // --- Chariot threat (閃擊) ---
             var threatened = FindNewChariotThreats(board, pieces, mover, before);
             if (threatened.Count > 0)
                 Add(TacticalEventType.ChariotThreat, threatened);
