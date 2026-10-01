@@ -531,12 +531,12 @@ namespace Chinese_Chess_v3.Game.Core
         }
 
         /// <summary>
-        /// The game-log line of a move: <c>第{MoveNumber}手 紅：{Notation}</c> or
-        /// <c>第{MoveNumber}手 黑：{Notation}</c> (e.g. <c>第1手 紅：炮二平五</c>). The side name is
+        /// The game-log line of a move: <c>第{MoveNumber}回合 紅：{Notation}</c> or
+        /// <c>第{MoveNumber}回合 黑：{Notation}</c> (e.g. <c>第1回合 紅：炮二平五</c>). The side name is
         /// fixed by player (Player1 紅, Player2 黑) like the notation's piece characters.
         /// </summary>
         public static string FormatMoveLine(MoveRecord move) =>
-            $"第{move.MoveNumber}手 {(move.Side == PlayerSide.Player1 ? "紅" : "黑")}：{move.Notation}";
+            $"第{move.MoveNumber}回合 {(move.Side == PlayerSide.Player1 ? "紅" : "黑")}：{move.Notation}";
 
         private static PlayerSide OpponentOf(PlayerSide side) =>
             side == PlayerSide.Player1 ? PlayerSide.Player2 : PlayerSide.Player1;
