@@ -259,7 +259,6 @@ namespace Chinese_Chess_v3.Game.Core.Players
                 // otherwise the total minutes (e.g. 65 for 1:05:00).
                 int minutes = template.Contains("{hour}") ? time.Minutes : (int)time.TotalMinutes;
                 int seconds = time.Seconds;
-                double fractional = time.TotalSeconds - Math.Floor(time.TotalSeconds);
 
                 // Invariant culture throughout: the decimal point is always '.', whatever the
                 // system's regional settings.
@@ -285,7 +284,6 @@ namespace Chinese_Chess_v3.Game.Core.Players
             catch
             {
                 // fallback when error
-                double totalSeconds = time.TotalSeconds;
                 int minutes = (int)time.TotalMinutes;
                 double secondsInMinute = TruncatedSecondsInMinute(time, 2);
 
