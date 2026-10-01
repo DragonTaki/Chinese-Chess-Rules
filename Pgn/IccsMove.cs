@@ -3,13 +3,13 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2026/09/30
-// Update Date: 2026/09/30
+// Update Date: 2026/10/01
 // Version: v1.0
 /* ----- ----- ----- ----- */
 
 using System;
 
-namespace Chinese_Chess_v3.Game.Core.Endgames
+namespace Chinese_Chess_v3.Game.Core.Pgn
 {
     /// <summary>
     /// One move in ICCS coordinates (e.g. <c>h2e2</c>, also written <c>H2-E2</c>), mapped

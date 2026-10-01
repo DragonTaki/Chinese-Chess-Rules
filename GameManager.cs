@@ -14,6 +14,7 @@ using System.Linq;
 using Chinese_Chess_v3.Game.Core.Boards;
 using Chinese_Chess_v3.Game.Core.Endgames;
 using Chinese_Chess_v3.Game.Core.Notation;
+using Chinese_Chess_v3.Game.Core.Pgn;
 using Chinese_Chess_v3.Game.Core.Pieces;
 using Chinese_Chess_v3.Game.Core.Players;
 

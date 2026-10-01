@@ -3,7 +3,7 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2026/09/30
-// Update Date: 2026/09/30
+// Update Date: 2026/10/01
 // Version: v1.0
 /* ----- ----- ----- ----- */
 
@@ -16,7 +16,7 @@ using Chinese_Chess_v3.Game.Core.Boards;
 using Chinese_Chess_v3.Game.Core.Pieces;
 using Chinese_Chess_v3.Game.Core.Players;
 
-namespace Chinese_Chess_v3.Game.Core.Endgames
+namespace Chinese_Chess_v3.Game.Core.Pgn
 {
     /// <summary>
     /// Standard xiangqi FEN for the Full (9x10) board, e.g. the start position
