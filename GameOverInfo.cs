@@ -67,7 +67,7 @@ namespace Chinese_Chess_v3.Game.Core
         public int Ply { get; }
 
         /// <summary>
-        /// Move number as in PGN / 第N手: a Red move and the Black reply share a number. When
+        /// Move number as in PGN / 第N回合 (the game-log line): a Red move and the Black reply share a number. When
         /// Black moves first (endgame), that first move is number 1 and the next Red move 2.
         /// 0 for a record made outside a game.
         /// </summary>
