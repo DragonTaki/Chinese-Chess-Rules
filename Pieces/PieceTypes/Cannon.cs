@@ -3,8 +3,8 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2025/05/06
-// Update Date: 2025/10/30
-// Version: v2.0
+// Update Date: 2026/10/01
+// Version: v2.1
 /* ----- ----- ----- ----- */
 
 using System;
@@ -19,6 +19,8 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
     /// Represents the <b>Cannon (炮/包)</b> piece in Chinese Chess.
     /// The Cannon moves like the Rook — any number of empty squares horizontally or vertically — 
     /// but captures differently: it must have exactly one piece between itself and its target when capturing.
+    /// That is the Full board; on the dark-chess HalfCenter board it steps one square instead
+    /// (see <see cref="IsValidMoveHalfCenter"/>).
     /// </summary>
     public class Cannon : Piece
     {
@@ -139,81 +141,82 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         }
 
         /// <summary>
-        /// On HalfCenter (8×4, 明棋／暗棋半盤), the Cannon still slides any
-        /// number of empty squares like the Full-board version. Whether it
-        /// needs a screen piece to jump over before it can capture is
-        /// governed by <c>Rules.IsCannonMustJumpToCapture</c> (包跳吃子):
-        /// enabled (the default), it must jump exactly one piece to
-        /// capture, same as the Full board; disabled, it captures the same
-        /// way it moves — the first piece reached along an unobstructed
-        /// line, like a Chariot.
+        /// On HalfCenter (8×4, 明棋／暗棋半盤, Taiwanese dark chess), the Cannon's
+        /// non-capturing move is one square orthogonally onto an empty square, like
+        /// every other piece — it does not slide. How it captures is governed by
+        /// <c>Rules.IsCannonMustJumpToCapture</c> (包跳吃子):
+        /// <list type="bullet">
+        /// <item>enabled (the default, standard Taiwanese rule): only by jumping
+        /// exactly one piece (the screen, 炮台 — any piece, face-up or face-down)
+        /// along a row or column, any distance, onto the first piece behind it.
+        /// The jump capture ignores rank (不受等級限制): any enemy piece, the General
+        /// included. It cannot capture an adjacent piece directly.</item>
+        /// <item>disabled (炮不跳, a local variant): no jumps at all — it captures an
+        /// adjacent piece by rank, exactly like the other one-step pieces.</item>
+        /// </list>
+        /// Hidden targets follow <see cref="Piece"/>'s dark-chess capture check either way.
         /// </summary>
         protected override bool IsValidMoveHalfCenter(Board board, int targetX, int targetY)
         {
+            if (!board.GameRules.IsCannonMustJumpToCapture)
+                return IsValidOrthogonalOneStepDarkChess(board, targetX, targetY);
+
             if (!IsDestinationLegalHalfCenter(board, targetX, targetY))
                 return false;
 
             int dx = targetX - X;
             int dy = targetY - Y;
 
-            if (dx != 0 && dy != 0)
+            // Straight line only, and not its own square
+            if ((dx != 0 && dy != 0) || (dx == 0 && dy == 0))
                 return false;
 
-            int count = CountPiecesBetween(X, Y, targetX, targetY, board);
             Piece targetPiece = board.Grid[targetX, targetY];
 
+            // Non-capturing move: one step onto an empty square
             if (targetPiece == null)
-                return count == 0;
+                return Math.Abs(dx) + Math.Abs(dy) == 1;
 
-            int requiredScreens = board.GameRules.IsCannonMustJumpToCapture ? 1 : 0;
-            return count == requiredScreens && CanCaptureInDarkChess(board, targetX, targetY);
+            // Capture: jump exactly one screen, regardless of rank
+            return CountPiecesBetween(X, Y, targetX, targetY, board) == 1
+                && CanCaptureInDarkChess(board, targetX, targetY, ignoreRank: true);
         }
 
+        /// <summary>See <see cref="IsValidMoveHalfCenter"/>.</summary>
         protected override List<(int x, int y)> GetLegalMovesHalfCenter(Board board)
         {
+            if (!board.GameRules.IsCannonMustJumpToCapture)
+                return GetOrthogonalOneStepMovesDarkChess(board);
+
             List<(int x, int y)> legalMoves = new List<(int x, int y)>();
-            bool mustJump = board.GameRules.IsCannonMustJumpToCapture;
 
-            var directions = MovePatterns.GetOrthogonalOneStep(Side);
-
-            foreach (var (dx, dy) in directions)
+            foreach (var (dx, dy) in MoveDirections.OrthogonalOneStep)
             {
-                bool jumped = false;
-
                 int newX = X + dx;
                 int newY = Y + dy;
 
+                if (!board.IsInBoard(newX, newY))
+                    continue;
+
+                // Non-capturing move: one step onto an empty square
+                if (board.Grid[newX, newY] == null)
+                    legalMoves.Add((newX, newY));
+
+                // Capture: the first piece along the line is the screen, the next one
+                // behind it (empty squares in between are skipped) is the only target.
+                bool jumped = false;
                 while (board.IsInBoard(newX, newY))
                 {
                     Piece target = board.Grid[newX, newY];
-
-                    if (!jumped)
+                    if (target != null)
                     {
-                        if (target == null)
+                        if (jumped)
                         {
-                            legalMoves.Add((newX, newY));
-                        }
-                        else if (!mustJump)
-                        {
-                            // No jump required — captures like a Chariot, at
-                            // the first obstacle reached.
-                            if (CanCaptureInDarkChess(board, newX, newY))
+                            if (CanCaptureInDarkChess(board, newX, newY, ignoreRank: true))
                                 legalMoves.Add((newX, newY));
                             break;
                         }
-                        else
-                        {
-                            jumped = true;
-                        }
-                    }
-                    else
-                    {
-                        if (target != null)
-                        {
-                            if (CanCaptureInDarkChess(board, newX, newY))
-                                legalMoves.Add((newX, newY));
-                            break;
-                        }
+                        jumped = true;
                     }
 
                     newX += dx;
@@ -225,9 +228,12 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         }
 
         /// <summary>
-        /// Same dark-chess mechanic as HalfCenter — see General.cs's
-        /// HalfCross note. <c>Rules.IsCannonMustJumpToCapture</c> still
-        /// governs the jump-to-capture requirement here too.
+        /// HalfCross (三國暗棋) — see General.cs's HalfCross note. Still the
+        /// long-range version: slides any number of empty squares, and
+        /// <c>Rules.IsCannonMustJumpToCapture</c> governs the jump-to-capture
+        /// requirement, captures following rank. Not the HalfCenter rules: HalfCross
+        /// is being re-specified as a separate system (docs/DARK-CHESS-RULES.md), so
+        /// its rules are left as they are until then.
         /// </summary>
         protected override bool IsValidMoveHalfCross(Board board, int targetX, int targetY)
         {

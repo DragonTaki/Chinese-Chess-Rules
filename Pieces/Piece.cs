@@ -4,7 +4,7 @@
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2025/05/06
 // Update Date: 2026/10/01
-// Version: v2.2
+// Version: v2.3
 /* ----- ----- ----- ----- */
 
 using System;
@@ -187,7 +187,16 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         /// is a state change the caller (not yet implemented — see
         /// docs/STATUS.md) applies after the move, not a legality question.
         /// </remarks>
-        protected bool CanCaptureInDarkChess(Board board, int targetX, int targetY)
+        /// <param name="board">The board the move is made on.</param>
+        /// <param name="targetX">Target square X.</param>
+        /// <param name="targetY">Target square Y.</param>
+        /// <param name="ignoreRank">
+        /// true for the Cannon's jump capture (炮隔子打), which takes an enemy piece of any
+        /// rank, General included: the rank order and the Soldier/General pair are skipped,
+        /// everything else (own pieces, hidden pieces) still applies.
+        /// </param>
+        /// <returns>Whether moving onto the target square is allowed as far as capturing goes.</returns>
+        protected bool CanCaptureInDarkChess(Board board, int targetX, int targetY, bool ignoreRank = false)
         {
             var target = board.GetPiece(targetX, targetY);
             if (target == null)
@@ -203,6 +212,9 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
 
             if (!target.CurrentInfo.IsFaceUp)
                 return rules.CanCaptureHiddenPiece;
+
+            if (ignoreRank)
+                return true;
 
             // Standard dark-chess exception to the rank order: the weakest piece (Soldier)
             // can capture the strongest (General), and the General cannot capture a
@@ -229,10 +241,12 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         /// board" — so this checks bounds directly via
         /// <see cref="Board.IsInBoard"/> rather than going through either
         /// board type's (identical, unoverridden) IsDestinationLegal*.
-        /// Six of the seven piece types move exactly one square
-        /// orthogonally this way (General, Advisor, Elephant, Soldier
-        /// always; Chariot/Horse only when their respective
-        /// "special movement" rule flag is off); only the Cannon never does.
+        /// Every piece type moves exactly one square orthogonally this way
+        /// (General, Advisor, Elephant, Soldier always; Chariot/Horse only
+        /// when their respective "special movement" rule flag is off). The
+        /// Cannon makes its non-capturing moves this way too, and also its
+        /// captures when <see cref="Rules.IsCannonMustJumpToCapture"/> is off;
+        /// with it on, its captures are jumps (see <c>Cannon</c>).
         /// </summary>
         protected bool IsValidOrthogonalOneStepDarkChess(Board board, int targetX, int targetY)
         {
