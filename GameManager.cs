@@ -996,6 +996,8 @@ namespace Chinese_Chess_v3.Game.Core
                 return;
             }
 
+            if (Board.UsesDarkChessRules && EndDarkChessGameIfOver(mover))
+                return;
             SwitchTurn();
         }
 
@@ -1181,7 +1183,38 @@ namespace Chinese_Chess_v3.Game.Core
             }
 
             UpdateHangingPieces();
+            if (EndDarkChessGameIfOver(LastMove.Side))
+                return;
             SwitchTurn();
+        }
+
+        /// <summary>
+        /// Dark-chess game over (HalfCenter), checked after each action of
+        /// <paramref name="mover"/> before the turn is handed over (like the Full board's
+        /// checkmate check, so the loser's clock never starts): a player with no piece left
+        /// (face up or face down) loses (<see cref="GameOverReason.NoPiecesLeft"/>) — the
+        /// opponent first, then the mover (whose last piece can die in a hidden capture,
+        /// <see cref="MoveKind.HiddenStrongerSuicide"/>); otherwise the opponent loses if it
+        /// has no action on its turn (no legal move and nothing to flip,
+        /// <see cref="Board.HasAnyAction"/>; <see cref="GameOverReason.Stalemate"/>). Draw rules
+        /// are not decided yet (docs/DARK-CHESS-RULES.md §1.1), so none is applied.
+        /// </summary>
+        /// <returns>Whether the game ended.</returns>
+        private bool EndDarkChessGameIfOver(PlayerSide mover)
+        {
+            var opponent = OpponentOf(mover);
+            // Nobody owns a piece before the factions are decided (every action decides them,
+            // so this only guards against a custom position).
+            if (ColorOf(opponent) == PieceColor.None)
+                return false;
+
+            if (Board.QueryPieces(side: opponent).Count == 0)
+                EndGame(mover, opponent, GameOverReason.NoPiecesLeft);
+            else if (Board.QueryPieces(side: mover).Count == 0)
+                EndGame(opponent, mover, GameOverReason.NoPiecesLeft);
+            else if (!Board.HasAnyAction(opponent))
+                EndGame(mover, opponent, GameOverReason.Stalemate);
+            return IsGameOver;
         }
 
         /// <summary>
