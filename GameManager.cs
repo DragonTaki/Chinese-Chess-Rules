@@ -304,8 +304,8 @@ namespace Chinese_Chess_v3.Game.Core
         /// <summary>
         /// The file the current game was set up from (endgame puzzle, opening, saved game); null
         /// for any other game. Kept for <see cref="Restart"/> (a loaded saved game has neither
-        /// <see cref="CurrentEndgame"/> nor <see cref="CurrentOpening"/>, but restarts from its
-        /// own start position and rules).
+        /// <see cref="CurrentEndgame"/> nor <see cref="CurrentOpening"/>, but is loaded again from
+        /// this record on restart).
         /// </summary>
         private PgnGameFile _startSource = null;
 
@@ -458,8 +458,10 @@ namespace Chinese_Chess_v3.Game.Core
         /// a standard game goes back to the standard start (or to the custom start position it
         /// began from); a HalfCenter game becomes a new shuffled game of the same variant
         /// (暗棋 or 明棋); an endgame challenge or an opening practice starts the same puzzle /
-        /// line again; a loaded saved game starts from its <c>[FEN]</c> (plus its preset plies)
-        /// with its own rules, not from the position it was loaded at. After
+        /// line again; a loaded saved game is loaded again (<see cref="LoadSavedGame"/>): the
+        /// position, moves, clocks and ending exactly as when it was loaded (an ended save comes
+        /// back ended), from the <see cref="SavedGame"/> read at load time - the file is not read
+        /// again, so a file changed or deleted since does not matter. After
         /// <see cref="ClearBoard"/> (no start position known) the standard start is used.
         /// Raises <see cref="BoardReset"/> like any new game.
         /// </summary>
@@ -500,31 +502,14 @@ namespace Chinese_Chess_v3.Game.Core
         }
 
         /// <summary>
-        /// <see cref="Restart"/> of a loaded saved game: its start position and rules, then only
-        /// its preset plies (<c>[PresetPlies]</c>, the undo floor) replayed.
+        /// <see cref="Restart"/> of a loaded saved game (author decision 2026-10-02: restarting it
+        /// = loading it again): the same <see cref="SavedGame"/> loaded again by
+        /// <paramref name="rules"/> (the loaded game's), so the position, moves, undo floor,
+        /// clocks and ending are exactly as when it was loaded. The record read at load time is
+        /// used, not the file: it already is the file as loaded, and a file edited, overwritten or
+        /// deleted since cannot change or break the restart.
         /// </summary>
-        private void RestartSavedGame(SavedGame saved, Rules rules)
-        {
-            var (pieces, sideToMove) = XiangqiFen.Parse(saved.Fen);
-            SetUpPosition(pieces, sideToMove, saved, BoardType.Full, rules);
-            Logger?.AddMessage($"(Restart) {saved.Title}");
-
-            int played = 0;
-            foreach (var move in saved.Moves.Take(saved.PresetPlies))
-            {
-                if (!TryMove(move.FromX, move.FromY, move.ToX, move.ToY))
-                {
-                    AppLogger.Log($"(Restart) {saved.FileName}: preset move {played + 1} ({move}) is not legal here; replay stopped", LogLevel.WARN);
-                    break;
-                }
-                played++;
-            }
-
-            UndoFloor = played;
-            if (!IsGameOver)
-                RestartClocks();
-            HasUnsavedChanges = false;
-        }
+        private void RestartSavedGame(SavedGame saved, Rules rules) => SetUpSavedGame(saved, rules, "(Restart)");
 
         /// <summary>
         /// Starts a game from <paramref name="opening"/>: its position (the standard start
@@ -732,12 +717,20 @@ namespace Chinese_Chess_v3.Game.Core
         /// <returns>The number of moves replayed: all of them unless one is not legal (files
         /// from <see cref="SavedGameLoader"/> have already been checked), where replay stops.</returns>
         /// <exception cref="FormatException">The saved game's FEN is not valid.</exception>
-        public int LoadSavedGame(SavedGame saved)
+        public int LoadSavedGame(SavedGame saved) => SetUpSavedGame(saved, null, "(Load)");
+
+        /// <summary>
+        /// <see cref="LoadSavedGame"/> played by <paramref name="rules"/> (this game's own copy;
+        /// null for <see cref="SavedGame.RulesFor"/> over the current <see cref="DefaultRules"/>),
+        /// its game-log line headed <paramref name="logTag"/>. <see cref="Restart"/> of a loaded
+        /// saved game uses it with the loaded game's rules, so it comes back exactly as loaded.
+        /// </summary>
+        private int SetUpSavedGame(SavedGame saved, Rules rules, string logTag)
         {
             ArgumentNullException.ThrowIfNull(saved);
             var (pieces, sideToMove) = XiangqiFen.Parse(saved.Fen);
-            SetUpPosition(pieces, sideToMove, saved);
-            Logger?.AddMessage($"(Load) {saved.Title}");
+            SetUpPosition(pieces, sideToMove, saved, BoardType.Full, rules);
+            Logger?.AddMessage($"{logTag} {saved.Title}");
 
             IsReplaying = true;
             try
