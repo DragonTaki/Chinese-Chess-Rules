@@ -69,7 +69,7 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         /// <see cref="PieceConstants.HalfCenterPieceSet"/> (32 pieces) shuffled over all 32
         /// squares (Fisher–Yates with <paramref name="random"/>).
         /// </summary>
-        /// <param name="random">The random source; the game passes <see cref="GlobalRandom.Instance"/>.</param>
+        /// <param name="random">The random source; the game passes a clock-seeded <see cref="RandomTable"/> (see <c>GameManager.StartHalfCenter</c>).</param>
         /// <param name="faceDown">
         /// true (暗棋, <c>Rules.IsHiddenChess</c>): every piece face down and owned by nobody
         /// (<c>PlayerSide.None</c>) — the first flip decides the factions. false (明棋半盤): every

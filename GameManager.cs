@@ -355,19 +355,32 @@ namespace Chinese_Chess_v3.Game.Core
 
         /// <summary>
         /// Starts a new HalfCenter game (台灣暗棋半盤, 8×4): the 32 pieces shuffled
-        /// (<see cref="BoardConfigLoader.CreateShuffledHalfCenter"/> with
-        /// <see cref="GlobalRandom.Instance"/>) and owned by nobody, face down when
-        /// <see cref="Rules.IsHiddenChess"/> (the default rules decide), otherwise face up
-        /// (明棋半盤). Player1 acts first — its first flip (or, face up, its first move) decides
-        /// who plays which colour (see <see cref="ColorOf"/>).
+        /// (<see cref="BoardConfigLoader.CreateShuffledHalfCenter"/>) and owned by nobody, face
+        /// down when <see cref="Rules.IsHiddenChess"/> (the default rules decide), otherwise face
+        /// up (明棋半盤). Player1 acts first — its first flip (or, face up, its first move)
+        /// decides who plays which colour (see <see cref="ColorOf"/>).
         /// </summary>
-        public void StartHalfCenter()
+        /// <param name="seed">
+        /// The shuffle's seed; null (the game's choice) seeds it from the clock, so every new game
+        /// is a different layout. A fixed seed always gives the same layout (tests, replaying a
+        /// layout from the log). <see cref="GlobalRandom"/> is not used: its fixed seed would
+        /// deal the same layout on every launch.
+        /// </param>
+        public void StartHalfCenter(int? seed = null)
         {
-            var pieces = BoardConfigLoader.CreateShuffledHalfCenter(GlobalRandom.Instance, DefaultRules.IsHiddenChess);
+            int shuffleSeed = seed ?? Environment.TickCount;
+            var random = new RandomTable(HalfCenterShuffleTableSize, shuffleSeed);
+            var pieces = BoardConfigLoader.CreateShuffledHalfCenter(random, DefaultRules.IsHiddenChess);
             SetUpPosition(pieces, PlayerSide.Player1, null, BoardType.HalfCenter);
-            AppLogger.Log($"(DarkChess) Started a HalfCenter game, hidden: {DefaultRules.IsHiddenChess}", LogLevel.DEBUG);
+            AppLogger.Log($"(DarkChess) Started a HalfCenter game, hidden: {DefaultRules.IsHiddenChess}, seed: {shuffleSeed}", LogLevel.DEBUG);
             Logger?.AddMessage("(DarkChess) 新局：台灣暗棋半盤");
         }
+
+        /// <summary>
+        /// Size of the <see cref="RandomTable"/> a HalfCenter shuffle draws from: at least the
+        /// 31 draws one Fisher–Yates pass over the 32 squares takes, so no value repeats.
+        /// </summary>
+        private const int HalfCenterShuffleTableSize = 64;
 
         /// <summary>
         /// Starts a game from <paramref name="customInitialPieces"/> with
