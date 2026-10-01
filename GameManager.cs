@@ -3,8 +3,8 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2025/05/06
-// Update Date: 2026/09/30
-// Version: v1.5
+// Update Date: 2026/10/01
+// Version: v1.6
 /* ----- ----- ----- ----- */
 
 using System;
@@ -28,6 +28,12 @@ namespace Chinese_Chess_v3.Game.Core
     public class GameManager
     {
         public IGameLog Logger { get; private set; }
+
+        /// <summary>
+        /// The board of the current game. Replaced by a new <see cref="Boards.Board"/> instance
+        /// when a game is set up on a different <see cref="BoardType"/> (see
+        /// <see cref="LoadCustomBoard"/>), so read it from here each time instead of keeping it.
+        /// </summary>
         public Board Board { get; private set; }
         public Player Player1 { get; private set; }
         public Player Player2 { get; private set; }
@@ -344,11 +350,15 @@ namespace Chinese_Chess_v3.Game.Core
 
         /// <summary>
         /// Starts a game from <paramref name="customInitialPieces"/> with
-        /// <paramref name="firstTurn"/> (Player1 or Player2) to move first.
+        /// <paramref name="firstTurn"/> (Player1 or Player2) to move first, on a board of
+        /// <paramref name="boardType"/> (a new <see cref="Board"/> when the type changes).
         /// </summary>
-        public void LoadCustomBoard(List<PieceInfo> customInitialPieces, PlayerSide firstTurn = PlayerSide.Player1)
+        /// <param name="customInitialPieces">The pieces to place; their squares must be on a <paramref name="boardType"/> board.</param>
+        /// <param name="firstTurn">The side to move first.</param>
+        /// <param name="boardType">The board to play on; Full by default.</param>
+        public void LoadCustomBoard(List<PieceInfo> customInitialPieces, PlayerSide firstTurn = PlayerSide.Player1, BoardType boardType = BoardType.Full)
         {
-            SetUpPosition(customInitialPieces, firstTurn, null);
+            SetUpPosition(customInitialPieces, firstTurn, null, boardType);
         }
 
         /// <summary>
@@ -419,10 +429,18 @@ namespace Chinese_Chess_v3.Game.Core
         /// saved game), or null; sets <see cref="Mode"/>, <see cref="OriginId"/> and
         /// <see cref="OriginTitle"/>, and the <see cref="Rules"/> (a saved game's own, otherwise
         /// <see cref="DefaultRules"/>).</param>
-        private void SetUpPosition(List<PieceInfo> pieces, PlayerSide firstTurn, PgnGameFile source)
+        /// <param name="boardType">The board the game is played on: the current <see cref="Board"/>
+        /// is replaced by a new one when its type differs. Every FEN-based setup (endgames,
+        /// openings, saved games, the default position) is Full.</param>
+        private void SetUpPosition(List<PieceInfo> pieces, PlayerSide firstTurn, PgnGameFile source, BoardType boardType = BoardType.Full)
         {
             if (firstTurn != PlayerSide.Player1 && firstTurn != PlayerSide.Player2)
                 throw new ArgumentException($"The first turn must be Player1 or Player2, not {firstTurn}", nameof(firstTurn));
+
+            // A different board type needs a differently-sized grid: a new board (its rules
+            // are set right below).
+            if (Board.Type != boardType)
+                Board = new Board(boardType, Board.GameRules);
 
             // A saved game is played by the rules it was saved with; every other game by the defaults.
             ApplyRules(source is SavedGame savedGame ? savedGame.RulesFor(DefaultRules) : DefaultRules);
