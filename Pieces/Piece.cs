@@ -184,9 +184,9 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         protected virtual bool IsDestinationLegalHalfCross(Board board, int targetX, int targetY) => board.IsInBoard(targetX, targetY);
 
         // Check chessboard circumstance if destination legal
-        protected virtual bool IsValidMoveFull(Board board, int x, int targetY) => true;
-        protected virtual bool IsValidMoveHalfCenter(Board board, int x, int targetY) => true;
-        protected virtual bool IsValidMoveHalfCross(Board board, int x, int targetY) => true;
+        protected virtual bool IsValidMoveFull(Board board, int targetX, int targetY) => true;
+        protected virtual bool IsValidMoveHalfCenter(Board board, int targetX, int targetY) => true;
+        protected virtual bool IsValidMoveHalfCross(Board board, int targetX, int targetY) => true;
 
         /// <summary>
         /// Full-board flying-General check (王見王) for a non-General piece moving from its
