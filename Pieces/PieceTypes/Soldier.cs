@@ -153,10 +153,13 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
                 case PlayerSide.Player1:
                     return y < BoardConstants.Full.RiverLineYRedSide;
 
+                // Only the Full board's two sides have a river side; the other sides never
+                // play on the Full board.
+                case PlayerSide.Player3:
                 case PlayerSide.None:
                 case PlayerSide.Neutral:
                 default:
-                    throw new Exception("Unknown player side");  // Defensive check
+                    throw new InvalidOperationException($"{Side} has no side of the river on the Full board");
             }
         }
     }

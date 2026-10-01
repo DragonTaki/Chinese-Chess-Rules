@@ -91,6 +91,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         /// <see cref="IsValidMoveAsOriginalPosition"/>), which needs a
         /// throwaway instance of a *different* type at the same position.
         /// </summary>
+        /// <exception cref="ArgumentException"><paramref name="info"/>'s type has no piece class (<c>None</c>, <c>Shadow</c>).</exception>
         public static Piece Create(PieceInfo info) => info.Type switch
         {
             PieceType.General  => new General(info),
@@ -100,7 +101,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
             PieceType.Chariot  => new Chariot(info),
             PieceType.Cannon   => new Cannon(info),
             PieceType.Soldier  => new Soldier(info),
-            _ => throw new Exception("Unknown piece type"),
+            _ => throw new ArgumentException($"No piece class for type {info.Type}", nameof(info)),
         };
 
         /// <summary>

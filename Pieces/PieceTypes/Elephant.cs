@@ -58,10 +58,13 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
                 case PlayerSide.Player1:
                     return targetY >= BoardConstants.Full.RiverLineYRedSide;
 
+                // Only the Full board's two sides have a river side; the other sides never
+                // play on the Full board.
+                case PlayerSide.Player3:
                 case PlayerSide.None:
                 case PlayerSide.Neutral:
                 default:
-                    throw new Exception("Unknown player side");  // Defensive check
+                    throw new InvalidOperationException($"{Side} has no side of the river on the Full board");
             }
         }
 
@@ -183,7 +186,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         {
             // Elephant moves exactly 2 squares diagonally
             if (Math.Abs(dx) != 2 || Math.Abs(dy) != 2)
-                throw new Exception("Invalid Elephant move offset.");
+                throw new ArgumentException($"Not an Elephant move offset: ({dx},{dy})");
 
             // Compute the intermediate square (the "eye")
             int blockX = X + dx / 2;

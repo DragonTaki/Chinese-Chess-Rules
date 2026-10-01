@@ -174,7 +174,7 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         /// </summary>
         /// <param name="info">The <see cref="PieceInfo"/> object containing type, position, and side data.</param>
         /// <returns>A newly created <see cref="Piece"/> instance corresponding to the given piece type.</returns>
-        /// <exception cref="Exception">Thrown when an unknown piece type is encountered (by <see cref="Piece.Create"/>).</exception>
+        /// <exception cref="ArgumentException">Thrown when an unknown piece type is encountered (by <see cref="Piece.Create"/>).</exception>
         private Piece CreatePieceFromInfo(PieceInfo info)
         {
             // Single source of truth for the type↔class mapping lives on
@@ -559,6 +559,7 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         /// <param name="targetX">The X-coordinate of the target position.</param>
         /// <param name="targetY">The Y-coordinate of the target position.</param>
         /// <returns>True if the move does NOT cause generals to face each other; otherwise, false.</returns>
+        /// <exception cref="ArgumentException"><paramref name="side"/> is not Player1 or Player2.</exception>
         public bool IsGeneralTargetLegal(PlayerSide side, int targetX, int targetY)
         {
             // Determine scanning direction based on side
@@ -566,7 +567,7 @@ namespace Chinese_Chess_v3.Game.Core.Boards
             {
                 PlayerSide.Player1   => -1,  // Player1 (Red) scans upwards (Y--)
                 PlayerSide.Player2 =>  1,  // Player2 (Black) scans downwards (Y++)
-                _ => throw new Exception("Unknown side type")
+                _ => throw new ArgumentException($"Only Player1 and Player2 have a General on the Full board, not {side}", nameof(side))
             };
 
             int y = targetY + step;
