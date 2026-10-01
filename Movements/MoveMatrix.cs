@@ -15,8 +15,8 @@ namespace Chinese_Chess_v3.Game.Core.Movements
 {
     /// <summary>
     /// Defines the directional transformation matrices for each player side.
-    /// Red side is the base (identity matrix).
-    /// Black side is rotated 180° (reverses both X and Y).
+    /// Red side (Player1) is the base (identity matrix).
+    /// Black side (Player2) is rotated 180° (reverses both X and Y).
     /// Other sides default to Red's matrix.
     /// </summary>
     public static class MoveMatrix

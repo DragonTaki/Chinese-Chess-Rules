@@ -35,13 +35,13 @@ namespace Chinese_Chess_v3.Game.Core.Movements
             => MoveMatrix.TransformDirections(MoveDirections.DiagonalTwoStep, side);
 
         /// <summary>
-        /// Returns all L-shaped moves (for knights) for the given side.
+        /// Returns all L-shaped moves (for the Horse) for the given side.
         /// </summary>
         public static (int dx, int dy)[] GetDiagonalLShape(PlayerSide side)
             => MoveMatrix.TransformDirections(MoveDirections.DiagonalLShape, side);
 
         /// <summary>
-        /// Returns all soldier moves for the given side and state (0=未過河, 1=過河).
+        /// Returns all soldier moves for the given side and state (<paramref name="crossedRiver"/>: false = not crossed yet, true = crossed).
         /// </summary>
         public static (int dx, int dy)[] GetSoldierDirections(PlayerSide side, bool crossedRiver)
         {
