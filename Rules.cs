@@ -136,12 +136,16 @@ namespace Chinese_Chess_v3.Game.Core
         public bool IsAllowChainCapture { get; set; } = false;
 
         /// <summary>
-        /// Whether Chariots can move multiple grids (車衝). Default: false
+        /// Whether Chariots can move multiple grids (車衝): along a straight line over empty
+        /// squares; a capture after moving more than one square ignores rank, capturing the
+        /// adjacent piece by a one-step move follows rank. HalfCenter. Default: false
         /// </summary>
         public bool CanChariotRush { get; set; } = false;
 
         /// <summary>
-        /// Whether Horses should move diagonally (馬斜). Default: false
+        /// Whether Horses should move diagonally (馬斜): one square diagonally instead of
+        /// orthogonally, and such a capture ignores rank (takes any enemy piece). HalfCenter.
+        /// Default: false
         /// </summary>
         public bool IsHorseMoveDiagonally { get; set; } = false;
 

@@ -126,6 +126,11 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         /// diagonally when <c>Rules.IsHorseMoveDiagonally</c> (馬斜) is
         /// enabled; otherwise it moves one square orthogonally like every
         /// other non-Cannon piece there (not its Full-board "L" shape).
+        /// A 馬斜 diagonal capture ignores rank: it takes any enemy piece,
+        /// General included (docs/DARK-CHESS-RULES.md §2 / §4 「馬斜一格、吃任何子」,
+        /// author decision 2026-10-02). A hidden capture (暗吃) judges the
+        /// revealed piece the same way. (With 馬斜 the Horse has no orthogonal
+        /// move here, so it never captures by rank.)
         /// </summary>
         protected override bool IsValidMoveHalfCenter(Board board, int targetX, int targetY)
         {
@@ -150,7 +155,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
             if (!matched)
                 return false;
 
-            return CanCaptureInDarkChess(board, targetX, targetY);
+            return CanCaptureInDarkChess(board, targetX, targetY, ignoreRank: true);
         }
 
         protected override List<(int x, int y)> GetLegalMovesHalfCenter(Board board)
@@ -168,7 +173,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
                 if (!board.IsInBoard(newX, newY))
                     continue;
 
-                if (!CanCaptureInDarkChess(board, newX, newY))
+                if (!CanCaptureInDarkChess(board, newX, newY, ignoreRank: true))
                     continue;
 
                 legalMoves.Add((newX, newY));
