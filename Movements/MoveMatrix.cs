@@ -25,7 +25,7 @@ namespace Chinese_Chess_v3.Game.Core.Movements
         /// Stores each side’s transformation matrix.
         /// Allows for easy expansion to more sides (e.g. three kingdoms).
         /// </summary>
-        private static readonly Dictionary<PlayerSide, int[,]> matrixMap = new()
+        private static readonly Dictionary<PlayerSide, int[,]> _matrixMap = new()
         {
             [PlayerSide.Player1] = new int[,]
                 {
@@ -45,11 +45,11 @@ namespace Chinese_Chess_v3.Game.Core.Movements
         /// </summary>
         public static int[,] GetMatrix(PlayerSide side)
         {
-            if (matrixMap.TryGetValue(side, out var matrix))
+            if (_matrixMap.TryGetValue(side, out var matrix))
                 return matrix;
 
             // Default to Red if side not found
-            return matrixMap[PlayerSide.Player1];
+            return _matrixMap[PlayerSide.Player1];
         }
 
         /// <summary>
