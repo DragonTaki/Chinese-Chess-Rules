@@ -187,7 +187,7 @@ namespace Chinese_Chess_v3.Game.Core.Pgn
         /// <summary>Reads the leading tag pairs into <paramref name="tags"/>; returns the rest (the movetext).</summary>
         private static string SplitTags(string text, Dictionary<string, string> tags)
         {
-            using var reader = new StringReader(text.TrimStart('﻿'));
+            using var reader = new StringReader(text.TrimStart('\uFEFF'));
             var movetext = new StringBuilder();
             bool inTags = true;
             string line;
