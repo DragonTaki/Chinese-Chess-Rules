@@ -24,5 +24,32 @@ namespace Chinese_Chess_v3.Game.Core
         /// each player owns (see <see cref="GameManager.ColorOf"/>).
         /// </summary>
         Flip,
+
+        /// <summary>
+        /// 暗吃 (hidden capture, <c>Rules.CanCaptureHiddenPiece</c>): the mover moved onto a
+        /// face-down piece, which was revealed as an enemy piece it may capture by the normal
+        /// rules (rank order, the Soldier/General pair; a Cannon's jump capture ignores rank),
+        /// and captured it.
+        /// </summary>
+        HiddenCapture,
+
+        /// <summary>
+        /// 暗吃 onto a face-down piece revealed as the mover's own: the target stays, now face
+        /// up, and the mover stays on its from-square.
+        /// </summary>
+        HiddenOwnPiece,
+
+        /// <summary>
+        /// 暗吃 onto a face-down enemy piece the mover may not capture (a stronger one, or a
+        /// Soldier when the mover is a General) with <c>Rules.IsCaptureHiddenPieceStrongerSuicide</c> off:
+        /// the target stays, now face up, and the mover returns to its from-square.
+        /// </summary>
+        HiddenStrongerReturn,
+
+        /// <summary>
+        /// The same with <c>Rules.IsCaptureHiddenPieceStrongerSuicide</c> on: the mover dies
+        /// (taken off the board) and the target stays, now face up.
+        /// </summary>
+        HiddenStrongerSuicide,
     }
 }

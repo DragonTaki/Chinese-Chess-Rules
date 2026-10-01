@@ -191,8 +191,8 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         /// target is hidden and <see cref="Rules.CanCaptureHiddenPiece"/> is
         /// enabled, whether the attacker also dies alongside the target once
         /// its rank is revealed (<see cref="Rules.IsCaptureHiddenPieceStrongerSuicide"/>)
-        /// is a state change the caller (not yet implemented — see
-        /// docs/STATUS.md) applies after the move, not a legality question.
+        /// is a state change <c>GameManager</c> applies when the move is made (it reveals
+        /// the target and re-checks this with the target face up), not a legality question.
         /// The same goes for a hidden target that turns out to be one's own piece.
         /// </remarks>
         /// <param name="board">The board the move is made on.</param>

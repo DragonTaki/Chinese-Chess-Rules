@@ -847,6 +847,14 @@ namespace Chinese_Chess_v3.Game.Core
         /// </summary>
         private void ExecuteMove(Piece piece, int toX, int toY)
         {
+            // 暗吃: a move onto a face-down piece reveals it first (see ExecuteHiddenCapture).
+            var hiddenTarget = Board.GetPiece(toX, toY);
+            if (Board.UsesDarkChessRules && hiddenTarget != null && !hiddenTarget.CurrentInfo.IsFaceUp)
+            {
+                ExecuteHiddenCapture(piece, hiddenTarget);
+                return;
+            }
+
             int fromX = piece.X;
             int fromY = piece.Y;
 
@@ -1004,25 +1012,123 @@ namespace Chinese_Chess_v3.Game.Core
             if (decidesFactions)
                 Board.AssignFactions(piece.Color, mover);
 
-            int ply = moves.Count + 1;
-            LastMove = new MoveRecord(pieceBefore, piece.X, piece.Y, piece.X, piece.Y, null, ply, MoveNumberOf(ply),
-                kind: MoveKind.Flip, side: mover, revealed: piece.CurrentInfo.Clone());
-            moves.Add(LastMove);
-            capturedPieces.Add(null);
-            clocksBeforeMove.Add(clocks);
-            stateChanges.Add(ChangesSince(before));
-            HasUnsavedChanges = true;
-
             AppLogger.Log($"(Action) Flipped {piece.Color} {piece.Type} at ({piece.X},{piece.Y})", LogLevel.DEBUG);
-            string line = FormatDarkChessLine(LastMove);
-            AppLogger.Log(line, LogLevel.DEBUG);
-            Logger?.AddMessage(line);
+            RecordDarkChessAction(pieceBefore, piece.X, piece.Y, piece.X, piece.Y, MoveKind.Flip, mover,
+                piece.CurrentInfo.Clone(), null, clocks, before);
             if (decidesFactions)
             {
                 string factions = $"(Faction) {PlayerSide.Player1} 執{ColorName(ColorOf(PlayerSide.Player1))}，{PlayerSide.Player2} 執{ColorName(ColorOf(PlayerSide.Player2))}";
                 AppLogger.Log(factions, LogLevel.DEBUG);
                 Logger?.AddMessage(factions);
             }
+            EndDarkChessAction();
+        }
+
+        /// <summary>
+        /// Applies an already-validated move of <paramref name="piece"/> onto the face-down
+        /// <paramref name="target"/> (暗吃, <see cref="Rules.CanCaptureHiddenPiece"/>) as the side
+        /// to move's turn: the target is turned face up, then
+        /// <list type="bullet">
+        /// <item>the mover's own piece: the mover stays on its from-square
+        /// (<see cref="MoveKind.HiddenOwnPiece"/>);</item>
+        /// <item>an enemy piece the mover may capture by the normal rules (re-checked now that
+        /// it is face up — rank order and the Soldier/General pair; a Cannon's jump capture
+        /// ignores rank): a normal capture (<see cref="MoveKind.HiddenCapture"/>);</item>
+        /// <item>any other enemy piece (a stronger one, or a Soldier when the mover is a General):
+        /// <see cref="Rules.IsCaptureHiddenPieceStrongerSuicide"/> on, the mover dies
+        /// (<see cref="MoveKind.HiddenStrongerSuicide"/>); off, it returns to its from-square
+        /// (<see cref="MoveKind.HiddenStrongerReturn"/>). The target stays either way.</item>
+        /// </list>
+        /// Every outcome uses the turn and is recorded, logged and undone like a move.
+        /// </summary>
+        private void ExecuteHiddenCapture(Piece piece, Piece target)
+        {
+            var mover = CurrentTurn;
+            int fromX = piece.X;
+            int fromY = piece.Y;
+            int toX = target.X;
+            int toY = target.Y;
+            var clocks = (Player1.Timer.GetClockState(), Player2.Timer.GetClockState());
+            var before = SnapshotHistoryCounts();
+            var pieceBefore = piece.CurrentInfo.Clone();
+
+            Board.AdvanceTurn();
+            Board.FlipPiece(toX, toY);
+            var revealed = target.CurrentInfo.Clone();
+
+            MoveKind kind;
+            Piece captured = null;
+            if (target.Side == piece.Side)
+            {
+                kind = MoveKind.HiddenOwnPiece;
+            }
+            else if (piece.IsPseudoLegalMove(Board, toX, toY))
+            {
+                kind = MoveKind.HiddenCapture;
+                captured = target;
+                Board.RemovePiece(toX, toY);
+                Board.MovePiece(fromX, fromY, toX, toY);
+            }
+            else if (Board.GameRules.IsCaptureHiddenPieceStrongerSuicide)
+            {
+                kind = MoveKind.HiddenStrongerSuicide;
+                Board.RemovePiece(fromX, fromY);
+            }
+            else
+            {
+                kind = MoveKind.HiddenStrongerReturn;
+            }
+
+            AppLogger.Log($"(Action) Hidden capture {piece.Type} ({fromX},{fromY})->({toX},{toY}): revealed {target.Color} {target.Type}, {kind}", LogLevel.DEBUG);
+            RecordDarkChessAction(pieceBefore, fromX, fromY, toX, toY, kind, mover, revealed, captured, clocks, before);
+
+            // Board events after the record, like ExecuteMove's (the board is already final).
+            switch (kind)
+            {
+                case MoveKind.HiddenCapture:
+                    PieceCaptured?.Invoke(target);
+                    PieceRemoved?.Invoke(target);
+                    PieceMoved?.Invoke(piece, toX, toY);
+                    break;
+                case MoveKind.HiddenStrongerSuicide:
+                    PieceCaptured?.Invoke(piece);
+                    PieceRemoved?.Invoke(piece);
+                    break;
+            }
+
+            EndDarkChessAction();
+        }
+
+        /// <summary>
+        /// Records a dark-chess action (flip or hidden capture) applied since
+        /// <paramref name="before"/> as the next move — <see cref="LastMove"/>, the move list
+        /// and the undo data (both clocks, every changed piece) — marks the game changed and
+        /// writes its game-log line (<see cref="FormatDarkChessLine"/>).
+        /// </summary>
+        private void RecordDarkChessAction(PieceInfo pieceBefore, int fromX, int fromY, int toX, int toY, MoveKind kind,
+            PlayerSide mover, PieceInfo revealed, Piece captured, (ClockState, ClockState) clocks, Dictionary<Piece, int> before)
+        {
+            int ply = moves.Count + 1;
+            // The captured piece is the revealed target (as it was before being taken off).
+            LastMove = new MoveRecord(pieceBefore, fromX, fromY, toX, toY, captured != null ? revealed : null, ply, MoveNumberOf(ply),
+                kind: kind, side: mover, revealed: revealed);
+            moves.Add(LastMove);
+            capturedPieces.Add(captured);
+            clocksBeforeMove.Add(clocks);
+            stateChanges.Add(ChangesSince(before));
+            HasUnsavedChanges = true;
+
+            string line = FormatDarkChessLine(LastMove);
+            AppLogger.Log(line, LogLevel.DEBUG);
+            Logger?.AddMessage(line);
+        }
+
+        /// <summary>
+        /// The end of a dark-chess action: raises <see cref="MoveRecorded"/>, clears the
+        /// selection, recomputes the hanging pieces and hands the turn over.
+        /// </summary>
+        private void EndDarkChessAction()
+        {
             MoveRecorded?.Invoke(LastMove);
 
             if (selectedPiece != null)
@@ -1084,11 +1190,23 @@ namespace Chinese_Chess_v3.Game.Core
             {
                 case MoveKind.Flip:
                     return head + $"翻開({move.FromX},{move.FromY}) {PieceText(move.Revealed)}";
+                case MoveKind.HiddenCapture:
+                    return head + $"{HiddenCaptureHead(move)}，吃掉";
+                case MoveKind.HiddenOwnPiece:
+                    return head + $"{HiddenCaptureHead(move)}（己方），退回原位";
+                case MoveKind.HiddenStrongerReturn:
+                    return head + $"{HiddenCaptureHead(move)}（吃不了），退回原位";
+                case MoveKind.HiddenStrongerSuicide:
+                    return head + $"{HiddenCaptureHead(move)}（吃不了），{PieceText(move.Piece)}陣亡";
                 default:
                     return head + $"{PieceText(move.Piece)}({move.FromX},{move.FromY})→({move.ToX},{move.ToY})"
                         + (move.Captured != null ? $"，吃{PieceText(move.Captured)}" : "");
             }
         }
+
+        /// <summary>The common start of a hidden-capture log line, e.g. 紅俥(2,1)暗吃(3,1)，翻出黑卒.</summary>
+        private static string HiddenCaptureHead(MoveRecord move) =>
+            $"{PieceText(move.Piece)}({move.FromX},{move.FromY})暗吃({move.ToX},{move.ToY})，翻出{PieceText(move.Revealed)}";
 
         /// <summary>A piece's character with its colour name, e.g. 黑卒 (see <see cref="PieceConstants.GetPieceText"/>).</summary>
         private static string PieceText(PieceInfo info) =>
