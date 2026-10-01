@@ -189,6 +189,32 @@ namespace Chinese_Chess_v3.Game.Core
         /// </summary>
         public event Action<MoveRecord> MoveUndone;
 
+        private bool hasUnsavedChanges = false;
+
+        /// <summary>
+        /// Whether the game has changed since it was last started, saved or loaded: set by
+        /// every move (<see cref="HandleClick"/>, <see cref="TryMove"/>) and every
+        /// <see cref="Undo"/>; cleared by every new game setup (<see cref="ResetBoardToDefault"/>,
+        /// <see cref="LoadCustomBoard"/>, <see cref="StartEndgame"/>, <see cref="StartOpening"/>
+        /// (after its preset line), <see cref="ClearBoard"/>) and by saving or loading a game.
+        /// For the UI's "save before leaving?" prompt.
+        /// </summary>
+        public bool HasUnsavedChanges
+        {
+            get => hasUnsavedChanges;
+            private set
+            {
+                if (hasUnsavedChanges != value)
+                {
+                    hasUnsavedChanges = value;
+                    UnsavedChangesChanged?.Invoke(hasUnsavedChanges);
+                }
+            }
+        }
+
+        /// <summary>Raised when <see cref="HasUnsavedChanges"/> changes, with the new value.</summary>
+        public event Action<bool> UnsavedChangesChanged;
+
         /// <summary>
         /// The endgame puzzle the current game was started from (<see cref="StartEndgame"/>);
         /// null for any other game. Cleared by <see cref="ResetBoardToDefault"/>,
@@ -325,6 +351,8 @@ namespace Chinese_Chess_v3.Game.Core
             UndoFloor = played;
             if (!IsGameOver)
                 RestartClocks();
+            // The preset line is part of the new game, not a change to it.
+            HasUnsavedChanges = false;
             AppLogger.Log($"(Opening) Started {opening.FileName}: {opening.Title}, {played} move(s) played, {CurrentTurn} to move", LogLevel.DEBUG);
             return played;
         }
@@ -525,6 +553,7 @@ namespace Chinese_Chess_v3.Game.Core
             moves.Add(LastMove);
             capturedPieces.Add(targetPiece);
             clocksBeforeMove.Add(clocks);
+            HasUnsavedChanges = true;
 
             if (targetPiece != null)
             {
@@ -680,6 +709,7 @@ namespace Chinese_Chess_v3.Game.Core
             capturedPieces.RemoveAt(last);
             clocksBeforeMove.RemoveAt(last);
             LastMove = moves.Count > 0 ? moves[moves.Count - 1] : null;
+            HasUnsavedChanges = true;
 
             AppLogger.Log($"(Undo) {piece.Type} back to ({record.FromX},{record.FromY})", LogLevel.DEBUG);
             Logger?.AddMessage(record.Notation != null ? $"(Undo) {FormatMoveLine(record)}" : $"(Undo) {piece.Type} back to ({record.FromX},{record.FromY})");
@@ -775,6 +805,7 @@ namespace Chinese_Chess_v3.Game.Core
             capturedPieces.Clear();
             clocksBeforeMove.Clear();
             UndoFloor = 0;
+            HasUnsavedChanges = false;
             if (startFirstTurn)
                 (CurrentTurn == PlayerSide.Player2 ? Player2 : Player1).Timer.StartStep();
         }
