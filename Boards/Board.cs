@@ -552,6 +552,8 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         /// Checks whether a General of <paramref name="side"/> standing on (targetX, targetY) would
         /// be legal regarding the face-to-face rule (王見王). The check scans vertically from that
         /// square in the direction of the opponent's side and stops at the first piece found.
+        /// <paramref name="side"/>'s own General is not a blocker: it is the piece that moves (its
+        /// square is empty afterwards), e.g. when it steps back along an open file.
         /// </summary>
         /// <param name="side">The side of the moving piece.</param>
         /// <param name="targetX">The X-coordinate of the target position.</param>
@@ -572,7 +574,7 @@ namespace Chinese_Chess_v3.Game.Core.Boards
             while (y >= 0 && y < Rows)
             {
                 var piece = Grid[targetX, y];
-                if (piece != null)
+                if (piece != null && !(piece.Type == PieceType.General && piece.Side == side))
                 {
                     if (piece.Type == PieceType.General && piece.Side != side)
                         return false;  // Hit the opposing General -> not legal
