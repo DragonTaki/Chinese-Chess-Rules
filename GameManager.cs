@@ -171,6 +171,10 @@ namespace Chinese_Chess_v3.Game.Core
         // move, restored by Undo (null when unknown: moves replayed from a saved game).
         private readonly List<Piece> capturedPieces = new List<Piece>();
         private readonly List<(ClockState Player1, ClockState Player2)?> clocksBeforeMove = new List<(ClockState, ClockState)?>();
+        // Also parallel to `moves`: for a dark-chess flip or hidden capture, every piece the
+        // action changed and how many history snapshots it added (taken back by
+        // Board.RevertStates); null for an ordinary move (taken back by Board.UnmakeMove).
+        private readonly List<List<(Piece piece, int snapshots)>> stateChanges = new List<List<(Piece piece, int snapshots)>>();
 
         /// <summary>The rules every new game starts with (the constructor's; the launchers pass the player settings' rules).</summary>
         public Rules DefaultRules { get; }
@@ -659,8 +663,87 @@ namespace Chinese_Chess_v3.Game.Core
             return Board.GetAllPieces();
         }
         /// <summary>
+        /// The colour <paramref name="side"/> plays. Off the dark-chess board it is fixed:
+        /// Player1 red, Player2 black. On a <see cref="Board.UsesDarkChessRules"/> board nobody
+        /// owns a colour until the first flip (<see cref="MoveKind.Flip"/>) decides it — the
+        /// flipping player gets the flipped piece's colour, the other player the other one —
+        /// so this is <see cref="PieceColor.None"/> before that (and again after the first flip
+        /// is undone). For the turn display and the log lines.
+        /// </summary>
+        /// <param name="side">Player1 or Player2 (any other side has no colour: None).</param>
+        /// <returns>Red, Black, or None while undecided.</returns>
+        public PieceColor ColorOf(PlayerSide side)
+        {
+            if (side != PlayerSide.Player1 && side != PlayerSide.Player2)
+                return PieceColor.None;
+            if (!Board.UsesDarkChessRules)
+                return side == PlayerSide.Player1 ? PieceColor.Red : PieceColor.Black;
+
+            // Decided once any piece has an owner: every piece got one at the first flip.
+            var opponent = OpponentOf(side);
+            foreach (var p in Board.GetAllPieces())
+            {
+                if (p.Side == side)
+                    return p.Color;
+                if (p.Side == opponent)
+                    return OppositeColor(p.Color);
+            }
+            return PieceColor.None;
+        }
+
+        private static PieceColor OppositeColor(PieceColor color) => color switch
+        {
+            PieceColor.Red => PieceColor.Black,
+            PieceColor.Black => PieceColor.Red,
+            _ => PieceColor.None,
+        };
+
+        /// <summary>
+        /// Flips the face-down piece at (x, y) face up as the side to move's whole turn (翻子),
+        /// if the board plays by dark-chess rules (<see cref="Board.UsesDarkChessRules"/>).
+        /// Same effect as clicking it through <see cref="HandleClick"/> with nothing selected.
+        /// </summary>
+        /// <returns>Whether the piece was flipped (false: paused, game over, not a dark-chess
+        /// board, or no face-down piece there).</returns>
+        public bool TryFlip(int x, int y)
+        {
+            if (IsPaused || IsGameOver || !Board.UsesDarkChessRules)
+                return false;
+
+            var piece = Board.GetPiece(x, y);
+            if (piece == null || piece.CurrentInfo.IsFaceUp)
+                return false;
+
+            ExecuteFlip(piece);
+            return true;
+        }
+
+        /// <summary>
+        /// Whether <paramref name="piece"/> may be selected (and moved) by the side to move: it
+        /// is that side's, and on a <see cref="Board.UsesDarkChessRules"/> board face up — a
+        /// face-down piece is only ever flipped, so neither its side nor its type may decide
+        /// anything (揭棋's face-down pieces on the Full board do move, as their square's type).
+        /// </summary>
+        private bool IsSelectable(Piece piece) =>
+            piece != null && piece.Side == CurrentTurn && (!Board.UsesDarkChessRules || piece.CurrentInfo.IsFaceUp);
+
+        /// <summary>
+        /// A piece for the click log lines: its type, or just "face-down" for a face-down piece
+        /// on a <see cref="Board.UsesDarkChessRules"/> board (its type is hidden information
+        /// and the game log is visible to both players).
+        /// </summary>
+        private string DescribeForLog(Piece piece)
+        {
+            if (piece == null)
+                return "null";
+            if (Board.UsesDarkChessRules && !piece.CurrentInfo.IsFaceUp)
+                return "face-down piece";
+            return piece.GetType().Name;
+        }
+
+        /// <summary>
         /// Moves the piece at (fromX, fromY) to (toX, toY) if it belongs to the side to
-        /// move and the move is legal. Same effect as selecting and clicking through
+        /// move (and, on the dark-chess board, is face up) and the move is legal. Same effect as selecting and clicking through
         /// <see cref="HandleClick"/> (capture, log, events, selection cleared, turn switch).
         /// </summary>
         public bool TryMove(int fromX, int fromY, int toX, int toY)
@@ -669,7 +752,7 @@ namespace Chinese_Chess_v3.Game.Core
                 return false;
 
             var piece = Board.GetPiece(fromX, fromY);
-            if (piece == null || piece.Side != CurrentTurn)
+            if (!IsSelectable(piece))
                 return false;
 
             if (!piece.CanMoveTo(Board, toX, toY))
@@ -689,14 +772,19 @@ namespace Chinese_Chess_v3.Game.Core
             var clickedPiece = Board.GetPiece(x, y);
             AppLogger.Log(
                 $"Current turn: {CurrentTurn}, holding: {(selectedPiece == null ? "null" : selectedPiece.Type.ToString())},\n" +
-                $"clicked at ({x},{y}), on: {(clickedPiece == null ? "null" : clickedPiece.GetType().Name)}", LogLevel.DEBUG);
+                $"clicked at ({x},{y}), on: {DescribeForLog(clickedPiece)}", LogLevel.DEBUG);
             Logger?.AddMessage($"Current turn: {CurrentTurn}, holding: {(selectedPiece == null ? "null" : selectedPiece.Type.ToString())},\n" +
-                $"clicked at ({x},{y}), on: {(clickedPiece == null ? "null" : clickedPiece.GetType().Name)}");
+                $"clicked at ({x},{y}), on: {DescribeForLog(clickedPiece)}");
 
-            // No selected piece, try to select one
+            // No selected piece: flip a face-down piece (dark chess), or try to select one
             if (selectedPiece == null)
             {
-                if (clickedPiece != null && clickedPiece.Side == CurrentTurn)
+                if (clickedPiece != null && Board.UsesDarkChessRules && !clickedPiece.CurrentInfo.IsFaceUp)
+                {
+                    ExecuteFlip(clickedPiece);
+                    return;
+                }
+                if (IsSelectable(clickedPiece))
                 {
                     selectedPiece = clickedPiece;
                     AppLogger.Log($"(Action) Selected {clickedPiece.Type} at ({x},{y})", LogLevel.DEBUG);
@@ -706,8 +794,8 @@ namespace Chinese_Chess_v3.Game.Core
                 return;
             }
 
-            // Has selected piece, but 2nd selection is own side
-            if (clickedPiece != null && clickedPiece.Side == selectedPiece.Side)
+            // Has selected piece, but 2nd selection is another selectable (own, face-up) piece
+            if (IsSelectable(clickedPiece))
             {
                 if (clickedPiece == selectedPiece)
                 {
@@ -781,13 +869,12 @@ namespace Chinese_Chess_v3.Game.Core
             // If the destination has an (enemy) piece, capture it first
             var targetPiece = Board.GetPiece(toX, toY);
             int ply = moves.Count + 1;
-            // Black-first games (endgames) number like PGN: Black's first move is 1, Red's reply 2.
-            int moveNumber = (ply - 1 + (FirstTurn == PlayerSide.Player2 ? 1 : 0)) / 2 + 1;
             LastMove = new MoveRecord(piece.CurrentInfo.Clone(), fromX, fromY, toX, toY, targetPiece?.CurrentInfo.Clone(),
-                ply, moveNumber, givesCheck, notation, iccs);
+                ply, MoveNumberOf(ply), givesCheck, notation, iccs);
             moves.Add(LastMove);
             capturedPieces.Add(targetPiece);
             clocksBeforeMove.Add(clocks);
+            stateChanges.Add(null);
             HasUnsavedChanges = true;
 
             if (targetPiece != null)
@@ -808,9 +895,11 @@ namespace Chinese_Chess_v3.Game.Core
             PieceMoved?.Invoke(piece, toX, toY);
 
             // Readable move-list line, in addition to the debug lines above.
-            if (LastMove.Notation != null)
+            string line = LastMove.Notation != null ? FormatMoveLine(LastMove)
+                : Board.UsesDarkChessRules ? FormatDarkChessLine(LastMove)
+                : null;
+            if (line != null)
             {
-                string line = FormatMoveLine(LastMove);
                 AppLogger.Log(line, LogLevel.DEBUG);
                 Logger?.AddMessage(line);
             }
@@ -864,6 +953,89 @@ namespace Chinese_Chess_v3.Game.Core
         }
 
         /// <summary>
+        /// The move number (第N回合) of the <paramref name="ply"/>-th move: a move and the reply
+        /// share a number. Second-player-first games (endgames) number like PGN: Black's first
+        /// move is 1, Red's reply 2.
+        /// </summary>
+        private int MoveNumberOf(int ply) => (ply - 1 + (FirstTurn == PlayerSide.Player2 ? 1 : 0)) / 2 + 1;
+
+        /// <summary>
+        /// Every piece's history length now, so <see cref="ChangesSince"/> can tell which pieces
+        /// an action changed and by how many snapshots.
+        /// </summary>
+        private Dictionary<Piece, int> SnapshotHistoryCounts()
+        {
+            var counts = new Dictionary<Piece, int>();
+            foreach (var p in Board.GetAllPieces())
+                counts[p] = p.History.Count;
+            return counts;
+        }
+
+        /// <summary>The pieces whose history grew since <paramref name="before"/>, with how much (see <see cref="Board.RevertStates"/>).</summary>
+        private static List<(Piece piece, int snapshots)> ChangesSince(Dictionary<Piece, int> before)
+        {
+            var changes = new List<(Piece piece, int snapshots)>();
+            foreach (var (piece, count) in before)
+            {
+                if (piece.History.Count > count)
+                    changes.Add((piece, piece.History.Count - count));
+            }
+            return changes;
+        }
+
+        /// <summary>
+        /// Applies a flip (翻子, dark chess) as the side to move's turn: advances the board's
+        /// turn counter, turns <paramref name="piece"/> face up and — if this is the game's first
+        /// flip (nobody owns a colour yet) — gives the side to move the flipped piece's colour
+        /// and the other player the other one (<see cref="Board.AssignFactions"/>). Then records
+        /// it like a move (<see cref="MoveKind.Flip"/>, for undo with both clocks), logs it,
+        /// clears the selection, recomputes the hanging pieces and switches the turn.
+        /// </summary>
+        private void ExecuteFlip(Piece piece)
+        {
+            var mover = CurrentTurn;
+            var clocks = (Player1.Timer.GetClockState(), Player2.Timer.GetClockState());
+            var before = SnapshotHistoryCounts();
+            var pieceBefore = piece.CurrentInfo.Clone();
+            bool decidesFactions = piece.Side == PlayerSide.None;
+
+            Board.AdvanceTurn();
+            Board.FlipPiece(piece.X, piece.Y);
+            if (decidesFactions)
+                Board.AssignFactions(piece.Color, mover);
+
+            int ply = moves.Count + 1;
+            LastMove = new MoveRecord(pieceBefore, piece.X, piece.Y, piece.X, piece.Y, null, ply, MoveNumberOf(ply),
+                kind: MoveKind.Flip, side: mover, revealed: piece.CurrentInfo.Clone());
+            moves.Add(LastMove);
+            capturedPieces.Add(null);
+            clocksBeforeMove.Add(clocks);
+            stateChanges.Add(ChangesSince(before));
+            HasUnsavedChanges = true;
+
+            AppLogger.Log($"(Action) Flipped {piece.Color} {piece.Type} at ({piece.X},{piece.Y})", LogLevel.DEBUG);
+            string line = FormatDarkChessLine(LastMove);
+            AppLogger.Log(line, LogLevel.DEBUG);
+            Logger?.AddMessage(line);
+            if (decidesFactions)
+            {
+                string factions = $"(Faction) {PlayerSide.Player1} 執{ColorName(ColorOf(PlayerSide.Player1))}，{PlayerSide.Player2} 執{ColorName(ColorOf(PlayerSide.Player2))}";
+                AppLogger.Log(factions, LogLevel.DEBUG);
+                Logger?.AddMessage(factions);
+            }
+            MoveRecorded?.Invoke(LastMove);
+
+            if (selectedPiece != null)
+            {
+                PieceUnselected?.Invoke(selectedPiece);
+                selectedPiece = null;
+            }
+
+            UpdateHangingPieces();
+            SwitchTurn();
+        }
+
+        /// <summary>
         /// Writes one game-log line per tactical event (Chinese name, event type, mover,
         /// move and involved pieces) and raises <see cref="TacticalEvents"/> if any.
         /// </summary>
@@ -899,6 +1071,36 @@ namespace Chinese_Chess_v3.Game.Core
         /// </summary>
         public static string FormatMoveLine(MoveRecord move) =>
             $"第{move.MoveNumber}回合 {(move.Side == PlayerSide.Player1 ? "紅" : "黑")}：{move.Notation}";
+
+        /// <summary>
+        /// The game-log line of a dark-chess action, which has no notation (e.g.
+        /// <c>第1回合 紅：翻開(3,2) 俥</c>). The side name is the mover's colour as decided
+        /// now (<see cref="ColorOf"/>), so call it while the action is on the board.
+        /// </summary>
+        private string FormatDarkChessLine(MoveRecord move)
+        {
+            string head = $"第{move.MoveNumber}回合 {ColorName(ColorOf(move.Side))}：";
+            switch (move.Kind)
+            {
+                case MoveKind.Flip:
+                    return head + $"翻開({move.FromX},{move.FromY}) {PieceText(move.Revealed)}";
+                default:
+                    return head + $"{PieceText(move.Piece)}({move.FromX},{move.FromY})→({move.ToX},{move.ToY})"
+                        + (move.Captured != null ? $"，吃{PieceText(move.Captured)}" : "");
+            }
+        }
+
+        /// <summary>A piece's character with its colour name, e.g. 黑卒 (see <see cref="PieceConstants.GetPieceText"/>).</summary>
+        private static string PieceText(PieceInfo info) =>
+            info == null ? "?" : ColorName(info.Color) + PieceConstants.GetPieceText(info.Type, info.Color);
+
+        /// <summary>紅 / 黑 for the log lines; 未定 for a colour not decided yet.</summary>
+        private static string ColorName(PieceColor color) => color switch
+        {
+            PieceColor.Red => "紅",
+            PieceColor.Black => "黑",
+            _ => "未定",
+        };
 
         /// <summary>
         /// Takes back one round (悔棋): the last move of each side (<see cref="UndoRoundPlies"/>
@@ -938,9 +1140,16 @@ namespace Chinese_Chess_v3.Game.Core
         /// For a move replayed from a saved game (no clock history) both totals stay as they
         /// are and the mover's step starts from zero.
         /// </para>
+        /// <para>
+        /// A dark-chess flip or hidden capture is taken back as a whole: every piece it changed
+        /// gets its earlier state back (<see cref="Board.RevertStates"/>) — a flipped piece is
+        /// face down again, and undoing the game's first flip also undoes the faction decision
+        /// (nobody owns a colour again, see <see cref="ColorOf"/>).
+        /// </para>
         /// Events, in order: <see cref="PieceUnselected"/> (if a piece was selected),
-        /// <see cref="PieceMoved"/> (piece, fromX, fromY), <see cref="PieceAdded"/> (the
-        /// captured piece, if any), <see cref="TurnChanged"/>,
+        /// <see cref="PieceMoved"/> (piece, fromX, fromY; for a dark-chess action, each piece
+        /// back on a different square), <see cref="PieceAdded"/> (the captured piece, if any;
+        /// for a dark-chess action, each piece back on the board), <see cref="TurnChanged"/>,
         /// <see cref="HangingPiecesChanged"/>, <see cref="MoveUndone"/>.
         /// </summary>
         /// <returns>The record that was taken back; null when nothing could be undone.</returns>
@@ -959,22 +1168,37 @@ namespace Chinese_Chess_v3.Game.Core
             var record = moves[last];
             var captured = capturedPieces[last];
             var clocks = clocksBeforeMove[last];
-            var piece = Board.GetPiece(record.ToX, record.ToY);
+            var changes = stateChanges[last];
 
-            Board.UnmakeMove(piece, record.FromX, record.FromY, record.ToX, record.ToY, captured);
+            if (changes != null)
+            {
+                UndoStateChanges(record, changes);
+            }
+            else
+            {
+                var piece = Board.GetPiece(record.ToX, record.ToY);
+                // Written before the board changes back (the side names follow the factions).
+                string undoLine = record.Notation != null ? $"(Undo) {FormatMoveLine(record)}"
+                    : Board.UsesDarkChessRules ? $"(Undo) {FormatDarkChessLine(record)}"
+                    : $"(Undo) {piece.Type} back to ({record.FromX},{record.FromY})";
+
+                Board.UnmakeMove(piece, record.FromX, record.FromY, record.ToX, record.ToY, captured);
+
+                AppLogger.Log($"(Undo) {piece.Type} back to ({record.FromX},{record.FromY})", LogLevel.DEBUG);
+                Logger?.AddMessage(undoLine);
+
+                PieceMoved?.Invoke(piece, record.FromX, record.FromY);
+                if (captured != null)
+                    PieceAdded?.Invoke(captured);
+            }
+
             Board.RetreatTurn();
             moves.RemoveAt(last);
             capturedPieces.RemoveAt(last);
             clocksBeforeMove.RemoveAt(last);
+            stateChanges.RemoveAt(last);
             LastMove = moves.Count > 0 ? moves[moves.Count - 1] : null;
             HasUnsavedChanges = true;
-
-            AppLogger.Log($"(Undo) {piece.Type} back to ({record.FromX},{record.FromY})", LogLevel.DEBUG);
-            Logger?.AddMessage(record.Notation != null ? $"(Undo) {FormatMoveLine(record)}" : $"(Undo) {piece.Type} back to ({record.FromX},{record.FromY})");
-
-            PieceMoved?.Invoke(piece, record.FromX, record.FromY);
-            if (captured != null)
-                PieceAdded?.Invoke(captured);
 
             // Reopen an ended game.
             IsGameOver = false;
@@ -996,6 +1220,38 @@ namespace Chinese_Chess_v3.Game.Core
             UpdateHangingPieces();
             MoveUndone?.Invoke(record);
             return record;
+        }
+
+        /// <summary>
+        /// The board half of undoing a dark-chess action (see <see cref="UndoLastMove"/>):
+        /// logs it, restores every changed piece (<see cref="Board.RevertStates"/>) and raises
+        /// <see cref="PieceMoved"/> for each piece back on a different square and
+        /// <see cref="PieceAdded"/> for each piece back on the board.
+        /// </summary>
+        private void UndoStateChanges(MoveRecord record, List<(Piece piece, int snapshots)> changes)
+        {
+            // Written before the board changes back (the side names follow the factions).
+            string line = $"(Undo) {FormatDarkChessLine(record)}";
+
+            var wasOnBoard = new Dictionary<Piece, (bool onBoard, int x, int y)>();
+            foreach (var (p, _) in changes)
+                wasOnBoard[p] = (Board.GetPiece(p.X, p.Y) == p, p.X, p.Y);
+
+            Board.RevertStates(changes);
+
+            AppLogger.Log($"(Undo) {record.Kind} at ({record.ToX},{record.ToY}) taken back", LogLevel.DEBUG);
+            Logger?.AddMessage(line);
+
+            foreach (var (p, _) in changes)
+            {
+                var (onBoard, x, y) = wasOnBoard[p];
+                if (Board.GetPiece(p.X, p.Y) != p)
+                    continue;
+                if (!onBoard)
+                    PieceAdded?.Invoke(p);
+                else if (p.X != x || p.Y != y)
+                    PieceMoved?.Invoke(p, p.X, p.Y);
+            }
         }
 
         private static PlayerSide OpponentOf(PlayerSide side) =>
@@ -1067,6 +1323,7 @@ namespace Chinese_Chess_v3.Game.Core
             moves.Clear();
             capturedPieces.Clear();
             clocksBeforeMove.Clear();
+            stateChanges.Clear();
             UndoFloor = 0;
             HasUnsavedChanges = false;
             if (startFirstTurn)

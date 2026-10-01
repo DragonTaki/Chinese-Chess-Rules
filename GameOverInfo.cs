@@ -3,8 +3,8 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2026/09/30
-// Update Date: 2026/09/30
-// Version: v1.1
+// Update Date: 2026/10/01
+// Version: v1.2
 /* ----- ----- ----- ----- */
 
 using System.Collections.Generic;
@@ -19,11 +19,16 @@ namespace Chinese_Chess_v3.Game.Core
     /// <see cref="GameManager.Moves"/> are the game's move list - the base for PGN export,
     /// undo and replay: with the start position, <see cref="Piece"/> (from-square),
     /// the to-square and <see cref="Captured"/> a move can be replayed or taken back
-    /// without the live board.
+    /// without the live board. On the dark-chess board a record can also be a flip or a
+    /// hidden capture (see <see cref="Kind"/>).
     /// </summary>
     public sealed class MoveRecord
     {
-        /// <summary>The moving piece's state before the move (type, side, from-square).</summary>
+        /// <summary>
+        /// The moving piece's state before the move (type, side, from-square). For a
+        /// <see cref="MoveKind.Flip"/>, the flipped piece's state before the flip (still face
+        /// down; its side is <c>PlayerSide.None</c> before the first flip decides the factions).
+        /// </summary>
         public PieceInfo Piece { get; }
         public int FromX { get; }
         public int FromY { get; }
@@ -33,8 +38,21 @@ namespace Chinese_Chess_v3.Game.Core
         /// <summary>The piece captured on the destination, or null for a quiet move.</summary>
         public PieceInfo Captured { get; }
 
-        /// <summary>The moving side (<c>Piece.Side</c>).</summary>
-        public PlayerSide Side => Piece.Side;
+        /// <summary>
+        /// The side that made the move: <c>Piece.Side</c> for an ordinary move; for a
+        /// <see cref="MoveKind.Flip"/> the player who flipped, whatever the flipped piece
+        /// turns out to be.
+        /// </summary>
+        public PlayerSide Side { get; }
+
+        /// <summary>What kind of action this is (an ordinary move unless stated otherwise).</summary>
+        public MoveKind Kind { get; }
+
+        /// <summary>
+        /// The piece this action turned face up, as it is right after (face up, its side
+        /// decided); null when nothing was revealed (every <see cref="MoveKind.Move"/>).
+        /// </summary>
+        public PieceInfo Revealed { get; }
 
         /// <summary>The moving piece's type (<c>Piece.Type</c>).</summary>
         public PieceType Type => Piece.Type;
@@ -64,11 +82,29 @@ namespace Chinese_Chess_v3.Game.Core
         /// <summary>ICCS coordinates, lower case without a dash (e.g. <c>h2e2</c>, see <c>IccsMove</c>); null off the Full board.</summary>
         public string Iccs { get; }
 
+        /// <param name="piece">See <see cref="Piece"/>.</param>
+        /// <param name="fromX">From-square X.</param>
+        /// <param name="fromY">From-square Y.</param>
+        /// <param name="toX">To-square X (the from-square for a flip).</param>
+        /// <param name="toY">To-square Y (the from-square for a flip).</param>
+        /// <param name="captured">See <see cref="Captured"/>.</param>
+        /// <param name="ply">See <see cref="Ply"/>.</param>
+        /// <param name="moveNumber">See <see cref="MoveNumber"/>.</param>
+        /// <param name="givesCheck">See <see cref="GivesCheck"/>.</param>
+        /// <param name="notation">See <see cref="Notation"/>.</param>
+        /// <param name="iccs">See <see cref="Iccs"/>.</param>
+        /// <param name="kind">See <see cref="Kind"/>.</param>
+        /// <param name="side">See <see cref="Side"/>; null for <paramref name="piece"/>'s side.</param>
+        /// <param name="revealed">See <see cref="Revealed"/>.</param>
         public MoveRecord(
             PieceInfo piece, int fromX, int fromY, int toX, int toY, PieceInfo captured,
-            int ply = 0, int moveNumber = 0, bool givesCheck = false, string notation = null, string iccs = null)
+            int ply = 0, int moveNumber = 0, bool givesCheck = false, string notation = null, string iccs = null,
+            MoveKind kind = MoveKind.Move, PlayerSide? side = null, PieceInfo revealed = null)
         {
             Piece = piece;
+            Side = side ?? piece?.Side ?? PlayerSide.None;
+            Kind = kind;
+            Revealed = revealed;
             FromX = fromX;
             FromY = fromY;
             ToX = toX;

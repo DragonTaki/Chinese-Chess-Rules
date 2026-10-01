@@ -4,7 +4,7 @@
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2025/05/06
 // Update Date: 2026/10/01
-// Version: v2.2
+// Version: v2.3
 /* ----- ----- ----- ----- */
 
 using System;
@@ -291,6 +291,30 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         }
 
         /// <summary>
+        /// Dark chess's faction decision (決定顏色): every piece whose owner is still undecided
+        /// (<c>PlayerSide.None</c>) becomes <paramref name="side"/>'s if it is
+        /// <paramref name="color"/>, otherwise the other player's. Called once, by the first
+        /// flip of the game, with the flipped piece's colour and the flipping player. Each
+        /// changed piece gets one history snapshot (so undoing the flip undoes this too, see
+        /// <see cref="RevertStates"/>).
+        /// </summary>
+        /// <param name="color">The colour <paramref name="side"/> plays.</param>
+        /// <param name="side">The player who owns <paramref name="color"/>: Player1 or Player2.</param>
+        /// <exception cref="ArgumentException"><paramref name="side"/> is not Player1 or Player2.</exception>
+        public void AssignFactions(PieceColor color, PlayerSide side)
+        {
+            if (side != PlayerSide.Player1 && side != PlayerSide.Player2)
+                throw new ArgumentException($"A faction belongs to Player1 or Player2, not {side}", nameof(side));
+
+            var other = side == PlayerSide.Player1 ? PlayerSide.Player2 : PlayerSide.Player1;
+            foreach (var p in pieces)
+            {
+                if (p.Side == PlayerSide.None)
+                    p.UpdateState(Turn, side: p.Color == color ? side : other);
+            }
+        }
+
+        /// <summary>
         /// Marks a piece as dead (captured or eliminated logically, but not removed from history).
         /// </summary>
         /// <param name="x">The X-coordinate of the piece to mark as dead.</param>
@@ -353,6 +377,50 @@ namespace Chinese_Chess_v3.Game.Core.Boards
                 captured.RevertLastState();
                 Grid[toX, toY] = captured;
                 pieces.Add(captured);
+            }
+        }
+
+        /// <summary>
+        /// Takes back an action recorded as per-piece history growth (a dark-chess flip or
+        /// hidden capture, which may move, flip, kill or re-assign several pieces at once):
+        /// each listed piece drops its last <c>snapshots</c> history entries
+        /// (<see cref="Piece.RevertLastState"/>) and the grid and piece list are rebuilt from
+        /// the restored states — a piece alive again stands on its restored square (put back
+        /// into the piece list if it had been removed), a piece dead again is taken off. Every
+        /// listed piece must have been alive on the board before the action. The turn counter
+        /// is not changed (see <see cref="RetreatTurn"/>).
+        /// </summary>
+        /// <param name="changes">Each piece the action changed (once) and how many history snapshots it added.</param>
+        /// <exception cref="InvalidOperationException">A restored square is taken by a piece that is not being restored.</exception>
+        internal void RevertStates(IReadOnlyList<(Piece piece, int snapshots)> changes)
+        {
+            // Lift every changed piece off the grid first, so pieces that swapped or shared
+            // squares during the action can all be put back.
+            foreach (var (piece, _) in changes)
+            {
+                if (IsInBoard(piece.X, piece.Y) && Grid[piece.X, piece.Y] == piece)
+                    Grid[piece.X, piece.Y] = null;
+            }
+
+            foreach (var (piece, snapshots) in changes)
+            {
+                for (int i = 0; i < snapshots; i++)
+                    piece.RevertLastState();
+            }
+
+            foreach (var (piece, _) in changes)
+            {
+                if (piece.CurrentInfo.IsDead)
+                {
+                    pieces.Remove(piece);
+                    continue;
+                }
+
+                if (Grid[piece.X, piece.Y] != null)
+                    throw new InvalidOperationException($"({piece.X},{piece.Y}) is occupied; cannot restore {piece.Type}");
+                Grid[piece.X, piece.Y] = piece;
+                if (!pieces.Contains(piece))
+                    pieces.Add(piece);
             }
         }
 
@@ -657,14 +725,27 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         }
 
         /// <summary>
+        /// Whether this board plays by the dark-chess turn rules (台灣暗棋, HalfCenter): a turn is
+        /// either flipping any face-down piece (翻子) or moving one's own face-up piece; a
+        /// face-down piece is never moved (or selected) as itself, and the first flip decides
+        /// which player owns which colour. HalfCross (三國暗棋) is a separate rule system still
+        /// being specified (docs/DARK-CHESS-RULES.md §1.2), so it is not included.
+        /// </summary>
+        public bool UsesDarkChessRules => Type == BoardType.HalfCenter;
+
+        /// <summary>
         /// Whether <paramref name="side"/> has at least one legal move (see
-        /// <see cref="Piece.GetLegalMoves"/>). Stops at the first one found.
+        /// <see cref="Piece.GetLegalMoves"/>). Stops at the first one found. On a
+        /// <see cref="UsesDarkChessRules"/> board a face-down piece has no moves (it can only
+        /// be flipped, see <see cref="HasAnyAction"/>).
         /// </summary>
         public bool HasAnyLegalMove(PlayerSide side)
         {
             foreach (var p in pieces)
             {
                 if (p.Side != side)
+                    continue;
+                if (UsesDarkChessRules && !p.CurrentInfo.IsFaceUp)
                     continue;
                 foreach (var (x, y) in p.GetPseudoLegalMoves(this))
                 {
@@ -673,6 +754,26 @@ namespace Chinese_Chess_v3.Game.Core.Boards
                 }
             }
             return false;
+        }
+
+        /// <summary>
+        /// Whether <paramref name="side"/> can act at all: a legal move (see
+        /// <see cref="HasAnyLegalMove"/>), or, on a <see cref="UsesDarkChessRules"/> board,
+        /// flipping a face-down piece — any face-down piece may be flipped by either player,
+        /// so a board that still has one always offers an action (e.g. the fully face-down
+        /// start position, where nobody owns a piece yet).
+        /// </summary>
+        public bool HasAnyAction(PlayerSide side)
+        {
+            if (UsesDarkChessRules)
+            {
+                foreach (var p in pieces)
+                {
+                    if (!IsSimulatedCapture(p) && !p.CurrentInfo.IsFaceUp)
+                        return true;
+                }
+            }
+            return HasAnyLegalMove(side);
         }
 
         public List<Piece> QueryPieces(

@@ -3,8 +3,8 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2025/05/14
-// Update Date: 2025/10/29
-// Version: v1.1
+// Update Date: 2026/10/01
+// Version: v1.2
 /* ----- ----- ----- ----- */
 
 using Chinese_Chess_v3.Game.Core.Players;
@@ -41,7 +41,11 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         /// <summary>Visual color of the piece (Red / Black, or Yellow / None for the remaining variants)</summary>
         public PieceColor Color { get; }
 
-        /// <summary>Owning player's side or faction (e.g., Player1, Player2, Player3, Neutral)</summary>
+        /// <summary>
+        /// Owning player's side or faction (e.g., Player1, Player2, Player3, Neutral). None for a
+        /// dark-chess piece whose owner is not decided yet (before the first flip, see
+        /// <c>Board.AssignFactions</c>).
+        /// </summary>
         public PlayerSide Side { get; }
 
         /// <summary>Whether the piece is currently face-up (for variants like blind chess)</summary>

@@ -33,6 +33,8 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
 
         /// <summary>
         /// Gets the player side to which this piece belongs (Player1 or Player2).
+        /// <c>PlayerSide.None</c> on the dark-chess board until the first flip decides which
+        /// player owns which colour (see <see cref="Board.AssignFactions"/>).
         /// </summary>
         public PlayerSide Side => CurrentInfo.Side;
 
@@ -111,19 +113,24 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         /// <param name="y">New Y coordinate (null to keep it)</param>
         /// <param name="isFaceUp">Whether the piece is face up (null to keep it)</param>
         /// <param name="isDead">Whether the piece is dead (null to keep it)</param>
+        /// <param name="side">
+        /// The owning side (null to keep it). Only changes when the dark chess's first flip
+        /// decides which player owns which colour (see <see cref="Board.AssignFactions"/>).
+        /// </param>
         public void UpdateState(
             int turnIndex,
             int? x = null,
             int? y = null,
             bool? isFaceUp = null,
-            bool? isDead = null
+            bool? isDead = null,
+            PlayerSide? side = null
         ) {
             var newInfo = new PieceInfo(
                 CurrentInfo.Type,
                 x ?? CurrentInfo.X,
                 y ?? CurrentInfo.Y,
                 CurrentInfo.Color,
-                CurrentInfo.Side,
+                side ?? CurrentInfo.Side,
                 isFaceUp ?? CurrentInfo.IsFaceUp,
                 isDead ?? CurrentInfo.IsDead,
                 turnIndex
