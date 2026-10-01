@@ -12,7 +12,7 @@ using System.Collections.Generic;
 namespace Chinese_Chess_v3.Game.Core.Players
 {
     /// <summary>
-    /// 定義預設的棋局計時設定組
+    /// Predefined clock presets (Total, Step and Add values; Name is the display name).
     /// </summary>
     public static class PlayerTimerPresets
     {

@@ -30,11 +30,11 @@ namespace Chinese_Chess_v3.Game.Core.Players
         public event Action? TimeUp;
 #nullable disable
 
-        // --- 自訂顯示模板 ---
+        // --- Custom display templates ---
         public string StoppedSymbol { get; set; } = "--:--";
         public string UnlimitedSymbol { get; set; } = "∞:∞";
 
-        // 時間顯示格式，例如 "hh:mm:ss.fff", "hh:mm:ss", "mm:ss.fff"
+        // Time display template; placeholders: {hour}, {minute}, {second}, {second.N} (N decimals), {totalSecond}. Default "{minute}:{second.2}"
         public string TimeFormat { get; set; } = "{minute}:{second.2}";
 
         public PlayerTimer(
@@ -124,7 +124,7 @@ namespace Chinese_Chess_v3.Game.Core.Players
             var delta = now - _lastUpdate;
             _lastUpdate = now;
 
-            OnUpdate(delta);  // 內部計算增量、時間判斷
+            OnUpdate(delta);  // computes the elapsed delta and checks the time limits
         }
 
         protected virtual void OnUpdate(TimeSpan delta)
@@ -132,7 +132,7 @@ namespace Chinese_Chess_v3.Game.Core.Players
             switch (State)
             {
                 case TimerState.Active:
-                    // 正在進行：步時、局時都持續增加
+                    // Running: both the step time and the total time keep accumulating
                     if (EnableStepTimer)
                         CurrentStepTime += delta;
                     CurrentTotalTime += delta;
@@ -158,7 +158,7 @@ namespace Chinese_Chess_v3.Game.Core.Players
                     // in place (not deleted) as a defensive fallback in
                     // case something else ever sets State to StepEnded
                     // directly.
-                    // 步結束：將步時歸零，狀態轉回Idle等待下一步
+                    // Step ended: reset the step time and go back to Idle to wait for the next step
                     if (EnableStepTimer)
                         CurrentStepTime += delta;
                     CurrentTotalTime += delta;
@@ -171,18 +171,18 @@ namespace Chinese_Chess_v3.Game.Core.Players
                     break;
 
                 case TimerState.Paused:
-                    // 暫停狀態：不更新時間
+                    // Paused: time is not updated
                     break;
 
                 case TimerState.Terminated:
-                    // 結束狀態：完全停止，不更新
+                    // Terminated: fully stopped, nothing is updated
                     break;
 
                 case TimerState.Idle:
                     break;
 
                 default:
-                    // 等待開始，不處理
+                    // Unknown state: nothing to do
                     break;
             }
         }
@@ -216,7 +216,7 @@ namespace Chinese_Chess_v3.Game.Core.Players
             State = !active ? TimerState.Idle : (paused ? TimerState.Paused : TimerState.Active);
         }
 
-        // 切換計時模式
+        // Switches the timer mode
         public void SwitchMode(TimerMode mode)
         {
             Mode = mode;
@@ -258,17 +258,17 @@ namespace Chinese_Chess_v3.Game.Core.Players
                 int seconds = time.Seconds;
                 double fractional = time.TotalSeconds - Math.Floor(time.TotalSeconds);
 
-                // --- 支援小數秒格式 {second.2}, {second.3} ---
+                // --- Supports fractional-second formats {second.2}, {second.3} ---
                 string result = template;
 
-                // 解析 {second.X}
+                // Parse {second.X}
                 result = System.Text.RegularExpressions.Regex.Replace(result, @"\{second\.(\d+)\}", m =>
                 {
                     int digits = int.Parse(m.Groups[1].Value);
                     return TruncatedSecondsInMinute(time, digits).ToString($"00.{new string('0', digits)}");
                 });
 
-                // 標準欄位
+                // Standard fields
                 result = result
                     .Replace("{hour}", hours.ToString("00"))
                     .Replace("{minute}", minutes.ToString("00"))
@@ -312,16 +312,16 @@ namespace Chinese_Chess_v3.Game.Core.Players
 
     public enum TimerMode
     {
-        CountUp,   // 正數計時
-        CountDown  // 倒數計時
+        CountUp,   // count elapsed time up
+        CountDown  // count remaining time down
     }
 
     public enum TimerState
     {
-        Idle,        // 尚未開始或剛初始化
-        Active,      // 正在計時
-        StepEnded,   // 當前步已結束（等待下一步）
-        Paused,      // 人為暫停
-        Terminated   // 時間結束或整局結束
+        Idle,        // not started yet, or just initialised / between steps
+        Active,      // running
+        StepEnded,   // the current step has ended (waiting for the next one)
+        Paused,      // paused manually
+        Terminated   // time is up or the game is over
     }
 }

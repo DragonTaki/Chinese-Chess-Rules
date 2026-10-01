@@ -12,12 +12,12 @@ using System;
 namespace Chinese_Chess_v3.Game.Core.Players
 {
     /// <summary>
-    /// Represents a player in the game, including their timer and optional list of owned pieces.
+    /// Represents a player in the game, including their side and clock.
     /// </summary>
     public class Player
     {
         /// <summary>
-        /// The player’s side or faction (Red, Black, Neutral).
+        /// The player’s side or faction (Player1, Player2, Player3, Neutral).
         /// </summary>
         public PlayerSide Side { get; }
 
@@ -39,7 +39,7 @@ namespace Chinese_Chess_v3.Game.Core.Players
         }
 
         /// <summary>
-        /// 設定步時限制
+        /// Sets the per-move time limit (步時).
         /// </summary>
         public void SetStepTime(TimeSpan stepTime)
         {
@@ -47,7 +47,7 @@ namespace Chinese_Chess_v3.Game.Core.Players
         }
 
         /// <summary>
-        /// 設定局時限制，若同時要設定步時可以一起呼叫 SetTime
+        /// Sets the total time limit (局時); to set both limits at once, use <see cref="SetTime"/>.
         /// </summary>
         public void SetTotalTime(TimeSpan totalTime)
         {
@@ -55,7 +55,7 @@ namespace Chinese_Chess_v3.Game.Core.Players
         }
 
         /// <summary>
-        /// 同時設定局時與步時限制
+        /// Sets both the total time limit (局時) and the per-move limit (步時).
         /// </summary>
         public void SetTime(TimeSpan totalTime, TimeSpan stepTime)
         {
@@ -64,7 +64,7 @@ namespace Chinese_Chess_v3.Game.Core.Players
         }
 
         /// <summary>
-        /// 切換計時模式（正數 / 倒數）
+        /// Switches the timer mode (count up / count down).
         /// </summary>
         public void SetMode(TimerMode mode)
         {
