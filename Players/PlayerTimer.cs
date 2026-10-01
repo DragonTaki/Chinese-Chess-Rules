@@ -35,7 +35,7 @@ namespace Chinese_Chess_v3.Game.Core.Players
         public string StoppedSymbol { get; set; } = "--:--";
         public string UnlimitedSymbol { get; set; } = "∞:∞";
 
-        // Time display template; placeholders: {hour}, {minute}, {second}, {second.N} (N decimals), {totalSecond}. Default "{minute}:{second.2}"
+        // Time display template; placeholders: {hour}, {minute} (total minutes, or the minutes within the hour when {hour} is used too), {second}, {second.N} (N decimals), {totalSecond}. Default "{minute}:{second.2}"
         public string TimeFormat { get; set; } = "{minute}:{second.2}";
 
         public PlayerTimer(
@@ -255,7 +255,9 @@ namespace Chinese_Chess_v3.Game.Core.Players
             {
                 double totalSeconds = time.TotalSeconds;
                 int hours = (int)time.TotalHours;
-                int minutes = (int)time.TotalMinutes;
+                // {minute} is the minutes within the hour when the template also shows {hour},
+                // otherwise the total minutes (e.g. 65 for 1:05:00).
+                int minutes = template.Contains("{hour}") ? time.Minutes : (int)time.TotalMinutes;
                 int seconds = time.Seconds;
                 double fractional = time.TotalSeconds - Math.Floor(time.TotalSeconds);
 
