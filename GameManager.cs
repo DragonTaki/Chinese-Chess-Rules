@@ -356,24 +356,33 @@ namespace Chinese_Chess_v3.Game.Core
         /// <summary>
         /// Starts a new HalfCenter game (台灣暗棋半盤, 8×4): the 32 pieces shuffled
         /// (<see cref="BoardConfigLoader.CreateShuffledHalfCenter"/>) and owned by nobody, face
-        /// down when <see cref="Rules.IsHiddenChess"/> (the default rules decide), otherwise face
-        /// up (明棋半盤). Player1 acts first — its first flip (or, face up, its first move)
-        /// decides who plays which colour (see <see cref="ColorOf"/>).
+        /// down when <see cref="Rules.IsHiddenChess"/>, otherwise face up (明棋半盤). Player1 acts
+        /// first — its first flip (or, face up, its first move) decides who plays which colour
+        /// (see <see cref="ColorOf"/>).
         /// </summary>
+        /// <param name="hiddenChess">
+        /// The game's <see cref="Rules.IsHiddenChess"/> (暗棋 true, 明棋 false; the new-game menu
+        /// picks it); null keeps <see cref="DefaultRules"/>' value. Only this game's rules change
+        /// (a copy of <see cref="DefaultRules"/>), so <see cref="Rules"/> tells a restart which
+        /// variant to deal again.
+        /// </param>
         /// <param name="seed">
         /// The shuffle's seed; null (the game's choice) seeds it from the clock, so every new game
         /// is a different layout. A fixed seed always gives the same layout (tests, replaying a
         /// layout from the log). <see cref="GlobalRandom"/> is not used: its fixed seed would
         /// deal the same layout on every launch.
         /// </param>
-        public void StartHalfCenter(int? seed = null)
+        public void StartHalfCenter(bool? hiddenChess = null, int? seed = null)
         {
+            var rules = DefaultRules.Clone();
+            rules.IsHiddenChess = hiddenChess ?? DefaultRules.IsHiddenChess;
+
             int shuffleSeed = seed ?? Environment.TickCount;
             var random = new RandomTable(HalfCenterShuffleTableSize, shuffleSeed);
-            var pieces = BoardConfigLoader.CreateShuffledHalfCenter(random, DefaultRules.IsHiddenChess);
-            SetUpPosition(pieces, PlayerSide.Player1, null, BoardType.HalfCenter);
-            AppLogger.Log($"(DarkChess) Started a HalfCenter game, hidden: {DefaultRules.IsHiddenChess}, seed: {shuffleSeed}", LogLevel.DEBUG);
-            Logger?.AddMessage("(DarkChess) 新局：台灣暗棋半盤");
+            var pieces = BoardConfigLoader.CreateShuffledHalfCenter(random, rules.IsHiddenChess);
+            SetUpPosition(pieces, PlayerSide.Player1, null, BoardType.HalfCenter, rules);
+            AppLogger.Log($"(DarkChess) Started a HalfCenter game, hidden: {rules.IsHiddenChess}, seed: {shuffleSeed}", LogLevel.DEBUG);
+            Logger?.AddMessage(rules.IsHiddenChess ? "(DarkChess) 新局：暗棋半盤" : "(DarkChess) 新局：明棋半盤");
         }
 
         /// <summary>
@@ -466,7 +475,11 @@ namespace Chinese_Chess_v3.Game.Core
         /// <param name="boardType">The board the game is played on: the current <see cref="Board"/>
         /// is replaced by a new one when its type differs. Every FEN-based setup (endgames,
         /// openings, saved games, the default position) is Full.</param>
-        private void SetUpPosition(List<PieceInfo> pieces, PlayerSide firstTurn, PgnGameFile source, BoardType boardType = BoardType.Full)
+        /// <param name="rules">This game's rules when they differ from what
+        /// <paramref name="source"/> decides (e.g. <see cref="StartHalfCenter"/>'s 暗棋/明棋
+        /// choice); null for that default.</param>
+        private void SetUpPosition(List<PieceInfo> pieces, PlayerSide firstTurn, PgnGameFile source, BoardType boardType = BoardType.Full,
+            Rules rules = null)
         {
             if (firstTurn != PlayerSide.Player1 && firstTurn != PlayerSide.Player2)
                 throw new ArgumentException($"The first turn must be Player1 or Player2, not {firstTurn}", nameof(firstTurn));
@@ -476,8 +489,9 @@ namespace Chinese_Chess_v3.Game.Core
             if (Board.Type != boardType)
                 Board = new Board(boardType, Board.GameRules);
 
-            // A saved game is played by the rules it was saved with; every other game by the defaults.
-            ApplyRules(source is SavedGame savedGame ? savedGame.RulesFor(DefaultRules) : DefaultRules);
+            // A saved game is played by the rules it was saved with; every other game by the defaults
+            // (or the rules its setup passed).
+            ApplyRules(rules ?? (source is SavedGame savedGame ? savedGame.RulesFor(DefaultRules) : DefaultRules));
 
             // Reset board:
             // (A) Clear pieces
