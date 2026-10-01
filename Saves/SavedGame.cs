@@ -7,6 +7,8 @@
 // Version: v1.0
 /* ----- ----- ----- ----- */
 
+using System;
+
 using Chinese_Chess_v3.Game.Core.Boards;
 using Chinese_Chess_v3.Game.Core.Pgn;
 using Chinese_Chess_v3.Game.Core.Players;
@@ -64,6 +66,78 @@ namespace Chinese_Chess_v3.Game.Core.Saves
             "0-1" => PlayerSide.Player2,
             _ => PlayerSide.None,
         };
+
+        // ----- Time control and clocks (null = tag missing: the current default is used) -----
+
+        /// <summary>From <c>[TimeControl]</c> (<c>total+increment</c>, seconds): each side's total time (<see cref="Rules.TotalTimeLimit"/>).</summary>
+        public TimeSpan? TotalTimeLimit { get; init; }
+
+        /// <summary>From <c>[TimeControl]</c>: the time added back after each move (<see cref="Rules.IncrementPerMove"/>).</summary>
+        public TimeSpan? IncrementPerMove { get; init; }
+
+        /// <summary>The <c>[StepTime]</c> tag (seconds): the per-move limit (<see cref="Rules.StepTimeLimit"/>).</summary>
+        public TimeSpan? StepTimeLimit { get; init; }
+
+        /// <summary>The <c>[StepTimer]</c> tag: whether the per-move limit applies (<see cref="Rules.EnableStepTimer"/>).</summary>
+        public bool? EnableStepTimer { get; init; }
+
+        /// <summary>The <c>[TimerMode]</c> tag (<c>CountDown</c>/<c>CountUp</c>, <see cref="Rules.TimerMode"/>).</summary>
+        public Players.TimerMode? TimerMode { get; init; }
+
+        /// <summary>The <c>[LoseOnTimeUp]</c> tag (<see cref="Rules.EndGameWhenTimesUp"/>).</summary>
+        public bool? EndGameWhenTimesUp { get; init; }
+
+        /// <summary>
+        /// The <c>[RedTimeUsed]</c> / <c>[RedStepUsed]</c> tags (seconds): Red's (Player1's)
+        /// elapsed total and current step time when saved; null when neither tag is there.
+        /// </summary>
+        public ClockState? RedClock { get; init; }
+
+        /// <summary>The <c>[BlackTimeUsed]</c> / <c>[BlackStepUsed]</c> tags: Black's (Player2's) clock, like <see cref="RedClock"/>.</summary>
+        public ClockState? BlackClock { get; init; }
+
+        // ----- Full-board rules (null = tag missing: the current default is used) -----
+
+        /// <summary>The <c>[GeneralCanSeeGeneral]</c> tag (<see cref="Rules.CanGeneralSeeGeneral"/>).</summary>
+        public bool? CanGeneralSeeGeneral { get; init; }
+
+        /// <summary>The <c>[GeneralCanLeavePalace]</c> tag (<see cref="Rules.CanGeneralLeavePalace"/>).</summary>
+        public bool? CanGeneralLeavePalace { get; init; }
+
+        /// <summary>The <c>[AdvisorCanLeavePalace]</c> tag (<see cref="Rules.CanAdvisorLeavePalace"/>).</summary>
+        public bool? CanAdvisorLeavePalace { get; init; }
+
+        /// <summary>The <c>[ElephantEyeBlocks]</c> tag (<see cref="Rules.CanElephantEyeBlockd"/>).</summary>
+        public bool? CanElephantEyeBlockd { get; init; }
+
+        /// <summary>The <c>[HorseLegBlocks]</c> tag (<see cref="Rules.CanHorseLegHobbled"/>).</summary>
+        public bool? CanHorseLegHobbled { get; init; }
+
+        /// <summary>
+        /// The rules this game is played by when loaded: a copy of <paramref name="defaults"/>
+        /// (the current settings' rules) with every time-control and rule value the file has
+        /// put over it. A file without those tags (saved before they existed) plays by
+        /// <paramref name="defaults"/> unchanged.
+        /// </summary>
+        public Rules RulesFor(Rules defaults)
+        {
+            var rules = (defaults ?? new Rules()).Clone();
+            if (TotalTimeLimit is TimeSpan total) rules.TotalTimeLimit = total;
+            if (IncrementPerMove is TimeSpan increment) rules.IncrementPerMove = increment;
+            if (StepTimeLimit is TimeSpan step) rules.StepTimeLimit = step;
+            if (EnableStepTimer is bool stepTimer) rules.EnableStepTimer = stepTimer;
+            if (TimerMode is Players.TimerMode mode) rules.TimerMode = mode;
+            if (EndGameWhenTimesUp is bool loseOnTimeUp) rules.EndGameWhenTimesUp = loseOnTimeUp;
+            if (CanGeneralSeeGeneral is bool seeGeneral) rules.CanGeneralSeeGeneral = seeGeneral;
+            if (CanGeneralLeavePalace is bool generalLeaves) rules.CanGeneralLeavePalace = generalLeaves;
+            if (CanAdvisorLeavePalace is bool advisorLeaves) rules.CanAdvisorLeavePalace = advisorLeaves;
+            if (CanElephantEyeBlockd is bool elephantEye) rules.CanElephantEyeBlockd = elephantEye;
+            if (CanHorseLegHobbled is bool horseLeg) rules.CanHorseLegHobbled = horseLeg;
+            return rules;
+        }
+
+        /// <summary>The moves are checked with the file's own rules over the default <see cref="Rules"/>.</summary>
+        internal override Rules RulesForMoveCheck() => RulesFor(new Rules());
 
         public SavedGame() { }
 

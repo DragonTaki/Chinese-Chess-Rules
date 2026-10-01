@@ -31,12 +31,22 @@ namespace Chinese_Chess_v3.Game.Core.Saves
     /// <c>PresetPlies</c> (leading moves that are an opening's preset line; only when &gt; 0),
     /// <c>Origin</c> (the endgame puzzle / opening: <c>0001-七星聚會</c>, or just the title when
     /// it has no Id; only for those modes), <c>BoardType</c> (<c>Full</c>), <c>Format</c>
-    /// (<c>ICCS</c>). Movetext: every move in ICCS with move numbers, the Chinese notation as a
-    /// <c>{comment}</c> after each move.
+    /// (<c>ICCS</c>), then the time control and clocks - <c>TimeControl</c> (<c>total+increment</c>
+    /// in seconds, the standard PGN form), <c>StepTime</c> (seconds), <c>StepTimer</c>,
+    /// <c>TimerMode</c> (<c>CountDown</c>/<c>CountUp</c>), <c>LoseOnTimeUp</c>,
+    /// <c>RedTimeUsed</c>/<c>RedStepUsed</c>/<c>BlackTimeUsed</c>/<c>BlackStepUsed</c> (each
+    /// clock's elapsed total and current step time when saved, seconds; the total can be
+    /// negative after increments) - and the Full-board rules in effect:
+    /// <c>GeneralCanSeeGeneral</c>, <c>GeneralCanLeavePalace</c>, <c>AdvisorCanLeavePalace</c>,
+    /// <c>ElephantEyeBlocks</c>, <c>HorseLegBlocks</c>. Seconds use <c>.</c> and up to 3
+    /// decimals; booleans are <c>true</c>/<c>false</c>. Movetext: every move in ICCS with move
+    /// numbers, the Chinese notation as a <c>{comment}</c> after each move.
     /// </para>
     /// <para>
     /// Reading requires <c>FEN</c>; every other tag is optional (missing <c>Event</c> = normal
-    /// game). Unknown tags are kept in <see cref="PgnGameFile.Tags"/>.
+    /// game; a missing time-control, clock or rule tag = the current default, so files saved
+    /// before those tags existed still load). A present but malformed one is a
+    /// <see cref="FormatException"/>. Unknown tags are kept in <see cref="PgnGameFile.Tags"/>.
     /// </para>
     /// </summary>
     public static class SavedGamePgn
@@ -99,8 +109,90 @@ namespace Chinese_Chess_v3.Game.Core.Saves
                 new("BoardType", game.Board.Type.ToString()),
                 new("Format", "ICCS"),
             };
+            AddClockAndRuleTags(tags, game);
             var moves = game.Moves.Select(m => new PgnMoveEntry(m.Iccs, m.Notation)).ToList();
             return PgnWriter.Write(tags, moves, game.FirstTurn, result);
+        }
+
+        // The tag names of the time control, the clocks and the rules (see the class summary).
+        public const string TimeControlTag = "TimeControl";
+        public const string StepTimeTag = "StepTime";
+        public const string StepTimerTag = "StepTimer";
+        public const string TimerModeTag = "TimerMode";
+        public const string LoseOnTimeUpTag = "LoseOnTimeUp";
+        public const string RedTimeUsedTag = "RedTimeUsed";
+        public const string RedStepUsedTag = "RedStepUsed";
+        public const string BlackTimeUsedTag = "BlackTimeUsed";
+        public const string BlackStepUsedTag = "BlackStepUsed";
+        public const string GeneralCanSeeGeneralTag = "GeneralCanSeeGeneral";
+        public const string GeneralCanLeavePalaceTag = "GeneralCanLeavePalace";
+        public const string AdvisorCanLeavePalaceTag = "AdvisorCanLeavePalace";
+        public const string ElephantEyeBlocksTag = "ElephantEyeBlocks";
+        public const string HorseLegBlocksTag = "HorseLegBlocks";
+
+        /// <summary>The time control, both clocks as they are now, and the rules in effect (<see cref="GameManager.Rules"/>).</summary>
+        private static void AddClockAndRuleTags(List<KeyValuePair<string, string>> tags, GameManager game)
+        {
+            var rules = game.Rules;
+            var red = game.Player1.Timer.GetClockState();
+            var black = game.Player2.Timer.GetClockState();
+            tags.Add(new(TimeControlTag, $"{Seconds(rules.TotalTimeLimit)}+{Seconds(rules.IncrementPerMove)}"));
+            tags.Add(new(StepTimeTag, Seconds(rules.StepTimeLimit)));
+            tags.Add(new(StepTimerTag, Bool(rules.EnableStepTimer)));
+            tags.Add(new(TimerModeTag, rules.TimerMode.ToString()));
+            tags.Add(new(LoseOnTimeUpTag, Bool(rules.EndGameWhenTimesUp)));
+            tags.Add(new(RedTimeUsedTag, Seconds(red.TotalTime)));
+            tags.Add(new(RedStepUsedTag, Seconds(red.StepTime)));
+            tags.Add(new(BlackTimeUsedTag, Seconds(black.TotalTime)));
+            tags.Add(new(BlackStepUsedTag, Seconds(black.StepTime)));
+            tags.Add(new(GeneralCanSeeGeneralTag, Bool(rules.CanGeneralSeeGeneral)));
+            tags.Add(new(GeneralCanLeavePalaceTag, Bool(rules.CanGeneralLeavePalace)));
+            tags.Add(new(AdvisorCanLeavePalaceTag, Bool(rules.CanAdvisorLeavePalace)));
+            tags.Add(new(ElephantEyeBlocksTag, Bool(rules.CanElephantEyeBlockd)));
+            tags.Add(new(HorseLegBlocksTag, Bool(rules.CanHorseLegHobbled)));
+        }
+
+        /// <summary>Seconds with up to 3 decimals (<c>1800</c>, <c>12.345</c>, <c>-9.5</c>).</summary>
+        private static string Seconds(TimeSpan time) =>
+            Math.Round(time.TotalSeconds, 3).ToString("0.###", CultureInfo.InvariantCulture);
+
+        private static string Bool(bool value) => value ? "true" : "false";
+
+        /// <summary>The seconds value of tag <paramref name="name"/>; null when missing or blank.</summary>
+        /// <param name="allowNegative">Accept a negative value (elapsed totals after increments).</param>
+        /// <param name="allowZero">Accept zero (false for limits).</param>
+        private static TimeSpan? ParseSeconds(string name, string text, bool allowNegative = false, bool allowZero = true)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return null;
+            if (!double.TryParse(text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out double seconds) ||
+                double.IsNaN(seconds) || double.IsInfinity(seconds) || Math.Abs(seconds) > TimeSpan.MaxValue.TotalSeconds / 2 ||
+                (!allowNegative && seconds < 0) || (!allowZero && seconds == 0))
+                throw new FormatException($"[{name} \"{text}\"] is not a valid number of seconds");
+            return TimeSpan.FromSeconds(seconds);
+        }
+
+        private static bool? ParseBool(PgnFileContent content, string name)
+        {
+            string text = content.Optional(name);
+            if (string.IsNullOrWhiteSpace(text))
+                return null;
+            return text.Trim().ToLowerInvariant() switch
+            {
+                "true" => true,
+                "false" => false,
+                _ => throw new FormatException($"[{name} \"{text}\"] is not true/false"),
+            };
+        }
+
+        /// <summary>A clock from its two tags; null when both are missing (a missing one of the two is zero).</summary>
+        private static Players.ClockState? ParseClock(PgnFileContent content, string totalTag, string stepTag)
+        {
+            var total = ParseSeconds(totalTag, content.Optional(totalTag), allowNegative: true);
+            var step = ParseSeconds(stepTag, content.Optional(stepTag));
+            if (total == null && step == null)
+                return null;
+            return new Players.ClockState(step ?? TimeSpan.Zero, total ?? TimeSpan.Zero);
         }
 
         /// <summary>
@@ -109,8 +201,8 @@ namespace Chinese_Chess_v3.Game.Core.Saves
         /// </summary>
         /// <param name="folderCategory">The mode folder the file is in (the category).</param>
         /// <exception cref="FormatException">Missing/unparsable FEN, an unplayable position,
-        /// a board type other than Full, a bad <c>[PresetPlies]</c>, a malformed tag line or an
-        /// unreadable movetext token.</exception>
+        /// a board type other than Full, a bad <c>[PresetPlies]</c>, a malformed time-control,
+        /// clock or rule tag, a malformed tag line or an unreadable movetext token.</exception>
         public static SavedGame Parse(string text, string fileName, PgnOrigin origin, string folderCategory = "", string filePath = null)
         {
             var content = PgnReader.Read(text, fileName, origin, folderCategory, filePath, numberedFileName: false);
@@ -145,9 +237,50 @@ namespace Chinese_Chess_v3.Game.Core.Saves
             if (terminationText != null && Enum.TryParse(terminationText, true, out GameOverReason reason))
                 termination = reason;
 
+            // Time control: "total+increment" (seconds); a bare "total" means no increment.
+            TimeSpan? totalLimit = null, increment = null;
+            string timeControl = content.Optional(TimeControlTag);
+            if (!string.IsNullOrWhiteSpace(timeControl))
+            {
+                string[] parts = timeControl.Trim().Split('+');
+                if (parts.Length > 2)
+                    throw new FormatException($"[{TimeControlTag} \"{timeControl}\"] is not total+increment");
+                totalLimit = ParseSeconds(TimeControlTag, parts[0], allowZero: false)
+                    ?? throw new FormatException($"[{TimeControlTag} \"{timeControl}\"] has no total time");
+                increment = parts.Length == 2
+                    ? ParseSeconds(TimeControlTag, parts[1]) ?? throw new FormatException($"[{TimeControlTag} \"{timeControl}\"] has no increment")
+                    : TimeSpan.Zero;
+            }
+
+            Players.TimerMode? timerMode = null;
+            string timerModeText = content.Optional(TimerModeTag);
+            if (!string.IsNullOrWhiteSpace(timerModeText))
+            {
+                string v = timerModeText.Trim();
+                if (string.Equals(v, nameof(Players.TimerMode.CountDown), StringComparison.OrdinalIgnoreCase))
+                    timerMode = Players.TimerMode.CountDown;
+                else if (string.Equals(v, nameof(Players.TimerMode.CountUp), StringComparison.OrdinalIgnoreCase))
+                    timerMode = Players.TimerMode.CountUp;
+                else
+                    throw new FormatException($"[{TimerModeTag} \"{timerModeText}\"] is not CountDown/CountUp");
+            }
+
             string result = content.Optional("Result");
             return new SavedGame(content, fen, sideToMove)
             {
+                TotalTimeLimit = totalLimit,
+                IncrementPerMove = increment,
+                StepTimeLimit = ParseSeconds(StepTimeTag, content.Optional(StepTimeTag), allowZero: false),
+                EnableStepTimer = ParseBool(content, StepTimerTag),
+                TimerMode = timerMode,
+                EndGameWhenTimesUp = ParseBool(content, LoseOnTimeUpTag),
+                RedClock = ParseClock(content, RedTimeUsedTag, RedStepUsedTag),
+                BlackClock = ParseClock(content, BlackTimeUsedTag, BlackStepUsedTag),
+                CanGeneralSeeGeneral = ParseBool(content, GeneralCanSeeGeneralTag),
+                CanGeneralLeavePalace = ParseBool(content, GeneralCanLeavePalaceTag),
+                CanAdvisorLeavePalace = ParseBool(content, AdvisorCanLeavePalaceTag),
+                CanElephantEyeBlockd = ParseBool(content, ElephantEyeBlocksTag),
+                CanHorseLegHobbled = ParseBool(content, HorseLegBlocksTag),
                 Mode = ParseEvent(content.Optional("Event")),
                 OriginId = originId,
                 OriginTitle = originTitle,

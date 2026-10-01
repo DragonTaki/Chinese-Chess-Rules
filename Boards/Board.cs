@@ -44,7 +44,16 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         /// Starts at 0 (before the first move).
         /// </summary>
         public int Turn { get; private set; } = 0;
-        public Rules GameRules { get; }
+        public Rules GameRules { get; private set; }
+
+        /// <summary>
+        /// Switches the rules this board plays by (e.g. to a loaded saved game's rules);
+        /// null for the default <see cref="Rules"/>. Takes effect from the next move check.
+        /// </summary>
+        public void SetRules(Rules rules)
+        {
+            GameRules = rules ?? new Rules();
+        }
 
         /// <summary>
         /// Internal list containing all active pieces on the board.

@@ -162,9 +162,19 @@ namespace Chinese_Chess_v3.Game.Core
 
         // Parallel to `moves`: the captured Piece object of each move (null for a quiet
         // move), put back on the board by Undo, and both clocks as they were just before the
-        // move, restored by Undo.
+        // move, restored by Undo (null when unknown: moves replayed from a saved game).
         private readonly List<Piece> capturedPieces = new List<Piece>();
-        private readonly List<(ClockState Player1, ClockState Player2)> clocksBeforeMove = new List<(ClockState, ClockState)>();
+        private readonly List<(ClockState Player1, ClockState Player2)?> clocksBeforeMove = new List<(ClockState, ClockState)?>();
+
+        /// <summary>The rules every new game starts with (the constructor's; the launchers pass the player settings' rules).</summary>
+        public Rules DefaultRules { get; }
+
+        /// <summary>
+        /// The rules the current game is played by (the board's <see cref="Board.GameRules"/>,
+        /// also the clocks' limits): <see cref="DefaultRules"/>, except for a loaded saved game
+        /// whose file has its own time control / rules (<see cref="SavedGame.RulesFor"/>).
+        /// </summary>
+        public Rules Rules => Board.GameRules;
 
         /// <summary>
         /// How many leading moves of <see cref="Moves"/> cannot be undone: the opening line
@@ -293,6 +303,7 @@ namespace Chinese_Chess_v3.Game.Core
         {
             movesView = moves.AsReadOnly();
             rules ??= new Rules();
+            DefaultRules = rules;
 
             // Initialize the board
             Board = new Board(BoardType.Full, rules);
@@ -406,11 +417,15 @@ namespace Chinese_Chess_v3.Game.Core
         /// </summary>
         /// <param name="source">The file the game starts from (an endgame puzzle, an opening, a
         /// saved game), or null; sets <see cref="Mode"/>, <see cref="OriginId"/> and
-        /// <see cref="OriginTitle"/>.</param>
+        /// <see cref="OriginTitle"/>, and the <see cref="Rules"/> (a saved game's own, otherwise
+        /// <see cref="DefaultRules"/>).</param>
         private void SetUpPosition(List<PieceInfo> pieces, PlayerSide firstTurn, PgnGameFile source)
         {
             if (firstTurn != PlayerSide.Player1 && firstTurn != PlayerSide.Player2)
                 throw new ArgumentException($"The first turn must be Player1 or Player2, not {firstTurn}", nameof(firstTurn));
+
+            // A saved game is played by the rules it was saved with; every other game by the defaults.
+            ApplyRules(source is SavedGame savedGame ? savedGame.RulesFor(DefaultRules) : DefaultRules);
 
             // Reset board:
             // (A) Clear pieces
@@ -447,6 +462,24 @@ namespace Chinese_Chess_v3.Game.Core
             UpdateHangingPieces();
         }
 
+        /// <summary>
+        /// Makes <paramref name="rules"/> the current game's <see cref="Rules"/>: the board's
+        /// move rules and both clocks' limits, increment, step timer switch and count mode.
+        /// Elapsed times are not touched.
+        /// </summary>
+        private void ApplyRules(Rules rules)
+        {
+            Board.SetRules(rules);
+            foreach (var timer in new[] { Player1.Timer, Player2.Timer })
+            {
+                timer.TotalTimeLimit = rules.TotalTimeLimit;
+                timer.StepTimeLimit = rules.StepTimeLimit;
+                timer.IncrementPerMove = rules.IncrementPerMove;
+                timer.EnableStepTimer = rules.EnableStepTimer;
+                timer.Mode = rules.TimerMode;
+            }
+        }
+
         /// <summary>The FEN of the board's current pieces with <paramref name="sideToMove"/>; null off the Full board or when the pieces cannot be written as FEN.</summary>
         private string FormatInitialFen(PlayerSide sideToMove)
         {
@@ -466,7 +499,8 @@ namespace Chinese_Chess_v3.Game.Core
         /// <summary>
         /// The current game as saved-game PGN text (<see cref="SavedGamePgn"/>): start position,
         /// every move (ICCS with the Chinese notation as comments), mode, origin, preset plies,
-        /// result. Does not change <see cref="HasUnsavedChanges"/>.
+        /// result, time control, both clocks as they are now and the <see cref="Rules"/> in
+        /// effect. Does not change <see cref="HasUnsavedChanges"/>.
         /// </summary>
         /// <param name="date">The <c>[Date]</c>; null for now.</param>
         /// <exception cref="InvalidOperationException">Not <see cref="CanSave"/>.</exception>
@@ -507,9 +541,14 @@ namespace Chinese_Chess_v3.Game.Core
         /// <see cref="OriginTitle"/> and the undo floor (<c>[PresetPlies]</c>);
         /// <see cref="CurrentEndgame"/> / <see cref="CurrentOpening"/> stay null (the original
         /// file is not looked up). A game saved after a resignation or a time-up is ended the
-        /// same way again (<c>[Result]</c> + <c>[Termination]</c>). Clocks: both start fresh
-        /// (zero elapsed) and the side to move's step clock is started - the saved file holds
-        /// no clock times. Ends clean (<see cref="HasUnsavedChanges"/> false).
+        /// same way again (<c>[Result]</c> + <c>[Termination]</c>). Rules: the file's time
+        /// control and rules over <see cref="DefaultRules"/> (<see cref="SavedGame.RulesFor"/>),
+        /// for this game only; the next new game is back to the defaults. Clocks: both continue
+        /// from the saved elapsed times (the side to move's step clock running from its saved
+        /// step time; stopped when the game is over); a file without clock tags starts both
+        /// fresh. Undoing a replayed move keeps both elapsed totals as they are (the file has
+        /// no per-move clock history) and restarts the mover's step. Ends clean
+        /// (<see cref="HasUnsavedChanges"/> false).
         /// </summary>
         /// <returns>The number of moves replayed: all of them unless one is not legal (files
         /// from <see cref="SavedGameLoader"/> have already been checked), where replay stops.</returns>
@@ -541,11 +580,33 @@ namespace Chinese_Chess_v3.Game.Core
                 EndGame(saved.Winner, OpponentOf(saved.Winner), saved.Termination.Value);
             }
 
-            if (!IsGameOver)
+            // The clocks recorded while replaying are not the game's: unknown for undo.
+            for (int i = 0; i < clocksBeforeMove.Count; i++)
+                clocksBeforeMove[i] = null;
+
+            if (saved.RedClock != null || saved.BlackClock != null)
+                RestoreSavedClocks(saved.RedClock ?? default, saved.BlackClock ?? default);
+            else if (!IsGameOver)
                 RestartClocks();
             HasUnsavedChanges = false;
             AppLogger.Log($"(Load) Loaded {saved.FileName}: {played} move(s) replayed, {CurrentTurn} to move, over: {IsGameOver}", LogLevel.DEBUG);
             return played;
+        }
+
+        /// <summary>
+        /// Both clocks set to a saved game's elapsed times: the side to move's step runs on from
+        /// its saved step time; an ended game's clocks stay stopped.
+        /// </summary>
+        private void RestoreSavedClocks(ClockState player1, ClockState player2)
+        {
+            bool running = !IsGameOver;
+            Player1.Timer.RestoreClockState(player1, active: running && CurrentTurn == PlayerSide.Player1, paused: false);
+            Player2.Timer.RestoreClockState(player2, active: running && CurrentTurn == PlayerSide.Player2, paused: false);
+            if (!running)
+            {
+                Player1.Timer.End();
+                Player2.Timer.End();
+            }
         }
 
         public void ClearBoard()
@@ -563,6 +624,7 @@ namespace Chinese_Chess_v3.Game.Core
             OriginId = null;
             OriginTitle = null;
             InitialFen = null;
+            ApplyRules(DefaultRules);
             // Reset side
             CurrentTurn = PlayerSide.Player1;
             FirstTurn = PlayerSide.Player1;
@@ -855,6 +917,8 @@ namespace Chinese_Chess_v3.Game.Core
         /// (elapsed step and total time; the mover's increment for that move is taken back
         /// with it), and the mover's step clock runs again from there (held paused when the
         /// game is paused); the opponent's time spent on the undone position is not charged.
+        /// For a move replayed from a saved game (no clock history) both totals stay as they
+        /// are and the mover's step starts from zero.
         /// </para>
         /// Events, in order: <see cref="PieceUnselected"/> (if a piece was selected),
         /// <see cref="PieceMoved"/> (piece, fromX, fromY), <see cref="PieceAdded"/> (the
@@ -900,8 +964,12 @@ namespace Chinese_Chess_v3.Game.Core
             Result = null;
 
             var mover = record.Side;
-            Player1.Timer.RestoreClockState(clocks.Player1, active: mover == PlayerSide.Player1, paused: IsPaused);
-            Player2.Timer.RestoreClockState(clocks.Player2, active: mover == PlayerSide.Player2, paused: IsPaused);
+            // Unknown clocks (a move replayed from a saved game): keep both totals, new step.
+            var restored = clocks ?? (
+                new ClockState(TimeSpan.Zero, Player1.Timer.CurrentTotalTime),
+                new ClockState(TimeSpan.Zero, Player2.Timer.CurrentTotalTime));
+            Player1.Timer.RestoreClockState(restored.Player1, active: mover == PlayerSide.Player1, paused: IsPaused);
+            Player2.Timer.RestoreClockState(restored.Player2, active: mover == PlayerSide.Player2, paused: IsPaused);
 
             // Set before the turn switch so TurnChanged handlers already see it.
             IsInCheck = Board.UsesCheckRules && Board.IsSideInCheck(mover);

@@ -22,6 +22,14 @@ namespace Chinese_Chess_v3.Game.Core
     /// </summary>
     public class Rules
     {
+        /// <summary>
+        /// A copy of these rules, so one game's rules can be changed (e.g. by a loaded saved
+        /// game, <see cref="Saves.SavedGame.RulesFor"/>) without touching the rules it came
+        /// from. Shallow: <see cref="PieceRankings"/> and <see cref="HalfCrossTeamSetup"/> are
+        /// shared with the original (nothing changes them during play).
+        /// </summary>
+        public Rules Clone() => (Rules)MemberwiseClone();
+
         #region Timer Setting
 
         // Read by GameManager when it creates the two players' clocks (the defaults below

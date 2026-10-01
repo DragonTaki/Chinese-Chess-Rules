@@ -78,6 +78,13 @@ namespace Chinese_Chess_v3.Game.Core.Pgn
         public PlayerSide SideToMoveAfterMoves =>
             Moves.Count % 2 == 0 ? SideToMove : (SideToMove == PlayerSide.Player1 ? PlayerSide.Player2 : PlayerSide.Player1);
 
+        /// <summary>
+        /// The rules the file's <see cref="Moves"/> are checked with when it is loaded
+        /// (<see cref="PgnReader.CheckMoves"/>); null = the default <see cref="Rules"/>. A saved
+        /// game overrides it with the rules it was played by.
+        /// </summary>
+        internal virtual Rules RulesForMoveCheck() => null;
+
         /// <summary>No file content; for <c>with</c> copies and object initializers.</summary>
         protected PgnGameFile() { }
 

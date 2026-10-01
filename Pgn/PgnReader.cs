@@ -152,10 +152,11 @@ namespace Chinese_Chess_v3.Game.Core.Pgn
         /// no move may follow the end of the game (a side without legal moves). Returns null
         /// when they play through, otherwise the reason.
         /// </summary>
-        public static string CheckMoves(string fen, IReadOnlyList<IccsMove> moves)
+        /// <param name="rules">The rules to play by; null for the default <see cref="Rules"/>.</param>
+        public static string CheckMoves(string fen, IReadOnlyList<IccsMove> moves, Rules rules = null)
         {
             var (pieces, side) = XiangqiFen.Parse(fen);
-            var board = new Board(BoardType.Full);
+            var board = new Board(BoardType.Full, rules);
             board.Initialize(pieces);
 
             for (int i = 0; i < moves.Count; i++)

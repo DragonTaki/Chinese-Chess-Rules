@@ -139,7 +139,7 @@ namespace Chinese_Chess_v3.Game.Core.Pgn
                 return null;
             }
 
-            string movesError = PgnReader.CheckMoves(item.Fen, item.Moves);
+            string movesError = PgnReader.CheckMoves(item.Fen, item.Moves, item.RulesForMoveCheck());
             if (movesError == null)
                 return item;
 
