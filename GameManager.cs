@@ -174,18 +174,22 @@ namespace Chinese_Chess_v3.Game.Core
         /// </summary>
         public int UndoFloor { get; private set; } = 0;
 
-        /// <summary>
-        /// Whether <see cref="Undo"/> can take a move back: there is a move above
-        /// <see cref="UndoFloor"/>. Also true after the game has ended (undoing reopens it)
-        /// and while paused.
-        /// </summary>
-        public bool CanUndo => moves.Count > UndoFloor;
+        /// <summary>How many moves one <see cref="Undo"/> takes back: a round, the last move of each side.</summary>
+        public const int UndoRoundPlies = 2;
 
         /// <summary>
-        /// Raised once per <see cref="Undo"/>, last, after the board, move list, turn, check
-        /// flag, game-over state, clocks and hanging pieces are all back to the position
-        /// before the move, with the record that was taken back (no longer in
-        /// <see cref="Moves"/>). The board change itself is raised before
+        /// Whether <see cref="Undo"/> can take a round back: there are at least
+        /// <see cref="UndoRoundPlies"/> moves above <see cref="UndoFloor"/> (e.g. not with Black
+        /// to move after Red's first move). Also true after the game has ended (undoing
+        /// reopens it) and while paused.
+        /// </summary>
+        public bool CanUndo => moves.Count - UndoFloor >= UndoRoundPlies;
+
+        /// <summary>
+        /// Raised once per move taken back (twice per <see cref="Undo"/>, newest move first),
+        /// last for that move, after the board, move list, turn, check flag, game-over state,
+        /// clocks and hanging pieces are all back to the position before the move, with the
+        /// record that was taken back (no longer in <see cref="Moves"/>). The board change itself is raised before
         /// it: <see cref="PieceMoved"/> for the piece going back to its from-square and
         /// <see cref="PieceAdded"/> for a captured piece returning.
         /// </summary>
@@ -817,8 +821,29 @@ namespace Chinese_Chess_v3.Game.Core
             $"第{move.MoveNumber}回合 {(move.Side == PlayerSide.Player1 ? "紅" : "黑")}：{move.Notation}";
 
         /// <summary>
-        /// Takes back the last move (<see cref="Moves"/>' last record), if
-        /// <see cref="CanUndo"/>: the piece returns to its from-square and a captured piece to
+        /// Takes back one round (悔棋): the last move of each side (<see cref="UndoRoundPlies"/>
+        /// moves, newest first, each as <see cref="UndoLastMove"/> describes), if
+        /// <see cref="CanUndo"/>. The side that was to move is to move again in the position
+        /// before its opponent's last move and its own move before that, with the clocks as
+        /// they were then. An ended game is reopened the same way (its last two moves are taken
+        /// back, whatever ended it). Allowed while paused (the game stays paused).
+        /// </summary>
+        /// <returns>The records taken back, newest first; empty when nothing could be undone.</returns>
+        public IReadOnlyList<MoveRecord> Undo()
+        {
+            if (!CanUndo)
+                return Array.Empty<MoveRecord>();
+
+            var undone = new List<MoveRecord>(UndoRoundPlies);
+            for (int i = 0; i < UndoRoundPlies; i++)
+                undone.Add(UndoLastMove());
+            return undone;
+        }
+
+        /// <summary>
+        /// Takes back the single last move (<see cref="Moves"/>' last record; one half of
+        /// <see cref="Undo"/>), if there is one above <see cref="UndoFloor"/>: the piece
+        /// returns to its from-square and a captured piece to
         /// the to-square (the same piece objects), the board's turn counter steps back, the
         /// move leaves <see cref="Moves"/>, the mover is to move again, <see cref="IsInCheck"/>
         /// is recomputed for the mover, the hanging pieces are recomputed, and an ended game
@@ -837,9 +862,9 @@ namespace Chinese_Chess_v3.Game.Core
         /// <see cref="HangingPiecesChanged"/>, <see cref="MoveUndone"/>.
         /// </summary>
         /// <returns>The record that was taken back; null when nothing could be undone.</returns>
-        public MoveRecord Undo()
+        private MoveRecord UndoLastMove()
         {
-            if (!CanUndo)
+            if (moves.Count <= UndoFloor)
                 return null;
 
             if (selectedPiece != null)
