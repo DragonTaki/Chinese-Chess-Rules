@@ -29,8 +29,8 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         };
 
         /// <summary>
-        /// 取得棋子文字表示，依 PieceColor 選對應文字
-        /// 索引對應：
+        /// Gets the piece's text (the character drawn for it), chosen by <see cref="PieceColor"/>.
+        /// Index mapping:
         /// Red = 0, Black = 1, None/Yellow = 2
         /// </summary>
         public static string GetPieceText(PieceType type, PieceColor color)
@@ -42,7 +42,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
             {
                 PieceColor.Red   => texts[0],
                 PieceColor.Black => texts[1],
-                _ => texts[2],  // None / Yellow / 未定義顏色
+                _ => texts[2],  // None / Yellow / any undefined color
             };
         }
 

@@ -23,11 +23,9 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
     public class Horse : Piece
     {
         /// <summary>
-        /// Initializes a new instance of the <see cref="Horse"/> class with the specified position and player side.
+        /// Initializes a new instance of the <see cref="Horse"/> class with the specified initial state.
         /// </summary>
-        /// <param name="x">The initial X-coordinate of the piece.</param>
-        /// <param name="y">The initial Y-coordinate of the piece.</param>
-        /// <param name="side">The player side this piece belongs to (Red or Black).</param>
+        /// <param name="info">The piece\'s initial state (type, position, color, side); copied.</param>
         public Horse(PieceInfo info)
             : base(info) { }
 
@@ -35,7 +33,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         /// Checks whether the Horse can move to the target position according to Chinese Chess rules.
         /// <para>
         /// - Must move in an "L" shape (1+2 or 2+1 squares).  
-        /// - Must not be blocked by a piece in the primary movement direction ("horse leg").  
+        /// - Must not be blocked by a piece in the primary movement direction ("horse leg", when <see cref="Rules.CanHorseLegHobbled"/>).  
         /// - Cannot capture an allied piece.
         /// </para>
         /// </summary>
@@ -86,8 +84,6 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         /// Gets a list of all legal moves the Horse can make from its current position.
         /// Each move is represented as a tuple of (x, y) coordinates.
         /// </summary>
-        /// <param name="x">The current X-coordinate of the Horse.</param>
-        /// <param name="y">The current Y-coordinate of the Horse.</param>
         /// <param name="board">The current board state.</param>
         /// <returns>A list of all possible (x, y) positions the Horse can legally move to.</returns>
         protected override List<(int x, int y)> GetLegalMovesFull(Board board)

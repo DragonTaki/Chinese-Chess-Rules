@@ -17,16 +17,15 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
     /// <summary>
     /// Represents the <b>Advisor (仕/士)</b> piece in Chinese Chess.
     /// The Advisor protects the General and can only move diagonally by one step.
-    /// It must always remain within the 3×3 palace area of its own side.
+    /// It remains within the 3×3 palace area of its own side (unless <see cref="Rules.CanAdvisorLeavePalace"/>,
+    /// or it is a revealed 揭棋 piece).
     /// </summary>
     public class Advisor : Piece
     {
         /// <summary>
-        /// Initializes a new instance of the <see cref="Advisor"/> class with the specified position and player side.
+        /// Initializes a new instance of the <see cref="Advisor"/> class with the specified initial state.
         /// </summary>
-        /// <param name="x">The initial X-coordinate of the piece.</param>
-        /// <param name="y">The initial Y-coordinate of the piece.</param>
-        /// <param name="side">The player side this piece belongs to (Red or Black).</param>
+        /// <param name="info">The piece\'s initial state (type, position, color, side); copied.</param>
         public Advisor(PieceInfo info)
             : base(info) { }
 
@@ -109,8 +108,6 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         /// Gets a list of all legal moves this Advisor can make from its current position.
         /// Each move is represented as a tuple of (x, y) coordinates.
         /// </summary>
-        /// <param name="x">The current X-coordinate of the Advisor.</param>
-        /// <param name="y">The current Y-coordinate of the Advisor.</param>
         /// <param name="board">The current game board state.</param>
         /// <returns>
         /// A list of all possible (x, y) positions the Advisor can legally move to.

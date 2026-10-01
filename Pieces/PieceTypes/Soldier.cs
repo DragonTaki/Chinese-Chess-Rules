@@ -26,11 +26,9 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
     public class Soldier : Piece
     {
         /// <summary>
-        /// Initializes a new instance of the <see cref="Soldier"/> class with the specified position and player side.
+        /// Initializes a new instance of the <see cref="Soldier"/> class with the specified initial state.
         /// </summary>
-        /// <param name="x">The initial X-coordinate of the Soldier.</param>
-        /// <param name="y">The initial Y-coordinate of the Soldier.</param>
-        /// <param name="side">The player side this Soldier belongs to (Red or Black).</param>
+        /// <param name="info">The piece\'s initial state (type, position, color, side); copied.</param>
         public Soldier(PieceInfo info)
             : base(info) { }
 
@@ -85,8 +83,6 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         /// <summary>
         /// Gets all legal moves the Soldier can make from its current position.
         /// </summary>
-        /// <param name="x">The current X-coordinate of the Soldier.</param>
-        /// <param name="y">The current Y-coordinate of the Soldier.</param>
         /// <param name="board">The current board state.</param>
         /// <returns>A list of all possible (x, y) positions the Soldier can legally move to.</returns>
         protected override List<(int x, int y)> GetLegalMovesFull(Board board)

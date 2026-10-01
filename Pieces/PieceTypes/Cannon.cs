@@ -23,11 +23,9 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
     public class Cannon : Piece
     {
         /// <summary>
-        /// Initializes a new instance of the <see cref="Cannon"/> class with the specified position and player side.
+        /// Initializes a new instance of the <see cref="Cannon"/> class with the specified initial state.
         /// </summary>
-        /// <param name="x">The initial X-coordinate of the piece.</param>
-        /// <param name="y">The initial Y-coordinate of the piece.</param>
-        /// <param name="side">The player side this piece belongs to (Red or Black).</param>
+        /// <param name="info">The piece\'s initial state (type, position, color, side); copied.</param>
         public Cannon(PieceInfo info)
             : base(info) { }
 
@@ -80,8 +78,6 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         /// Gets a list of all legal moves the Cannon can make from its current position.
         /// Each move is represented as a tuple of (x, y) coordinates.
         /// </summary>
-        /// <param name="x">The current X-coordinate of the Cannon.</param>
-        /// <param name="y">The current Y-coordinate of the Cannon.</param>
         /// <param name="board">The current game board state.</param>
         /// <returns>
         /// A list of all possible (x, y) positions the Cannon can legally move to.

@@ -24,7 +24,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
     /// </summary>
     public abstract class Piece
     {
-        /* ----- 基本屬性 ----- */
+        /* ----- Basic properties ----- */
 
         /// <summary>
         /// Gets the specific type of this piece (e.g., General, Soldier, Chariot).
@@ -32,7 +32,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         public PieceType Type => CurrentInfo.Type;
 
         /// <summary>
-        /// Gets the player side to which this piece belongs (Red or Black).
+        /// Gets the player side to which this piece belongs (Player1 or Player2).
         /// </summary>
         public PlayerSide Side => CurrentInfo.Side;
 
@@ -41,7 +41,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         /// </summary>
         public PieceColor Color => CurrentInfo.Color;
 
-        /* ----- 狀態屬性 ----- */
+        /* ----- State properties ----- */
 
         /// <summary>
         /// The current runtime information of this piece (position, state, etc.).
@@ -68,15 +68,12 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         /// </summary>
         public Point Position => new Point(X, Y);
 
-        /* ----- 建構與狀態更新 ----- */
+        /* ----- Construction and state updates ----- */
 
         /// <summary>
         /// Initializes a new instance of the <see cref="Piece"/> class with specified properties.
         /// </summary>
-        /// <param name="type">The type of this piece.</param>
-        /// <param name="x">The initial X-coordinate position.</param>
-        /// <param name="y">The initial Y-coordinate position.</param>
-        /// <param name="side">The side (Red or Black) this piece belongs to.</param>
+        /// <param name="info">The piece's initial state (type, position, color, side, ...); copied, not kept.</param>
         protected Piece(PieceInfo info)
         {
             CurrentInfo = info.Clone();
@@ -105,14 +102,15 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         };
 
         /// <summary>
-        /// 更新棋子狀態，只修改指定欄位，其餘保持原值。
-        /// turnIndex 必須提供，用以紀錄該回合的行為。
+        /// Updates the piece's state: only the given fields change, the others keep their values.
+        /// <paramref name="turnIndex"/> is required; it records the turn the change happened in
+        /// (the new state is also appended to <see cref="History"/>).
         /// </summary>
-        /// <param name="turnIndex">回合索引，必須提供</param>
-        /// <param name="x">新的 X 座標（不修改時傳 null）</param>
-        /// <param name="y">新的 Y 座標（不修改時傳 null）</param>
-        /// <param name="faceUp">是否翻開（不修改時傳 null）</param>
-        /// <param name="isDead">是否死亡（不修改時傳 null）</param>
+        /// <param name="turnIndex">Turn index of this change (required)</param>
+        /// <param name="x">New X coordinate (null to keep it)</param>
+        /// <param name="y">New Y coordinate (null to keep it)</param>
+        /// <param name="isFaceUp">Whether the piece is face up (null to keep it)</param>
+        /// <param name="isDead">Whether the piece is dead (null to keep it)</param>
         public void UpdateState(
             int turnIndex,
             int? x = null,
@@ -151,7 +149,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
             CurrentInfo = History[History.Count - 1].Clone();
         }
 
-        /* ----- 遊戲邏輯 ----- */
+        /* ----- Game logic ----- */
 
         // Only check destination location
         protected virtual bool IsDestinationLegalFull(Board board, int targetX, int targetY) => board.IsInBoard(targetX, targetY);
@@ -231,10 +229,10 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         /// board" — so this checks bounds directly via
         /// <see cref="Board.IsInBoard"/> rather than going through either
         /// board type's (identical, unoverridden) IsDestinationLegal*.
-        /// Five of the seven piece types move exactly one square
-        /// orthogonally by default this way (General, Advisor, Elephant,
-        /// Soldier always; Chariot/Horse only when their respective
-        /// "special movement" rule flag is off).
+        /// Six of the seven piece types move exactly one square
+        /// orthogonally this way (General, Advisor, Elephant, Soldier
+        /// always; Chariot/Horse only when their respective
+        /// "special movement" rule flag is off); only the Cannon never does.
         /// </summary>
         protected bool IsValidOrthogonalOneStepDarkChess(Board board, int targetX, int targetY)
         {
@@ -368,7 +366,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
             }
         }
 
-        // 基底統一呼叫
+        // Unified entry points on the base class (dispatch by board type through PieceFunc)
 
         public bool IsDestinationLegal(Board board, int targetX, int targetY) =>
             PieceFunc<bool>(PieceFuncType.IsDestinationLegal, board.Type, board, targetX, targetY);

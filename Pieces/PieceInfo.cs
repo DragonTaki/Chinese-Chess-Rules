@@ -38,10 +38,10 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         /// <summary>Current Y position on the board (row index)</summary>
         public int Y { get; set; }
 
-        /// <summary>Visual color of the piece (Red / Black)</summary>
+        /// <summary>Visual color of the piece (Red / Black, or Yellow / None for the remaining variants)</summary>
         public PieceColor Color { get; }
 
-        /// <summary>Owning player's side or faction (e.g., Red, Black, Neutral)</summary>
+        /// <summary>Owning player's side or faction (e.g., Player1, Player2, Player3, Neutral)</summary>
         public PlayerSide Side { get; }
 
         /// <summary>Whether the piece is currently face-up (for variants like blind chess)</summary>
@@ -50,7 +50,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         /// <summary>Whether the piece is captured or removed from the board</summary>
         public bool IsDead { get; set; }
 
-        /// <summary>Round number when this piece was last updated (used in step replay or undo)</summary>
+        /// <summary>Board turn counter (<c>Board.Turn</c>) when this piece was last updated (used in step replay or undo)</summary>
         public int TurnIndex { get; set; }
 
         public PieceInfo(
