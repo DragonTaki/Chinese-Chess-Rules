@@ -287,6 +287,14 @@ namespace Chinese_Chess_v3.Game.Core
         /// </summary>
         public string InitialFen { get; private set; } = null;
 
+        /// <summary>
+        /// The file the current game was set up from (endgame puzzle, opening, saved game); null
+        /// for any other game. Kept for <see cref="Restart"/> (a loaded saved game has neither
+        /// <see cref="CurrentEndgame"/> nor <see cref="CurrentOpening"/>, but restarts from its
+        /// own start position and rules).
+        /// </summary>
+        private PgnGameFile startSource = null;
+
         /// <summary>Whether the game can be saved (<see cref="SaveGame"/>): a Full-board game with a known <see cref="InitialFen"/>.</summary>
         public bool CanSave => Board.Type == BoardType.Full && InitialFen != null;
 
@@ -421,6 +429,80 @@ namespace Chinese_Chess_v3.Game.Core
         }
 
         /// <summary>
+        /// Restarts the current game in its current mode from its starting position, by the
+        /// same rules, with both clocks reset and the move list empty (an opening's preset line
+        /// and a saved game's preset plies are replayed again; they are the start):
+        /// a standard game goes back to the standard start (or to the custom start position it
+        /// began from); a HalfCenter game becomes a new shuffled game of the same variant
+        /// (暗棋 or 明棋); an endgame challenge or an opening practice starts the same puzzle /
+        /// line again; a loaded saved game starts from its <c>[FEN]</c> (plus its preset plies)
+        /// with its own rules, not from the position it was loaded at. After
+        /// <see cref="ClearBoard"/> (no start position known) the standard start is used.
+        /// Raises <see cref="BoardReset"/> like any new game.
+        /// </summary>
+        /// <exception cref="NotSupportedException">The board type cannot be played yet (HalfCross).</exception>
+        public void Restart()
+        {
+            if (Board.Type == BoardType.HalfCenter)
+            {
+                StartHalfCenter(Rules.IsHiddenChess);
+                return;
+            }
+            if (Board.Type != BoardType.Full)
+                throw new NotSupportedException($"Cannot restart a {Board.Type} game yet");
+
+            switch (startSource)
+            {
+                case EndgamePuzzle puzzle:
+                    StartEndgame(puzzle);
+                    break;
+                case OpeningLine opening:
+                    StartOpening(opening);
+                    break;
+                case SavedGame saved:
+                    RestartSavedGame(saved);
+                    break;
+                default:
+                    if (InitialFen == null)
+                    {
+                        ResetBoardToDefault();
+                        break;
+                    }
+                    var (pieces, sideToMove) = XiangqiFen.Parse(InitialFen);
+                    SetUpPosition(pieces, sideToMove, null);
+                    break;
+            }
+            AppLogger.Log($"(Restart) Restarted the {Mode} game", LogLevel.DEBUG);
+        }
+
+        /// <summary>
+        /// <see cref="Restart"/> of a loaded saved game: its start position and rules, then only
+        /// its preset plies (<c>[PresetPlies]</c>, the undo floor) replayed.
+        /// </summary>
+        private void RestartSavedGame(SavedGame saved)
+        {
+            var (pieces, sideToMove) = XiangqiFen.Parse(saved.Fen);
+            SetUpPosition(pieces, sideToMove, saved);
+            Logger?.AddMessage($"(Restart) {saved.Title}");
+
+            int played = 0;
+            foreach (var move in saved.Moves.Take(saved.PresetPlies))
+            {
+                if (!TryMove(move.FromX, move.FromY, move.ToX, move.ToY))
+                {
+                    AppLogger.Log($"(Restart) {saved.FileName}: preset move {played + 1} ({move}) is not legal here; replay stopped", LogLevel.WARN);
+                    break;
+                }
+                played++;
+            }
+
+            UndoFloor = played;
+            if (!IsGameOver)
+                RestartClocks();
+            HasUnsavedChanges = false;
+        }
+
+        /// <summary>
         /// Starts a game from <paramref name="opening"/>: its position (the standard start
         /// position unless the file has a <c>[FEN]</c>), then its line played move by move
         /// through <see cref="TryMove"/>, so <see cref="Moves"/>, <see cref="MoveRecorded"/>
@@ -501,6 +583,7 @@ namespace Chinese_Chess_v3.Game.Core
 
             // Reset selected piece
             selectedPiece = null;
+            startSource = source;
             CurrentEndgame = source as EndgamePuzzle;
             CurrentOpening = source as OpeningLine;
             (Mode, OriginId, OriginTitle) = source switch
@@ -684,6 +767,7 @@ namespace Chinese_Chess_v3.Game.Core
 
             // Reset selected piece
             selectedPiece = null;
+            startSource = null;
             CurrentEndgame = null;
             CurrentOpening = null;
             Mode = GameMode.Normal;
