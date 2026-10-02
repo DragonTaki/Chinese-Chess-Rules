@@ -57,7 +57,7 @@ namespace Chinese_Chess_v3.Game.Core.Saves
         /// <summary>The <c>[Termination]</c> tag: how an ended game ended; null for a game still in play.</summary>
         public GameOverReason? Termination { get; init; }
 
-        /// <summary>The <c>[PlayerSide]</c> tag: the side the player played (己方); Player1 when missing.</summary>
+        /// <summary>The <c>[PlayerSide]</c> tag: the player's number (<c>1</c>/<c>2</c>; 己方, the side the player played); Player1 when missing.</summary>
         public PlayerSide PlayerSide { get; init; } = PlayerSide.Player1;
 
         /// <summary>The <c>[BoardType]</c> tag; only <see cref="Boards.BoardType.Full"/> games can be saved.</summary>
@@ -105,13 +105,13 @@ namespace Chinese_Chess_v3.Game.Core.Saves
         public bool? EndGameWhenTimesUp { get; init; }
 
         /// <summary>
-        /// The <c>[RedTimeUsed]</c> / <c>[RedStepUsed]</c> tags (seconds): the Red player's
-        /// elapsed total and current step time when saved; null when neither tag is there.
+        /// The <c>[P1TimeUsed]</c> / <c>[P1StepUsed]</c> tags (seconds): Player1's (the first
+        /// mover's) elapsed total and current step time when saved; null when neither tag is there.
         /// </summary>
-        public ClockState? RedClock { get; init; }
+        public ClockState? Player1Clock { get; init; }
 
-        /// <summary>The <c>[BlackTimeUsed]</c> / <c>[BlackStepUsed]</c> tags: the Black player's clock, like <see cref="RedClock"/>.</summary>
-        public ClockState? BlackClock { get; init; }
+        /// <summary>The <c>[P2TimeUsed]</c> / <c>[P2StepUsed]</c> tags: Player2's clock, like <see cref="Player1Clock"/>.</summary>
+        public ClockState? Player2Clock { get; init; }
 
         // ----- Full-board rules (null = tag missing: the current default is used) -----
 

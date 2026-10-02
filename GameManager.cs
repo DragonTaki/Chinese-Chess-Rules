@@ -177,7 +177,8 @@ namespace Chinese_Chess_v3.Game.Core
         /// the start); an opening: its <see cref="OpeningLine.PlayerSide"/>; a saved game: its
         /// <c>[PlayerSide]</c>; a custom position: the side chosen for it
         /// (<see cref="LoadCustomBoard"/>); a half board: Player1, who moves first. A restart
-        /// keeps it. Written to saved games.
+        /// keeps it. Written to saved games as the player's number
+        /// (<c>[PlayerSide "1"]</c>/<c>"2"</c>).
         /// </summary>
         public PlayerSide LocalSide { get; private set; } = PlayerSide.Player1;
 
@@ -812,14 +813,8 @@ namespace Chinese_Chess_v3.Game.Core
             for (int i = 0; i < _clocksBeforeMove.Count; i++)
                 _clocksBeforeMove[i] = null;
 
-            if (saved.RedClock != null || saved.BlackClock != null)
-            {
-                // The clock tags are by colour; Player1 plays the start position's colour to move.
-                var red = saved.RedClock ?? default;
-                var black = saved.BlackClock ?? default;
-                bool player1Red = ColorOf(PlayerSide.Player1) == PieceColor.Red;
-                RestoreSavedClocks(player1Red ? red : black, player1Red ? black : red);
-            }
+            if (saved.Player1Clock != null || saved.Player2Clock != null)
+                RestoreSavedClocks(saved.Player1Clock ?? default, saved.Player2Clock ?? default);
             else if (!IsGameOver)
                 RestartClocks();
             HasUnsavedChanges = false;

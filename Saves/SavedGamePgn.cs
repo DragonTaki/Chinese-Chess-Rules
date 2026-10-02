@@ -31,14 +31,14 @@ namespace Chinese_Chess_v3.Game.Core.Saves
     /// game's start position - for an opening the position before its preset line),
     /// <c>PresetPlies</c> (leading moves that are an opening's preset line; only when &gt; 0),
     /// <c>Origin</c> (the endgame puzzle / opening: <c>0001-七星聚會</c>, or just the title when
-    /// it has no Id; only for those modes), <c>BoardType</c> (<c>Full</c>), <c>Format</c>
+    /// it has no Id; only for those modes), <c>BoardType</c> (<c>Full</c>), <c>PlayerSide</c> (己方: the player's number, <c>1</c>/<c>2</c>), <c>Format</c>
     /// (<c>ICCS</c>), then the time control and clocks - <c>TimeControl</c> (<c>total+increment</c>
     /// in seconds, the standard PGN form; <c>-</c>, PGN's "no time control", for count-up clocks,
     /// which have no limit), <c>StepTime</c> (seconds), <c>StepTimer</c>,
     /// <c>TimerMode</c> (<c>CountDown</c>/<c>CountUp</c>), <c>LoseOnTimeUp</c> (<c>StepTime</c>,
     /// <c>StepTimer</c> and <c>LoseOnTimeUp</c> only for countdown clocks),
-    /// <c>RedTimeUsed</c>/<c>RedStepUsed</c>/<c>BlackTimeUsed</c>/<c>BlackStepUsed</c> (each
-    /// clock's elapsed total and current step time when saved, seconds; the total can be
+    /// <c>P1TimeUsed</c>/<c>P1StepUsed</c>/<c>P2TimeUsed</c>/<c>P2StepUsed</c> (Player1's and
+    /// Player2's clocks, by turn order; each clock's elapsed total and current step time when saved, seconds; the total can be
     /// negative after countdown increments) - and the Full-board rules in effect:
     /// <c>GeneralCanSeeGeneral</c>, <c>GeneralCanLeavePalace</c>, <c>AdvisorCanLeavePalace</c>,
     /// <c>ElephantEyeBlocks</c>, <c>HorseLegBlocks</c>. Seconds use <c>.</c> and up to 3
@@ -126,10 +126,10 @@ namespace Chinese_Chess_v3.Game.Core.Saves
         public const string StepTimerTag = "StepTimer";
         public const string TimerModeTag = "TimerMode";
         public const string LoseOnTimeUpTag = "LoseOnTimeUp";
-        public const string RedTimeUsedTag = "RedTimeUsed";
-        public const string RedStepUsedTag = "RedStepUsed";
-        public const string BlackTimeUsedTag = "BlackTimeUsed";
-        public const string BlackStepUsedTag = "BlackStepUsed";
+        public const string P1TimeUsedTag = "P1TimeUsed";
+        public const string P1StepUsedTag = "P1StepUsed";
+        public const string P2TimeUsedTag = "P2TimeUsed";
+        public const string P2StepUsedTag = "P2StepUsed";
         public const string GeneralCanSeeGeneralTag = "GeneralCanSeeGeneral";
         public const string GeneralCanLeavePalaceTag = "GeneralCanLeavePalace";
         public const string AdvisorCanLeavePalaceTag = "AdvisorCanLeavePalace";
@@ -143,10 +143,9 @@ namespace Chinese_Chess_v3.Game.Core.Saves
         private static void AddClockAndRuleTags(List<KeyValuePair<string, string>> tags, GameManager game)
         {
             var rules = game.Rules;
-            // The clock tags are by colour: the Red player's and the Black player's clocks.
-            bool player1Red = game.ColorOf(Players.PlayerSide.Player1) == PieceColor.Red;
-            var red = (player1Red ? game.Player1 : game.Player2).Timer.GetClockState();
-            var black = (player1Red ? game.Player2 : game.Player1).Timer.GetClockState();
+            // The clock tags are by player number (turn order), not colour.
+            var p1 = game.Player1.Timer.GetClockState();
+            var p2 = game.Player2.Timer.GetClockState();
             // Count-up clocks only measure time: no limit, increment or time-up to record.
             bool countDown = rules.TimerMode == Players.TimerMode.CountDown;
             tags.Add(new(TimeControlTag, countDown ? $"{Seconds(rules.TotalTimeLimit)}+{Seconds(rules.IncrementPerMove)}" : NoTimeControl));
@@ -158,10 +157,10 @@ namespace Chinese_Chess_v3.Game.Core.Saves
             tags.Add(new(TimerModeTag, rules.TimerMode.ToString()));
             if (countDown)
                 tags.Add(new(LoseOnTimeUpTag, Bool(rules.EndGameWhenTimesUp)));
-            tags.Add(new(RedTimeUsedTag, Seconds(red.TotalTime)));
-            tags.Add(new(RedStepUsedTag, Seconds(red.StepTime)));
-            tags.Add(new(BlackTimeUsedTag, Seconds(black.TotalTime)));
-            tags.Add(new(BlackStepUsedTag, Seconds(black.StepTime)));
+            tags.Add(new(P1TimeUsedTag, Seconds(p1.TotalTime)));
+            tags.Add(new(P1StepUsedTag, Seconds(p1.StepTime)));
+            tags.Add(new(P2TimeUsedTag, Seconds(p2.TotalTime)));
+            tags.Add(new(P2StepUsedTag, Seconds(p2.StepTime)));
             tags.Add(new(GeneralCanSeeGeneralTag, Bool(rules.CanGeneralSeeGeneral)));
             tags.Add(new(GeneralCanLeavePalaceTag, Bool(rules.CanGeneralLeavePalace)));
             tags.Add(new(AdvisorCanLeavePalaceTag, Bool(rules.CanAdvisorLeavePalace)));
@@ -219,7 +218,7 @@ namespace Chinese_Chess_v3.Game.Core.Saves
         /// <param name="folderCategory">The mode folder the file is in (the category).</param>
         /// <exception cref="FormatException">Missing/unparsable FEN, an unplayable position,
         /// a board type other than Full, a bad <c>[PresetPlies]</c>, a malformed time-control,
-        /// clock or rule tag, a malformed tag line or an unreadable movetext token.</exception>
+        /// clock or rule tag, a bad <c>[PlayerSide]</c> (not 1/2), a malformed tag line or an unreadable movetext token.</exception>
         public static SavedGame Parse(string text, string fileName, PgnOrigin origin, string folderCategory = "", string filePath = null)
         {
             var content = PgnReader.Read(text, fileName, origin, folderCategory, filePath, numberedFileName: false);
@@ -292,8 +291,8 @@ namespace Chinese_Chess_v3.Game.Core.Saves
                 EnableStepTimer = ParseBool(content, StepTimerTag),
                 TimerMode = timerMode,
                 EndGameWhenTimesUp = ParseBool(content, LoseOnTimeUpTag),
-                RedClock = ParseClock(content, RedTimeUsedTag, RedStepUsedTag),
-                BlackClock = ParseClock(content, BlackTimeUsedTag, BlackStepUsedTag),
+                Player1Clock = ParseClock(content, P1TimeUsedTag, P1StepUsedTag),
+                Player2Clock = ParseClock(content, P2TimeUsedTag, P2StepUsedTag),
                 CanGeneralSeeGeneral = ParseBool(content, GeneralCanSeeGeneralTag),
                 CanGeneralLeavePalace = ParseBool(content, GeneralCanLeavePalaceTag),
                 CanAdvisorLeavePalace = ParseBool(content, AdvisorCanLeavePalaceTag),

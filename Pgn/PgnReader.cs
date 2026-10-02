@@ -152,24 +152,37 @@ namespace Chinese_Chess_v3.Game.Core.Pgn
         public const string PlayerSideTag = "PlayerSide";
 
         /// <summary>
-        /// The <c>[PlayerSide]</c> tag (己方): <c>Red</c> = Player1, <c>Black</c> = Player2 (any
-        /// case); null when the tag is missing or blank.
+        /// The <c>[PlayerSide]</c> tag (己方): the player's number in turn order - <c>1</c> =
+        /// Player1 (first mover), <c>2</c> = Player2, <c>3</c> = Player3 (three kingdoms); null
+        /// when the tag is missing or blank.
         /// </summary>
-        /// <exception cref="FormatException">The tag is present but neither Red nor Black.</exception>
-        public static PlayerSide? ParsePlayerSide(PgnFileContent content)
+        /// <param name="allowPlayer3">Accept <c>3</c>; false for files of a two-player (Full)
+        /// board, which have no Player3.</param>
+        /// <exception cref="FormatException">The tag is present but not 1/2/3 (or 3 when
+        /// <paramref name="allowPlayer3"/> is false).</exception>
+        public static PlayerSide? ParsePlayerSide(PgnFileContent content, bool allowPlayer3 = false)
         {
             if (!content.Tags.TryGetValue(PlayerSideTag, out var text) || string.IsNullOrWhiteSpace(text))
                 return null;
-            string v = text.Trim();
-            if (string.Equals(v, "Red", StringComparison.OrdinalIgnoreCase))
-                return PlayerSide.Player1;
-            if (string.Equals(v, "Black", StringComparison.OrdinalIgnoreCase))
-                return PlayerSide.Player2;
-            throw new FormatException($"[{PlayerSideTag} \"{text}\"] is not Red/Black");
+            switch (text.Trim())
+            {
+                case "1": return PlayerSide.Player1;
+                case "2": return PlayerSide.Player2;
+                case "3" when allowPlayer3: return PlayerSide.Player3;
+                case "3": throw new FormatException($"[{PlayerSideTag} \"{text}\"] is not 1/2 (Player3 needs a three-player board)");
+                default: throw new FormatException($"[{PlayerSideTag} \"{text}\"] is not 1/2/3");
+            }
         }
 
-        /// <summary>The <c>[PlayerSide]</c> value for <paramref name="side"/>: <c>Red</c> for Player1, <c>Black</c> for Player2.</summary>
-        public static string FormatPlayerSide(PlayerSide side) => side == PlayerSide.Player2 ? "Black" : "Red";
+        /// <summary>The <c>[PlayerSide]</c> value for <paramref name="side"/>: its number (<c>1</c>/<c>2</c>/<c>3</c>).</summary>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="side"/> is not Player1/2/3.</exception>
+        public static string FormatPlayerSide(PlayerSide side) => side switch
+        {
+            PlayerSide.Player1 => "1",
+            PlayerSide.Player2 => "2",
+            PlayerSide.Player3 => "3",
+            _ => throw new ArgumentOutOfRangeException(nameof(side), side, "Not a player"),
+        };
 
         /// <summary>
         /// Plays <paramref name="moves"/> from <paramref name="fen"/> on a scratch board (no
