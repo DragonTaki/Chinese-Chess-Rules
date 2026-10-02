@@ -201,20 +201,26 @@ namespace Chinese_Chess_v3.Game.Core
         private readonly List<List<(Piece piece, int snapshots)>> _stateChanges = new List<List<(Piece piece, int snapshots)>>();
 
         /// <summary>
-        /// The rules every new game starts with (the constructor's; the launchers pass the player
-        /// settings' rules, and the settings menu edits this object in place). Never played by
-        /// directly: each game takes its own copy when it starts (see <see cref="Rules"/>), so
-        /// changing this only affects the next game started, never the one in progress.
+        /// The rules new games start with, one set per <see cref="GameKind"/> (the constructor's;
+        /// the launchers pass the player settings' rule sets, and the settings menu edits these
+        /// objects in place). Never played by directly: each game takes its own copy of its
+        /// kind's rules when it starts (see <see cref="Rules"/>), so changing them only affects
+        /// the next game started, never the one in progress.
         /// </summary>
-        public Rules DefaultRules { get; }
+        public GameRuleSets DefaultRuleSets { get; }
+
+        /// <summary>The rules new games of <paramref name="kind"/> start with (<see cref="DefaultRuleSets"/>; the stored object, not a copy).</summary>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="kind"/> is not a <see cref="GameKind"/>.</exception>
+        public Rules DefaultRulesFor(GameKind kind) => DefaultRuleSets[kind];
 
         /// <summary>
         /// The rules the current game is played by (the board's <see cref="Board.GameRules"/>,
-        /// also the clocks' limits), fixed when the game starts: a copy of
-        /// <see cref="DefaultRules"/> as it was then, except for a loaded saved game, whose file's
+        /// also the clocks' limits), fixed when the game starts: a copy of its kind's
+        /// <see cref="DefaultRulesFor"/> as they were then (endgames, openings and saved games
+        /// are <see cref="GameKind.Traditional"/>), except for a loaded saved game, whose file's
         /// time control / rules are put over that copy (<see cref="SavedGame.RulesFor"/>), and a
         /// <see cref="Restart"/>, which keeps the restarted game's rules. A different object from
-        /// <see cref="DefaultRules"/> (later settings changes do not reach it).
+        /// every <see cref="DefaultRuleSets"/> entry (later settings changes do not reach it).
         /// </summary>
         public Rules Rules => Board.GameRules;
 
@@ -340,20 +346,27 @@ namespace Chinese_Chess_v3.Game.Core
         public event Action? BoardReset;
 #nullable disable
 
-        /// <summary>A game with the default <see cref="Rules"/>.</summary>
-        public GameManager() : this(null) { }
+        /// <summary>A game with the default <see cref="Rules"/> for every kind.</summary>
+        public GameManager() : this((GameRuleSets)null) { }
 
         /// <summary>
-        /// A game played by <paramref name="rules"/> (null: the default <see cref="Rules"/>):
-        /// the board's rule toggles and the players' clocks (total / step time, increment,
-        /// step timer on/off, count mode) all come from it. The launchers pass the rules
-        /// built from the player settings (docs/SETTINGS.md).
+        /// Every kind's new games start with a copy of <paramref name="rules"/> (null: the
+        /// default <see cref="Rules"/>); see <see cref="GameManager(GameRuleSets)"/>.
         /// </summary>
-        public GameManager(Rules rules)
+        public GameManager(Rules rules) : this(new GameRuleSets(rules)) { }
+
+        /// <summary>
+        /// New games start with <paramref name="ruleSets"/>' rules for their kind (null: the
+        /// default <see cref="Rules"/> for every kind): the board's rule toggles and the players'
+        /// clocks (total / step time, increment, step timer on/off, count mode) all come from
+        /// them. The launchers pass the rule sets built from the player settings
+        /// (docs/SETTINGS.md). The first game is a <see cref="GameKind.Traditional"/> one.
+        /// </summary>
+        public GameManager(GameRuleSets ruleSets)
         {
             _movesView = _moves.AsReadOnly();
-            rules ??= new Rules();
-            DefaultRules = rules;
+            DefaultRuleSets = ruleSets ?? new GameRuleSets();
+            var rules = DefaultRulesFor(GameKind.Traditional);
 
             // Initialize the board, with this first game's own copy of the rules.
             Board = new Board(BoardType.Full, rules.Clone());
@@ -401,10 +414,10 @@ namespace Chinese_Chess_v3.Game.Core
         /// (see <see cref="ColorOf"/>).
         /// </summary>
         /// <param name="hiddenChess">
-        /// The game's <see cref="Rules.IsHiddenChess"/> (暗棋 true, 明棋 false; the new-game menu
-        /// picks it); null keeps <see cref="DefaultRules"/>' value. Only this game's rules change
-        /// (a copy of <see cref="DefaultRules"/>), so <see cref="Rules"/> tells a restart which
-        /// variant to deal again.
+        /// 暗棋半盤 (true: <see cref="GameKind.DarkHalf"/>, face down) or 明棋半盤 (false:
+        /// <see cref="GameKind.OpenHalf"/>, face up); the new-game menu picks it. The game plays
+        /// by a copy of that kind's <see cref="DefaultRulesFor"/>, its <see cref="Rules.IsHiddenChess"/>
+        /// set to match, so <see cref="Rules"/> tells a restart which variant to deal again.
         /// </param>
         /// <param name="seed">
         /// The shuffle's seed; null (the game's choice) seeds it from the clock, so every new game
@@ -412,10 +425,10 @@ namespace Chinese_Chess_v3.Game.Core
         /// layout from the log). <see cref="GlobalRandom"/> is not used: its fixed seed would
         /// deal the same layout on every launch.
         /// </param>
-        public void StartHalfCenter(bool? hiddenChess = null, int? seed = null)
+        public void StartHalfCenter(bool hiddenChess, int? seed = null)
         {
-            var rules = DefaultRules.Clone();
-            rules.IsHiddenChess = hiddenChess ?? DefaultRules.IsHiddenChess;
+            var rules = DefaultRulesFor(hiddenChess ? GameKind.DarkHalf : GameKind.OpenHalf).Clone();
+            rules.IsHiddenChess = hiddenChess;
             SetUpHalfCenter(rules, seed);
         }
 
@@ -467,7 +480,7 @@ namespace Chinese_Chess_v3.Game.Core
         /// <see cref="EndgameLoader"/> have already been checked).</exception>
         public void StartEndgame(EndgamePuzzle puzzle) => SetUpEndgame(puzzle, null);
 
-        /// <summary><see cref="StartEndgame"/> played by <paramref name="rules"/> (this game's own copy); null for a copy of <see cref="DefaultRules"/>.</summary>
+        /// <summary><see cref="StartEndgame"/> played by <paramref name="rules"/> (this game's own copy); null for a copy of the <see cref="GameKind.Traditional"/> defaults.</summary>
         private void SetUpEndgame(EndgamePuzzle puzzle, Rules rules)
         {
             ArgumentNullException.ThrowIfNull(puzzle);
@@ -495,7 +508,7 @@ namespace Chinese_Chess_v3.Game.Core
         public void Restart()
         {
             // The restarted game keeps its own rules (a fresh copy of them), not the current
-            // DefaultRules: rules are fixed per game.
+            // DefaultRuleSets: rules are fixed per game.
             var rules = Rules.Clone();
 
             if (Board.Type == BoardType.HalfCenter)
@@ -553,7 +566,7 @@ namespace Chinese_Chess_v3.Game.Core
         /// <exception cref="FormatException">The opening's FEN is not valid.</exception>
         public int StartOpening(OpeningLine opening) => SetUpOpening(opening, null);
 
-        /// <summary><see cref="StartOpening"/> played by <paramref name="rules"/> (this game's own copy); null for a copy of <see cref="DefaultRules"/>.</summary>
+        /// <summary><see cref="StartOpening"/> played by <paramref name="rules"/> (this game's own copy); null for a copy of the <see cref="GameKind.Traditional"/> defaults.</summary>
         private int SetUpOpening(OpeningLine opening, Rules rules)
         {
             ArgumentNullException.ThrowIfNull(opening);
@@ -592,15 +605,16 @@ namespace Chinese_Chess_v3.Game.Core
         /// <param name="source">The file the game starts from (an endgame puzzle, an opening, a
         /// saved game), or null; sets <see cref="Mode"/>, <see cref="OriginId"/> and
         /// <see cref="OriginTitle"/>, and the <see cref="Rules"/> (a saved game's own over a copy
-        /// of <see cref="DefaultRules"/>, otherwise a copy of <see cref="DefaultRules"/>).</param>
+        /// of the <see cref="GameKind.Traditional"/> defaults, otherwise a copy of the defaults of
+        /// <paramref name="boardType"/>'s kind, <see cref="GameRuleSets.KindFor"/>).</param>
         /// <param name="boardType">The board the game is played on: the current <see cref="Board"/>
         /// is replaced by a new one when its type differs. Every FEN-based setup (endgames,
         /// openings, saved games, the default position) is Full.</param>
         /// <param name="rules">This game's rules when they differ from what
         /// <paramref name="source"/> decides (e.g. <see cref="StartHalfCenter"/>'s
         /// 暗棋/明棋 choice, or the restarted game's rules for <see cref="Restart"/>); null for
-        /// that default. Must be this game's own object (a copy), never <see cref="DefaultRules"/>
-        /// itself.</param>
+        /// that default. Must be this game's own object (a copy), never a <see cref="DefaultRuleSets"/>
+        /// entry itself.</param>
         /// <param name="localSide">The game's <see cref="LocalSide"/>; null for what
         /// <paramref name="source"/> decides (see <see cref="LocalSide"/>).</param>
         /// <param name="firstColor">Full board: the colour that moves first, played by Player1
@@ -621,10 +635,13 @@ namespace Chinese_Chess_v3.Game.Core
             if (Board.Type != boardType)
                 Board = new Board(boardType, Board.GameRules);
 
-            // A saved game is played by the rules it was saved with; every other game by a copy
-            // of the defaults as they are now (or the rules its setup passed). Always this game's
-            // own object, so a later settings change (to DefaultRules) does not reach it.
-            ApplyRules(rules ?? (source is SavedGame savedGame ? savedGame.RulesFor(DefaultRules) : DefaultRules.Clone()));
+            // A saved game is played by the rules it was saved with (over the Traditional
+            // defaults); every other game by a copy of its kind's defaults as they are now (or
+            // the rules its setup passed). Always this game's own object, so a later settings
+            // change (to DefaultRuleSets) does not reach it.
+            ApplyRules(rules ?? (source is SavedGame savedGame
+                ? savedGame.RulesFor(DefaultRulesFor(GameKind.Traditional))
+                : DefaultRulesFor(GameRuleSets.KindFor(boardType)).Clone()));
 
             // Reset board:
             // (A) Clear pieces
@@ -749,7 +766,7 @@ namespace Chinese_Chess_v3.Game.Core
         /// <see cref="CurrentEndgame"/> / <see cref="CurrentOpening"/> stay null (the original
         /// file is not looked up). A game saved after a resignation or a time-up is ended the
         /// same way again (<c>[Result]</c> + <c>[Termination]</c>). Rules: the file's time
-        /// control and rules over <see cref="DefaultRules"/> (<see cref="SavedGame.RulesFor"/>),
+        /// control and rules over the <see cref="GameKind.Traditional"/> defaults (<see cref="SavedGame.RulesFor"/>),
         /// for this game only; the next new game is back to the defaults. Clocks: both continue
         /// from the saved elapsed times (the side to move's step clock running from its saved
         /// step time; stopped when the game is over); a file without clock tags starts both
@@ -764,7 +781,7 @@ namespace Chinese_Chess_v3.Game.Core
 
         /// <summary>
         /// <see cref="LoadSavedGame"/> played by <paramref name="rules"/> (this game's own copy;
-        /// null for <see cref="SavedGame.RulesFor"/> over the current <see cref="DefaultRules"/>),
+        /// null for <see cref="SavedGame.RulesFor"/> over the current <see cref="GameKind.Traditional"/> defaults),
         /// its game-log line headed <paramref name="logTag"/>. <see cref="Restart"/> of a loaded
         /// saved game uses it with the loaded game's rules, so it comes back exactly as loaded.
         /// </summary>
@@ -854,7 +871,7 @@ namespace Chinese_Chess_v3.Game.Core
             OriginId = null;
             OriginTitle = null;
             InitialFen = null;
-            ApplyRules(DefaultRules.Clone());
+            ApplyRules(DefaultRulesFor(GameKind.Traditional).Clone());
             // Reset side
             CurrentTurn = PlayerSide.Player1;
             _player1Color = PieceColor.Red;

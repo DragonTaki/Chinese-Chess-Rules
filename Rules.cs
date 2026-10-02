@@ -3,8 +3,8 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2025/05/06
-// Update Date: 2026/10/01
-// Version: v1.0
+// Update Date: 2026/10/02
+// Version: v1.1
 /* ----- ----- ----- ----- */
 
 using System;
@@ -166,6 +166,23 @@ namespace Chinese_Chess_v3.Game.Core
             PieceType.Cannon,
             PieceType.Soldier,
         };
+
+        #endregion
+
+        #region HalfCross Board Rule Options (三國半盤規則選項)
+
+        /// <summary>
+        /// 分隊: which of the two team splits a 三國半盤 game uses (docs/DARK-CHESS-RULES.md §1.2).
+        /// 未實作: a per-kind rule option (settings.ini <c>[rules.three_kingdoms]</c>) that no
+        /// gameplay reads yet. Default: <see cref="HalfCrossTeamVariant.Standard"/>
+        /// </summary>
+        public HalfCrossTeamVariant HalfCrossTeamVariant { get; set; } = HalfCrossTeamVariant.Standard;
+
+        /// <summary>
+        /// 勝負方式: how a 三國半盤 game is won (docs/DARK-CHESS-RULES.md §1.2). 未實作: a
+        /// per-kind rule option that no gameplay reads yet. Default: <see cref="HalfCrossWinCondition.Points"/> (the author's scoring)
+        /// </summary>
+        public HalfCrossWinCondition HalfCrossWinCondition { get; set; } = HalfCrossWinCondition.Points;
 
         #endregion
 
