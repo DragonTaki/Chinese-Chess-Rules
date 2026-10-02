@@ -50,11 +50,12 @@ namespace Chinese_Chess_v3.Game.Core.Openings
             if (ecco != null && !EccoPattern.IsMatch(ecco))
                 throw new FormatException($"[ECCO \"{ecco}\"] is not a code A00-E99");
 
-            return new OpeningLine(content, fen, sideToMove)
+            var line = new OpeningLine(content, fen, sideToMove)
             {
                 Difficulty = PgnReader.ParseDifficulty(content),
                 Ecco = ecco?.ToUpperInvariant(),
             };
+            return line with { PlayerSide = PgnReader.ParsePlayerSide(content) ?? line.SideToMoveAfterMoves };
         }
     }
 }

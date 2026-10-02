@@ -146,6 +146,29 @@ namespace Chinese_Chess_v3.Game.Core.Pgn
             return difficulty;
         }
 
+        /// <summary>The <c>[PlayerSide]</c> tag (己方: the side the player plays).</summary>
+        public const string PlayerSideTag = "PlayerSide";
+
+        /// <summary>
+        /// The <c>[PlayerSide]</c> tag (己方): <c>Red</c> = Player1, <c>Black</c> = Player2 (any
+        /// case); null when the tag is missing or blank.
+        /// </summary>
+        /// <exception cref="FormatException">The tag is present but neither Red nor Black.</exception>
+        public static PlayerSide? ParsePlayerSide(PgnFileContent content)
+        {
+            if (!content.Tags.TryGetValue(PlayerSideTag, out var text) || string.IsNullOrWhiteSpace(text))
+                return null;
+            string v = text.Trim();
+            if (string.Equals(v, "Red", StringComparison.OrdinalIgnoreCase))
+                return PlayerSide.Player1;
+            if (string.Equals(v, "Black", StringComparison.OrdinalIgnoreCase))
+                return PlayerSide.Player2;
+            throw new FormatException($"[{PlayerSideTag} \"{text}\"] is not Red/Black");
+        }
+
+        /// <summary>The <c>[PlayerSide]</c> value for <paramref name="side"/>: <c>Red</c> for Player1, <c>Black</c> for Player2.</summary>
+        public static string FormatPlayerSide(PlayerSide side) => side == PlayerSide.Player2 ? "Black" : "Red";
+
         /// <summary>
         /// Plays <paramref name="moves"/> from <paramref name="fen"/> on a scratch board (no
         /// <see cref="GameManager"/>): every move must be a legal move of the side to move and

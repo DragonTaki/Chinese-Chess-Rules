@@ -56,6 +56,9 @@ namespace Chinese_Chess_v3.Game.Core.Saves
         /// <summary>The <c>[Termination]</c> tag: how an ended game ended; null for a game still in play.</summary>
         public GameOverReason? Termination { get; init; }
 
+        /// <summary>The <c>[PlayerSide]</c> tag: the side the player played (己方); Player1 (紅方) when missing (older saves).</summary>
+        public PlayerSide PlayerSide { get; init; } = PlayerSide.Player1;
+
         /// <summary>The <c>[BoardType]</c> tag; only <see cref="Boards.BoardType.Full"/> games can be saved.</summary>
         public BoardType BoardType { get; init; } = BoardType.Full;
 

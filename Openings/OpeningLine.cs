@@ -32,6 +32,13 @@ namespace Chinese_Chess_v3.Game.Core.Openings
         /// </summary>
         public string Ecco { get; init; }
 
+        /// <summary>
+        /// The side the opening is practised as (己方): the <c>[PlayerSide]</c> tag (<c>Red</c> =
+        /// 先手, 執紅; <c>Black</c> = 後手, 執黑); without the tag, the side that takes over after
+        /// the line (<see cref="PgnGameFile.SideToMoveAfterMoves"/>).
+        /// </summary>
+        public PlayerSide PlayerSide { get; init; } = PlayerSide.Player1;
+
         public OpeningLine() { }
 
         /// <summary>The shared fields from <paramref name="content"/>; the opening's own tags are set by the caller.</summary>

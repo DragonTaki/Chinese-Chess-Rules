@@ -109,6 +109,7 @@ namespace Chinese_Chess_v3.Game.Core.Saves
                 new("PresetPlies", game.UndoFloor > 0 ? game.UndoFloor.ToString(CultureInfo.InvariantCulture) : null),
                 new("Origin", origin),
                 new("BoardType", game.Board.Type.ToString()),
+                new(PgnReader.PlayerSideTag, PgnReader.FormatPlayerSide(game.LocalSide)),
                 new("Format", "ICCS"),
             };
             AddClockAndRuleTags(tags, game);
@@ -303,6 +304,7 @@ namespace Chinese_Chess_v3.Game.Core.Saves
                 Result = result is "1-0" or "0-1" ? result : "*",
                 Termination = termination,
                 BoardType = boardType,
+                PlayerSide = PgnReader.ParsePlayerSide(content) ?? Players.PlayerSide.Player1,
             };
         }
     }

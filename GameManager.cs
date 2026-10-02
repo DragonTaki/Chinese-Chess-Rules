@@ -166,6 +166,17 @@ namespace Chinese_Chess_v3.Game.Core
         public PlayerSide FirstTurn { get; private set; } = PlayerSide.Player1;
 
         /// <summary>
+        /// 己方: the side the player plays in the current game, shown on the left of the info board
+        /// (and, later, at the bottom of the board). A new local Full-board game: Player1 (紅方);
+        /// an endgame puzzle: the side that solves it (the side to move at the start); an opening:
+        /// its <see cref="OpeningLine.PlayerSide"/> (先手執紅 / 後手執黑); a saved game: its
+        /// <c>[PlayerSide]</c>; a custom position: the side chosen for it
+        /// (<see cref="LoadCustomBoard"/>); a half board: the side that moves first. A restart
+        /// keeps it. Written to saved games.
+        /// </summary>
+        public PlayerSide LocalSide { get; private set; } = PlayerSide.Player1;
+
+        /// <summary>
         /// Raised once per move after it is appended to <see cref="Moves"/> and the board is
         /// updated (after <see cref="PieceMoved"/>), before the turn switch and before
         /// <see cref="Check"/> / <see cref="GameOver"/> / <see cref="TacticalEvents"/>, so a
@@ -427,9 +438,13 @@ namespace Chinese_Chess_v3.Game.Core
         /// <param name="customInitialPieces">The pieces to place; their squares must be on a <paramref name="boardType"/> board.</param>
         /// <param name="firstTurn">The side to move first.</param>
         /// <param name="boardType">The board to play on; Full by default.</param>
-        public void LoadCustomBoard(List<PieceInfo> customInitialPieces, PlayerSide firstTurn = PlayerSide.Player1, BoardType boardType = BoardType.Full)
+        /// <param name="localSide">The side the player plays (<see cref="LocalSide"/>, chosen when
+        /// the position is set up, independent of <paramref name="firstTurn"/>); null for the
+        /// default: Player1 (紅方) on the Full board, <paramref name="firstTurn"/> on a half board.</param>
+        public void LoadCustomBoard(List<PieceInfo> customInitialPieces, PlayerSide firstTurn = PlayerSide.Player1, BoardType boardType = BoardType.Full,
+            PlayerSide? localSide = null)
         {
-            SetUpPosition(customInitialPieces, firstTurn, null, boardType);
+            SetUpPosition(customInitialPieces, firstTurn, null, boardType, localSide: localSide);
         }
 
         /// <summary>
@@ -495,7 +510,8 @@ namespace Chinese_Chess_v3.Game.Core
                     var (pieces, sideToMove) = InitialFen == null
                         ? (BoardConfigLoader.Load(), PlayerSide.Player1)
                         : XiangqiFen.Parse(InitialFen);
-                    SetUpPosition(pieces, sideToMove, null, BoardType.Full, rules);
+                    // A custom start keeps the side the player chose for it.
+                    SetUpPosition(pieces, sideToMove, null, BoardType.Full, rules, LocalSide);
                     break;
             }
             AppLogger.Log($"(Restart) Restarted the {Mode} game", LogLevel.DEBUG);
@@ -574,8 +590,10 @@ namespace Chinese_Chess_v3.Game.Core
         /// 暗棋/明棋 choice, or the restarted game's rules for <see cref="Restart"/>); null for
         /// that default. Must be this game's own object (a copy), never <see cref="DefaultRules"/>
         /// itself.</param>
+        /// <param name="localSide">The game's <see cref="LocalSide"/>; null for what
+        /// <paramref name="source"/> decides (see <see cref="LocalSide"/>).</param>
         private void SetUpPosition(List<PieceInfo> pieces, PlayerSide firstTurn, PgnGameFile source, BoardType boardType = BoardType.Full,
-            Rules rules = null)
+            Rules rules = null, PlayerSide? localSide = null)
         {
             if (firstTurn != PlayerSide.Player1 && firstTurn != PlayerSide.Player2)
                 throw new ArgumentException($"The first turn must be Player1 or Player2, not {firstTurn}", nameof(firstTurn));
@@ -611,6 +629,13 @@ namespace Chinese_Chess_v3.Game.Core
             // Reset side
             CurrentTurn = firstTurn;
             FirstTurn = firstTurn;
+            LocalSide = localSide ?? source switch
+            {
+                EndgamePuzzle => firstTurn,
+                OpeningLine opening => opening.PlayerSide,
+                SavedGame saved => saved.PlayerSide,
+                _ => boardType == BoardType.Full ? PlayerSide.Player1 : firstTurn,
+            };
             InitialFen = FormatInitialFen(firstTurn);
             ResetTimers(startFirstTurn: true);
             // A custom position may start with the side to move already in check.
@@ -815,6 +840,7 @@ namespace Chinese_Chess_v3.Game.Core
             // Reset side
             CurrentTurn = PlayerSide.Player1;
             FirstTurn = PlayerSide.Player1;
+            LocalSide = PlayerSide.Player1;
             ResetTimers(startFirstTurn: false);
 
             // Inform UI
