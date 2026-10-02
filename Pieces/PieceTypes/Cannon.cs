@@ -88,7 +88,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         {
             List<(int x, int y)> legalMoves = new List<(int x, int y)>();
 
-            var directions = MovePatterns.GetOrthogonalOneStep(Side);
+            var directions = MovePatterns.GetOrthogonalOneStep(Color);
 
             foreach (var (dx, dy) in directions)
             {
@@ -261,7 +261,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
             List<(int x, int y)> legalMoves = new List<(int x, int y)>();
             bool mustJump = board.GameRules.IsCannonMustJumpToCapture;
 
-            var directions = MovePatterns.GetOrthogonalOneStep(Side);
+            var directions = MovePatterns.GetOrthogonalOneStep(Color);
 
             foreach (var (dx, dy) in directions)
             {

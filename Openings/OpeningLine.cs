@@ -8,6 +8,7 @@
 /* ----- ----- ----- ----- */
 
 using Chinese_Chess_v3.Game.Core.Pgn;
+using Chinese_Chess_v3.Game.Core.Pieces;
 using Chinese_Chess_v3.Game.Core.Players;
 
 namespace Chinese_Chess_v3.Game.Core.Openings
@@ -42,7 +43,7 @@ namespace Chinese_Chess_v3.Game.Core.Openings
         public OpeningLine() { }
 
         /// <summary>The shared fields from <paramref name="content"/>; the opening's own tags are set by the caller.</summary>
-        internal OpeningLine(PgnFileContent content, string fen, PlayerSide sideToMove)
-            : base(content, fen, sideToMove) { }
+        internal OpeningLine(PgnFileContent content, string fen, PieceColor firstColor)
+            : base(content, fen, firstColor) { }
     }
 }

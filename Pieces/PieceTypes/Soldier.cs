@@ -3,7 +3,7 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2025/05/06
-// Update Date: 2025/10/30
+// Update Date: 2026/10/02
 // Version: v2.0
 /* ----- ----- ----- ----- */
 
@@ -12,7 +12,6 @@ using System.Collections.Generic;
 
 using Chinese_Chess_v3.Game.Core.Boards;
 using Chinese_Chess_v3.Game.Core.Movements;
-using Chinese_Chess_v3.Game.Core.Players;
 
 namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
 {
@@ -58,7 +57,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
             int dx = targetX - X;
             int dy = targetY - Y;
 
-            var directions = MovePatterns.GetSoldierDirections(Side, HasCrossedRiver(Y));
+            var directions = MovePatterns.GetSoldierDirections(Color, HasCrossedRiver(Y));
 
             // Check if match move rule
             bool matched = false;
@@ -89,7 +88,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         {
             List<(int x, int y)> legalMoves = new List<(int x, int y)>();
 
-            var directions = MovePatterns.GetSoldierDirections(Side, HasCrossedRiver(Y));
+            var directions = MovePatterns.GetSoldierDirections(Color, HasCrossedRiver(Y));
 
             foreach (var (dx, dy) in directions)
             {
@@ -142,25 +141,25 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         /// <returns><c>true</c> if the Soldier has crossed the river; otherwise, <c>false</c>.</returns>
         private bool HasCrossedRiver(int y)
         {
-            switch (Side)
+            // The river side is keyed by colour, not player (Player1 can play Black).
+            switch (Color)
             {
-                // Player2's own half is Y 0-4 (RiverLineYBlackSide is its last
-                // row), Player1's is Y 5-9 (RiverLineYRedSide is its first row);
+                // Black's own half is Y 0-4 (RiverLineYBlackSide is its last
+                // row), Red's is Y 5-9 (RiverLineYRedSide is its first row);
                 // a soldier has crossed only once it stands on the far half — the
                 // same test as Board.IsPassRiver.
-                case PlayerSide.Player2:
+                case PieceColor.Black:
                     return y > BoardConstants.Full.RiverLineYBlackSide;
 
-                case PlayerSide.Player1:
+                case PieceColor.Red:
                     return y < BoardConstants.Full.RiverLineYRedSide;
 
-                // Only the Full board's two sides have a river side; the other sides never
+                // Only the Full board's two colours have a river side; the other colours never
                 // play on the Full board.
-                case PlayerSide.Player3:
-                case PlayerSide.None:
-                case PlayerSide.Neutral:
+                case PieceColor.Yellow:
+                case PieceColor.None:
                 default:
-                    throw new InvalidOperationException($"{Side} has no side of the river on the Full board");
+                    throw new InvalidOperationException($"{Color} has no side of the river on the Full board");
             }
         }
     }

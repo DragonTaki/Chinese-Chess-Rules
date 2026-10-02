@@ -15,6 +15,7 @@ using System.Text.RegularExpressions;
 
 using Chinese_Chess_v3.Game.Core.Boards;
 using Chinese_Chess_v3.Game.Core.Pgn;
+using Chinese_Chess_v3.Game.Core.Pieces;
 
 namespace Chinese_Chess_v3.Game.Core.Saves
 {
@@ -91,7 +92,8 @@ namespace Chinese_Chess_v3.Game.Core.Saves
             if (!game.CanSave)
                 throw new InvalidOperationException("Only a Full-board game with a known start position can be saved");
 
-            string result = !game.IsGameOver ? "*" : (game.Winner == Players.PlayerSide.Player1 ? "1-0" : "0-1");
+            // [Result] is PGN-standard, by colour: 1-0 = Red won, 0-1 = Black won.
+            string result = !game.IsGameOver ? "*" : (game.ColorOf(game.Winner) == PieceColor.Red ? "1-0" : "0-1");
             string origin = game.Mode == GameMode.Normal || game.OriginTitle == null
                 ? null
                 : (game.OriginId != null ? $"{game.OriginId}-{game.OriginTitle}" : game.OriginTitle);
@@ -114,7 +116,8 @@ namespace Chinese_Chess_v3.Game.Core.Saves
             };
             AddClockAndRuleTags(tags, game);
             var moves = game.Moves.Select(m => new PgnMoveEntry(m.Iccs, m.Notation)).ToList();
-            return PgnWriter.Write(tags, moves, game.FirstTurn, result);
+            // Player1 moves first; the movetext numbers by its colour.
+            return PgnWriter.Write(tags, moves, game.ColorOf(Players.PlayerSide.Player1), result);
         }
 
         // The tag names of the time control, the clocks and the rules (see the class summary).
@@ -140,8 +143,10 @@ namespace Chinese_Chess_v3.Game.Core.Saves
         private static void AddClockAndRuleTags(List<KeyValuePair<string, string>> tags, GameManager game)
         {
             var rules = game.Rules;
-            var red = game.Player1.Timer.GetClockState();
-            var black = game.Player2.Timer.GetClockState();
+            // The clock tags are by colour: the Red player's and the Black player's clocks.
+            bool player1Red = game.ColorOf(Players.PlayerSide.Player1) == PieceColor.Red;
+            var red = (player1Red ? game.Player1 : game.Player2).Timer.GetClockState();
+            var black = (player1Red ? game.Player2 : game.Player1).Timer.GetClockState();
             // Count-up clocks only measure time: no limit, increment or time-up to record.
             bool countDown = rules.TimerMode == Players.TimerMode.CountDown;
             tags.Add(new(TimeControlTag, countDown ? $"{Seconds(rules.TotalTimeLimit)}+{Seconds(rules.IncrementPerMove)}" : NoTimeControl));
@@ -219,7 +224,7 @@ namespace Chinese_Chess_v3.Game.Core.Saves
         {
             var content = PgnReader.Read(text, fileName, origin, folderCategory, filePath, numberedFileName: false);
             string fen = content.Optional("FEN") ?? throw new FormatException("missing [FEN] tag");
-            var sideToMove = PgnReader.ParsePosition(fen);
+            var firstColor = PgnReader.ParsePosition(fen);
 
             var boardType = BoardType.Full;
             string boardTypeText = content.Optional("BoardType");
@@ -279,7 +284,7 @@ namespace Chinese_Chess_v3.Game.Core.Saves
             }
 
             string result = content.Optional("Result");
-            return new SavedGame(content, fen, sideToMove)
+            return new SavedGame(content, fen, firstColor)
             {
                 TotalTimeLimit = totalLimit,
                 IncrementPerMove = increment,

@@ -3,9 +3,12 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2025/05/14
-// Update Date: 2026/10/01
-// Version: v1.2
+// Update Date: 2026/10/02
+// Version: v1.3
 /* ----- ----- ----- ----- */
+
+using System;
+using System.Collections.Generic;
 
 using Chinese_Chess_v3.Game.Core.Players;
 
@@ -21,6 +24,46 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         Red,
         Black,
         Yellow,
+    }
+
+    /// <summary>
+    /// Colour helpers of the two-colour games (the Full board, dark chess), where a player's
+    /// colour is a per-game attribute (<c>GameManager.ColorOf</c>): Player1 always moves first
+    /// and plays whichever colour moves first in the start position.
+    /// </summary>
+    public static class PieceColors
+    {
+        /// <summary>The other colour of a two-colour game: Red for Black and Black for Red; None for any other colour.</summary>
+        public static PieceColor Opposite(PieceColor color) => color switch
+        {
+            PieceColor.Red => PieceColor.Black,
+            PieceColor.Black => PieceColor.Red,
+            _ => PieceColor.None,
+        };
+
+        /// <summary>
+        /// Copies of <paramref name="pieces"/> owned by colour, for a Full-board position:
+        /// pieces of <paramref name="firstColor"/> (the colour that moves first) belong to
+        /// <see cref="PlayerSide.Player1"/>, the other colour's to <see cref="PlayerSide.Player2"/>.
+        /// Every other field is kept.
+        /// </summary>
+        /// <exception cref="ArgumentException"><paramref name="firstColor"/> is not Red/Black,
+        /// or a piece is neither Red nor Black.</exception>
+        public static List<PieceInfo> AssignOwners(IEnumerable<PieceInfo> pieces, PieceColor firstColor)
+        {
+            ArgumentNullException.ThrowIfNull(pieces);
+            if (firstColor != PieceColor.Red && firstColor != PieceColor.Black)
+                throw new ArgumentException($"The first colour must be Red or Black, not {firstColor}", nameof(firstColor));
+
+            var owned = new List<PieceInfo>();
+            foreach (var p in pieces)
+            {
+                if (p.Color != PieceColor.Red && p.Color != PieceColor.Black)
+                    throw new ArgumentException($"{p.Type} at ({p.X},{p.Y}) is {p.Color}; the Full board only has Red and Black", nameof(pieces));
+                owned.Add(p.WithSide(p.Color == firstColor ? PlayerSide.Player1 : PlayerSide.Player2));
+            }
+            return owned;
+        }
     }
 
     /// <summary>
@@ -83,6 +126,12 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         public PieceInfo Clone()
         {
             return new PieceInfo(Type, X, Y, Color, Side, IsFaceUp, IsDead, TurnIndex);
+        }
+
+        /// <summary>A copy of the current piece state owned by <paramref name="side"/>.</summary>
+        public PieceInfo WithSide(PlayerSide side)
+        {
+            return new PieceInfo(Type, X, Y, Color, side, IsFaceUp, IsDead, TurnIndex);
         }
     }
 }

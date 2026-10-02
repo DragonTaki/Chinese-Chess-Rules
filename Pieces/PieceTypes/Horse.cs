@@ -54,7 +54,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
             int dx = targetX - X;
             int dy = targetY - Y;
 
-            var directions = MovePatterns.GetDiagonalLShape(Side);
+            var directions = MovePatterns.GetDiagonalLShape(Color);
 
             // Check if match move rule
             bool matched = false;
@@ -90,7 +90,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         {
             List<(int x, int y)> legalMoves = new List<(int x, int y)>();
 
-            var directions = MovePatterns.GetDiagonalLShape(Side);
+            var directions = MovePatterns.GetDiagonalLShape(Color);
 
             foreach (var (dx, dy) in directions)
             {

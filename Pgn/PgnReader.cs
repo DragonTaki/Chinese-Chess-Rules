@@ -3,8 +3,8 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2026/10/01
-// Update Date: 2026/10/01
-// Version: v1.1
+// Update Date: 2026/10/02
+// Version: v1.2
 /* ----- ----- ----- ----- */
 
 using System;
@@ -15,6 +15,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 
 using Chinese_Chess_v3.Game.Core.Boards;
+using Chinese_Chess_v3.Game.Core.Pieces;
 using Chinese_Chess_v3.Game.Core.Players;
 
 namespace Chinese_Chess_v3.Game.Core.Pgn
@@ -121,16 +122,17 @@ namespace Chinese_Chess_v3.Game.Core.Pgn
 
         /// <summary>
         /// Parses <paramref name="fen"/> and checks the position can be played
-        /// (<see cref="XiangqiFen.ValidatePosition"/>); returns the side to move.
+        /// (<see cref="XiangqiFen.ValidatePosition"/>); returns the colour to move (Player1's
+        /// colour: the first mover is always Player1).
         /// </summary>
         /// <exception cref="FormatException">Unparsable FEN or an unplayable position.</exception>
-        public static PlayerSide ParsePosition(string fen)
+        public static PieceColor ParsePosition(string fen)
         {
-            var (pieces, sideToMove) = XiangqiFen.Parse(fen);
-            string positionError = XiangqiFen.ValidatePosition(pieces, sideToMove);
+            var (pieces, firstColor) = XiangqiFen.Parse(fen);
+            string positionError = XiangqiFen.ValidatePosition(pieces);
             if (positionError != null)
                 throw new FormatException($"FEN is not a playable position: {positionError}");
-            return sideToMove;
+            return firstColor;
         }
 
         /// <summary>
@@ -178,7 +180,9 @@ namespace Chinese_Chess_v3.Game.Core.Pgn
         /// <param name="rules">The rules to play by; null for the default <see cref="Rules"/>.</param>
         public static string CheckMoves(string fen, IReadOnlyList<IccsMove> moves, Rules rules = null)
         {
-            var (pieces, side) = XiangqiFen.Parse(fen);
+            // Parse gives the colour to move to Player1, who moves first.
+            var (pieces, _) = XiangqiFen.Parse(fen);
+            var side = PlayerSide.Player1;
             var board = new Board(BoardType.Full, rules);
             board.Initialize(pieces);
 

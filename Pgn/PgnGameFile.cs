@@ -3,12 +3,13 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2026/10/01
-// Update Date: 2026/10/01
-// Version: v1.0
+// Update Date: 2026/10/02
+// Version: v1.1
 /* ----- ----- ----- ----- */
 
 using System.Collections.Generic;
 
+using Chinese_Chess_v3.Game.Core.Pieces;
 using Chinese_Chess_v3.Game.Core.Players;
 
 namespace Chinese_Chess_v3.Game.Core.Pgn
@@ -56,12 +57,15 @@ namespace Chinese_Chess_v3.Game.Core.Pgn
         /// <summary>The start position, including the side to move (the <c>[FEN]</c> tag, or the kind's default).</summary>
         public string Fen { get; init; }
 
-        /// <summary>The side to move in <see cref="Fen"/> (Red = Player1, Black = Player2).</summary>
-        public PlayerSide SideToMove { get; init; }
+        /// <summary>
+        /// The colour to move in <see cref="Fen"/>: <see cref="PlayerSide.Player1"/>'s colour
+        /// (the first mover is always Player1; the other colour is Player2's).
+        /// </summary>
+        public PieceColor FirstColor { get; init; } = PieceColor.Red;
 
         /// <summary>
         /// The main-line moves of the movetext, both sides' moves in order starting with
-        /// <see cref="SideToMove"/>; empty when the file has none.
+        /// Player1 (<see cref="FirstColor"/>); empty when the file has none.
         /// </summary>
         public IReadOnlyList<IccsMove> Moves { get; init; } = new List<IccsMove>();
 
@@ -74,9 +78,17 @@ namespace Chinese_Chess_v3.Game.Core.Pgn
         /// <summary>Every tag pair of the file as written, including ones not mapped to a property.</summary>
         public IReadOnlyDictionary<string, string> Tags { get; init; } = new Dictionary<string, string>();
 
-        /// <summary>The side to move after <see cref="Moves"/> have been played from <see cref="Fen"/>.</summary>
+        /// <summary>The side to move after <see cref="Moves"/> have been played from <see cref="Fen"/> (Player1 moves first).</summary>
         public PlayerSide SideToMoveAfterMoves =>
-            Moves.Count % 2 == 0 ? SideToMove : (SideToMove == PlayerSide.Player1 ? PlayerSide.Player2 : PlayerSide.Player1);
+            Moves.Count % 2 == 0 ? PlayerSide.Player1 : PlayerSide.Player2;
+
+        /// <summary>The colour <paramref name="side"/> plays in this file's game (Player1 <see cref="FirstColor"/>, Player2 the other); None for any other side.</summary>
+        public PieceColor ColorOf(PlayerSide side) => side switch
+        {
+            PlayerSide.Player1 => FirstColor,
+            PlayerSide.Player2 => PieceColors.Opposite(FirstColor),
+            _ => PieceColor.None,
+        };
 
         /// <summary>
         /// The rules the file's <see cref="Moves"/> are checked with when it is loaded
@@ -90,9 +102,9 @@ namespace Chinese_Chess_v3.Game.Core.Pgn
 
         /// <summary>
         /// The common fields from a read file: <paramref name="content"/> (file name, tags,
-        /// moves) and the start position the kind decided on.
+        /// moves) and the start position the kind decided on, with its colour to move.
         /// </summary>
-        protected PgnGameFile(PgnFileContent content, string fen, PlayerSide sideToMove)
+        protected PgnGameFile(PgnFileContent content, string fen, PieceColor firstColor)
         {
             Id = content.Id;
             FileName = content.FileName;
@@ -101,7 +113,7 @@ namespace Chinese_Chess_v3.Game.Core.Pgn
             Category = content.Optional("Category") ?? (content.FolderCategory ?? string.Empty);
             Title = content.Optional("Title") ?? content.NameFromFile;
             Fen = fen;
-            SideToMove = sideToMove;
+            FirstColor = firstColor;
             Moves = content.Moves;
             Description = content.Optional("Description");
             Source = content.Optional("Source");

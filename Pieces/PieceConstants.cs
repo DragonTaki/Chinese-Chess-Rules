@@ -46,7 +46,8 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
             };
         }
 
-        // Piece initial locations
+        // Piece initial locations (the standard start). Red moves first there, so Red is
+        // Player1 and Black Player2 (players are numbered by turn order, never by colour).
         private static readonly (PieceType type, int x, int y, PieceColor color, PlayerSide side)[] ClassicPieceData = new[]
         {
             (PieceType.General,  4, 0, PieceColor.Black, PlayerSide.Player2),

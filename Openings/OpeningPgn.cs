@@ -44,13 +44,13 @@ namespace Chinese_Chess_v3.Game.Core.Openings
             if (fenTag == null && content.Moves.Count == 0)
                 throw new FormatException("no opening line and no [FEN] tag");
             string fen = fenTag ?? XiangqiFen.StartPosition;
-            var sideToMove = PgnReader.ParsePosition(fen);
+            var firstColor = PgnReader.ParsePosition(fen);
 
             string ecco = content.Optional("ECCO");
             if (ecco != null && !EccoPattern.IsMatch(ecco))
                 throw new FormatException($"[ECCO \"{ecco}\"] is not a code A00-E99");
 
-            var line = new OpeningLine(content, fen, sideToMove)
+            var line = new OpeningLine(content, fen, firstColor)
             {
                 Difficulty = PgnReader.ParseDifficulty(content),
                 Ecco = ecco?.ToUpperInvariant(),

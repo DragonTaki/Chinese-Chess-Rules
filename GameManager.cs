@@ -3,8 +3,8 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2025/05/06
-// Update Date: 2026/10/01
-// Version: v1.6
+// Update Date: 2026/10/02
+// Version: v1.7
 /* ----- ----- ----- ----- */
 
 using System;
@@ -162,16 +162,21 @@ namespace Chinese_Chess_v3.Game.Core
         /// </summary>
         public IReadOnlyList<MoveRecord> Moves => _movesView;
 
-        /// <summary>The side that made (or makes) the first move of the current game; with <see cref="Moves"/> it fixes the move numbers.</summary>
-        public PlayerSide FirstTurn { get; private set; } = PlayerSide.Player1;
+        /// <summary>
+        /// The colour <see cref="PlayerSide.Player1"/> plays on a board without dark-chess rules
+        /// (see <see cref="ColorOf"/>): on the Full board the colour that moves first in the start
+        /// position (FEN <c>w</c> Red, <c>b</c> Black); Red on any other such board. Player2 plays
+        /// the other colour. Set by every new game setup.
+        /// </summary>
+        private PieceColor _player1Color = PieceColor.Red;
 
         /// <summary>
         /// 己方: the side the player plays in the current game, shown on the left of the info board
-        /// (and, later, at the bottom of the board). A new local Full-board game: Player1 (紅方);
-        /// an endgame puzzle: the side that solves it (the side to move at the start); an opening:
-        /// its <see cref="OpeningLine.PlayerSide"/> (先手執紅 / 後手執黑); a saved game: its
+        /// (and, later, at the bottom of the board). A new local Full-board game: Player1 (the
+        /// first mover); an endgame puzzle: Player1, the side that solves it (the side to move at
+        /// the start); an opening: its <see cref="OpeningLine.PlayerSide"/>; a saved game: its
         /// <c>[PlayerSide]</c>; a custom position: the side chosen for it
-        /// (<see cref="LoadCustomBoard"/>); a half board: the side that moves first. A restart
+        /// (<see cref="LoadCustomBoard"/>); a half board: Player1, who moves first. A restart
         /// keeps it. Written to saved games.
         /// </summary>
         public PlayerSide LocalSide { get; private set; } = PlayerSide.Player1;
@@ -306,8 +311,8 @@ namespace Chinese_Chess_v3.Game.Core
 
         /// <summary>
         /// The FEN of the position the current game started from (set by every new game setup;
-        /// for an opening the position before its preset line), with <see cref="FirstTurn"/>
-        /// to move: with <see cref="Moves"/> it is the whole game, the <c>[FEN]</c> of a saved
+        /// for an opening the position before its preset line), with Player1's colour
+        /// (<see cref="ColorOf"/>) to move: with <see cref="Moves"/> it is the whole game, the <c>[FEN]</c> of a saved
         /// game. Null off the Full board and after <see cref="ClearBoard"/>.
         /// </summary>
         public string InitialFen { get; private set; } = null;
@@ -353,7 +358,7 @@ namespace Chinese_Chess_v3.Game.Core
             Board = new Board(BoardType.Full, rules.Clone());
             Board.Initialize(BoardConfigLoader.Load());
             CurrentTurn = PlayerSide.Player1;
-            InitialFen = FormatInitialFen(PlayerSide.Player1);
+            InitialFen = FormatInitialFen(PieceColor.Red);
             _selectedPiece = null;
             Player1 = new Player(PlayerSide.Player1, rules.TotalTimeLimit, rules.StepTimeLimit, rules.IncrementPerMove, rules.EnableStepTimer, rules.TimerMode);
             Player2 = new Player(PlayerSide.Player2, rules.TotalTimeLimit, rules.StepTimeLimit, rules.IncrementPerMove, rules.EnableStepTimer, rules.TimerMode);
@@ -383,8 +388,8 @@ namespace Chinese_Chess_v3.Game.Core
 
         public void ResetBoardToDefault()
         {
-            // Load default pieces
-            SetUpPosition(BoardConfigLoader.Load(), PlayerSide.Player1, null);
+            // Load default pieces (the standard start: Red moves first, so Red is Player1)
+            SetUpPosition(BoardConfigLoader.Load(), null);
         }
 
         /// <summary>
@@ -419,7 +424,7 @@ namespace Chinese_Chess_v3.Game.Core
             int shuffleSeed = seed ?? Environment.TickCount;
             var random = new RandomTable(HalfCenterShuffleTableSize, shuffleSeed);
             var pieces = BoardConfigLoader.CreateShuffledHalfCenter(random, rules.IsHiddenChess);
-            SetUpPosition(pieces, PlayerSide.Player1, null, BoardType.HalfCenter, rules);
+            SetUpPosition(pieces, null, BoardType.HalfCenter, rules);
             AppLogger.Log($"(DarkChess) Started a HalfCenter game, hidden: {rules.IsHiddenChess}, seed: {shuffleSeed}", LogLevel.DEBUG);
             Logger?.AddMessage(rules.IsHiddenChess ? "(DarkChess) 新局：暗棋半盤" : "(DarkChess) 新局：明棋半盤");
         }
@@ -431,25 +436,30 @@ namespace Chinese_Chess_v3.Game.Core
         private const int HalfCenterShuffleTableSize = 64;
 
         /// <summary>
-        /// Starts a game from <paramref name="customInitialPieces"/> with
-        /// <paramref name="firstTurn"/> (Player1 or Player2) to move first, on a board of
-        /// <paramref name="boardType"/> (a new <see cref="Board"/> when the type changes).
+        /// Starts a game from <paramref name="customInitialPieces"/> on a board of
+        /// <paramref name="boardType"/> (a new <see cref="Board"/> when the type changes);
+        /// Player1 moves first. On the Full board the pieces' colours decide their owners: the
+        /// <paramref name="firstColor"/> pieces are Player1's, the other colour's Player2's (the
+        /// pieces' own <see cref="PieceInfo.Side"/> is ignored). On any other board the pieces
+        /// are placed with their own sides (dark chess: nobody's until the first flip).
         /// </summary>
         /// <param name="customInitialPieces">The pieces to place; their squares must be on a <paramref name="boardType"/> board.</param>
-        /// <param name="firstTurn">The side to move first.</param>
+        /// <param name="firstColor">Full board: the colour that moves first (Player1's colour; Red
+        /// or Black). Ignored on the other boards.</param>
         /// <param name="boardType">The board to play on; Full by default.</param>
         /// <param name="localSide">The side the player plays (<see cref="LocalSide"/>, chosen when
-        /// the position is set up, independent of <paramref name="firstTurn"/>); null for the
-        /// default: Player1 (紅方) on the Full board, <paramref name="firstTurn"/> on a half board.</param>
-        public void LoadCustomBoard(List<PieceInfo> customInitialPieces, PlayerSide firstTurn = PlayerSide.Player1, BoardType boardType = BoardType.Full,
+        /// the position is set up); null for the default, Player1.</param>
+        /// <exception cref="ArgumentException">Full board: <paramref name="firstColor"/> is not
+        /// Red/Black, or a piece is neither Red nor Black.</exception>
+        public void LoadCustomBoard(List<PieceInfo> customInitialPieces, PieceColor firstColor = PieceColor.Red, BoardType boardType = BoardType.Full,
             PlayerSide? localSide = null)
         {
-            SetUpPosition(customInitialPieces, firstTurn, null, boardType, localSide: localSide);
+            SetUpPosition(customInitialPieces, null, boardType, localSide: localSide, firstColor: firstColor);
         }
 
         /// <summary>
-        /// Starts a game from <paramref name="puzzle"/>'s position (its FEN), with the side to
-        /// move from the FEN - Black (Player2) may move first - and keeps the puzzle as
+        /// Starts a game from <paramref name="puzzle"/>'s position (its FEN); Player1 moves first
+        /// and plays the FEN's colour to move (Black in a black-first puzzle) - and keeps the puzzle as
         /// <see cref="CurrentEndgame"/>. The puzzle's solution is not played.
         /// </summary>
         /// <exception cref="FormatException">The puzzle's FEN is not valid (puzzles from
@@ -460,9 +470,9 @@ namespace Chinese_Chess_v3.Game.Core
         private void SetUpEndgame(EndgamePuzzle puzzle, Rules rules)
         {
             ArgumentNullException.ThrowIfNull(puzzle);
-            var (pieces, sideToMove) = XiangqiFen.Parse(puzzle.Fen);
-            SetUpPosition(pieces, sideToMove, puzzle, BoardType.Full, rules);
-            AppLogger.Log($"(Endgame) Started {puzzle.FileName}: {puzzle.Title}, {sideToMove} to move", LogLevel.DEBUG);
+            var (pieces, firstColor) = XiangqiFen.Parse(puzzle.Fen);
+            SetUpPosition(pieces, puzzle, BoardType.Full, rules, firstColor: firstColor);
+            AppLogger.Log($"(Endgame) Started {puzzle.FileName}: {puzzle.Title}, {firstColor} to move", LogLevel.DEBUG);
             Logger?.AddMessage($"(Endgame) {puzzle.Title} ({puzzle.Goal})");
         }
 
@@ -507,11 +517,11 @@ namespace Chinese_Chess_v3.Game.Core
                     RestartSavedGame(saved, rules);
                     break;
                 default:
-                    var (pieces, sideToMove) = InitialFen == null
-                        ? (BoardConfigLoader.Load(), PlayerSide.Player1)
+                    var (pieces, firstColor) = InitialFen == null
+                        ? (BoardConfigLoader.Load(), PieceColor.Red)
                         : XiangqiFen.Parse(InitialFen);
                     // A custom start keeps the side the player chose for it.
-                    SetUpPosition(pieces, sideToMove, null, BoardType.Full, rules, LocalSide);
+                    SetUpPosition(pieces, null, BoardType.Full, rules, LocalSide, firstColor);
                     break;
             }
             AppLogger.Log($"(Restart) Restarted the {Mode} game", LogLevel.DEBUG);
@@ -546,8 +556,8 @@ namespace Chinese_Chess_v3.Game.Core
         private int SetUpOpening(OpeningLine opening, Rules rules)
         {
             ArgumentNullException.ThrowIfNull(opening);
-            var (pieces, sideToMove) = XiangqiFen.Parse(opening.Fen);
-            SetUpPosition(pieces, sideToMove, opening, BoardType.Full, rules);
+            var (pieces, firstColor) = XiangqiFen.Parse(opening.Fen);
+            SetUpPosition(pieces, opening, BoardType.Full, rules, firstColor: firstColor);
             Logger?.AddMessage(opening.Ecco != null ? $"(Opening) {opening.Title} ({opening.Ecco})" : $"(Opening) {opening.Title}");
 
             int played = 0;
@@ -573,10 +583,10 @@ namespace Chinese_Chess_v3.Game.Core
 
         /// <summary>
         /// Shared new-game setup: places <paramref name="pieces"/> (resetting the board's turn
-        /// counter), clears the selection, gives the move to <paramref name="firstTurn"/>,
-        /// resets both clocks and starts <paramref name="firstTurn"/>'s step, then informs the
-        /// UI (<see cref="BoardReset"/>, <see cref="PieceAdded"/> per piece) and recomputes
-        /// the hanging pieces.
+        /// counter; on the Full board owned by colour, <paramref name="firstColor"/> = Player1),
+        /// clears the selection, gives the move to Player1 (always the first mover), resets both
+        /// clocks and starts Player1's step, then informs the UI (<see cref="BoardReset"/>,
+        /// <see cref="PieceAdded"/> per piece) and recomputes the hanging pieces.
         /// </summary>
         /// <param name="source">The file the game starts from (an endgame puzzle, an opening, a
         /// saved game), or null; sets <see cref="Mode"/>, <see cref="OriginId"/> and
@@ -592,11 +602,18 @@ namespace Chinese_Chess_v3.Game.Core
         /// itself.</param>
         /// <param name="localSide">The game's <see cref="LocalSide"/>; null for what
         /// <paramref name="source"/> decides (see <see cref="LocalSide"/>).</param>
-        private void SetUpPosition(List<PieceInfo> pieces, PlayerSide firstTurn, PgnGameFile source, BoardType boardType = BoardType.Full,
-            Rules rules = null, PlayerSide? localSide = null)
+        /// <param name="firstColor">Full board: the colour that moves first, played by Player1
+        /// (<see cref="ColorOf"/>); the pieces' owners are assigned from it
+        /// (<see cref="PieceColors.AssignOwners"/>). Ignored on the other boards (their pieces
+        /// keep their own sides; Player1's colour there is decided as <see cref="ColorOf"/> says).</param>
+        /// <exception cref="ArgumentException">Full board: <paramref name="firstColor"/> is not
+        /// Red/Black, or a piece is neither Red nor Black.</exception>
+        private void SetUpPosition(List<PieceInfo> pieces, PgnGameFile source, BoardType boardType = BoardType.Full,
+            Rules rules = null, PlayerSide? localSide = null, PieceColor firstColor = PieceColor.Red)
         {
-            if (firstTurn != PlayerSide.Player1 && firstTurn != PlayerSide.Player2)
-                throw new ArgumentException($"The first turn must be Player1 or Player2, not {firstTurn}", nameof(firstTurn));
+            // Players are numbered by turn order: on the Full board the first colour is Player1's.
+            if (boardType == BoardType.Full)
+                pieces = PieceColors.AssignOwners(pieces, firstColor);
 
             // A different board type needs a differently-sized grid: a new board (its rules
             // are set right below).
@@ -626,20 +643,20 @@ namespace Chinese_Chess_v3.Game.Core
                 SavedGame saved => (saved.Mode, saved.OriginId, saved.OriginTitle),
                 _ => (GameMode.Normal, (string)null, (string)null),
             };
-            // Reset side
-            CurrentTurn = firstTurn;
-            FirstTurn = firstTurn;
+            // Reset side: Player1 always moves first.
+            CurrentTurn = PlayerSide.Player1;
+            _player1Color = boardType == BoardType.Full ? firstColor : PieceColor.Red;
             LocalSide = localSide ?? source switch
             {
-                EndgamePuzzle => firstTurn,
                 OpeningLine opening => opening.PlayerSide,
                 SavedGame saved => saved.PlayerSide,
-                _ => boardType == BoardType.Full ? PlayerSide.Player1 : firstTurn,
+                // A new game, an endgame puzzle (solved by the side to move) and a half board.
+                _ => PlayerSide.Player1,
             };
-            InitialFen = FormatInitialFen(firstTurn);
+            InitialFen = FormatInitialFen(_player1Color);
             ResetTimers(startFirstTurn: true);
             // A custom position may start with the side to move already in check.
-            IsInCheck = Board.UsesCheckRules && Board.IsSideInCheck(firstTurn);
+            IsInCheck = Board.UsesCheckRules && Board.IsSideInCheck(PlayerSide.Player1);
 
             // Inform UI
             BoardReset?.Invoke();
@@ -669,14 +686,14 @@ namespace Chinese_Chess_v3.Game.Core
             }
         }
 
-        /// <summary>The FEN of the board's current pieces with <paramref name="sideToMove"/>; null off the Full board or when the pieces cannot be written as FEN.</summary>
-        private string FormatInitialFen(PlayerSide sideToMove)
+        /// <summary>The FEN of the board's current pieces with <paramref name="colorToMove"/>; null off the Full board or when the pieces cannot be written as FEN.</summary>
+        private string FormatInitialFen(PieceColor colorToMove)
         {
             if (Board.Type != BoardType.Full)
                 return null;
             try
             {
-                return XiangqiFen.Format(Board, sideToMove);
+                return XiangqiFen.Format(Board, colorToMove);
             }
             catch (ArgumentException ex)
             {
@@ -753,8 +770,8 @@ namespace Chinese_Chess_v3.Game.Core
         private int SetUpSavedGame(SavedGame saved, Rules rules, string logTag)
         {
             ArgumentNullException.ThrowIfNull(saved);
-            var (pieces, sideToMove) = XiangqiFen.Parse(saved.Fen);
-            SetUpPosition(pieces, sideToMove, saved, BoardType.Full, rules);
+            var (pieces, firstColor) = XiangqiFen.Parse(saved.Fen);
+            SetUpPosition(pieces, saved, BoardType.Full, rules, firstColor: firstColor);
             Logger?.AddMessage($"{logTag} {saved.Title}");
 
             IsReplaying = true;
@@ -796,7 +813,13 @@ namespace Chinese_Chess_v3.Game.Core
                 _clocksBeforeMove[i] = null;
 
             if (saved.RedClock != null || saved.BlackClock != null)
-                RestoreSavedClocks(saved.RedClock ?? default, saved.BlackClock ?? default);
+            {
+                // The clock tags are by colour; Player1 plays the start position's colour to move.
+                var red = saved.RedClock ?? default;
+                var black = saved.BlackClock ?? default;
+                bool player1Red = ColorOf(PlayerSide.Player1) == PieceColor.Red;
+                RestoreSavedClocks(player1Red ? red : black, player1Red ? black : red);
+            }
             else if (!IsGameOver)
                 RestartClocks();
             HasUnsavedChanges = false;
@@ -839,7 +862,7 @@ namespace Chinese_Chess_v3.Game.Core
             ApplyRules(DefaultRules.Clone());
             // Reset side
             CurrentTurn = PlayerSide.Player1;
-            FirstTurn = PlayerSide.Player1;
+            _player1Color = PieceColor.Red;
             LocalSide = PlayerSide.Player1;
             ResetTimers(startFirstTurn: false);
 
@@ -855,7 +878,10 @@ namespace Chinese_Chess_v3.Game.Core
         }
 
         /// <summary>
-        /// The colour <paramref name="side"/> plays. Off the dark-chess board it is fixed:
+        /// The colour <paramref name="side"/> plays (players are numbered by turn order, so this
+        /// is a per-game attribute). Off the dark-chess board it is fixed when the game is set
+        /// up: on the Full board Player1 plays the colour that moves first in the start position
+        /// (FEN <c>w</c> red, <c>b</c> black) and Player2 the other one; on any other such board
         /// Player1 red, Player2 black. On a <see cref="Board.UsesDarkChessRules"/> board nobody
         /// owns a colour until the first action decides it — the first flip
         /// (<see cref="MoveKind.Flip"/>) gives the flipping player the flipped piece's colour;
@@ -871,7 +897,7 @@ namespace Chinese_Chess_v3.Game.Core
             if (side != PlayerSide.Player1 && side != PlayerSide.Player2)
                 return PieceColor.None;
             if (!Board.UsesDarkChessRules)
-                return side == PlayerSide.Player1 ? PieceColor.Red : PieceColor.Black;
+                return side == PlayerSide.Player1 ? _player1Color : OppositeColor(_player1Color);
 
             // Decided once any piece has an owner: every piece got one at the first flip.
             var opponent = OpponentOf(side);
@@ -1178,10 +1204,10 @@ namespace Chinese_Chess_v3.Game.Core
 
         /// <summary>
         /// The move number (第N回合) of the <paramref name="ply"/>-th move: a move and the reply
-        /// share a number. Second-player-first games (endgames) number like PGN: Black's first
-        /// move is 1, Red's reply 2.
+        /// share a number. Black-first games (endgames; Player1 plays Black) number like PGN:
+        /// Black's first move is 1, Red's reply 2.
         /// </summary>
-        private int MoveNumberOf(int ply) => (ply - 1 + (FirstTurn == PlayerSide.Player2 ? 1 : 0)) / 2 + 1;
+        private int MoveNumberOf(int ply) => (ply - 1 + (_player1Color == PieceColor.Black ? 1 : 0)) / 2 + 1;
 
         /// <summary>
         /// Every piece's history length now, so <see cref="ChangesSince"/> can tell which pieces
@@ -1424,10 +1450,10 @@ namespace Chinese_Chess_v3.Game.Core
         /// <summary>
         /// The game-log line of a move: <c>第{MoveNumber}回合 紅：{Notation}</c> or
         /// <c>第{MoveNumber}回合 黑：{Notation}</c> (e.g. <c>第1回合 紅：炮二平五</c>). The side name is
-        /// fixed by player (Player1 紅, Player2 黑) like the notation's piece characters.
+        /// the moved piece's colour, like the notation's piece characters.
         /// </summary>
         public static string FormatMoveLine(MoveRecord move) =>
-            $"第{move.MoveNumber}回合 {(move.Side == PlayerSide.Player1 ? "紅" : "黑")}：{move.Notation}";
+            $"第{move.MoveNumber}回合 {(move.Color == PieceColor.Red ? "紅" : "黑")}：{move.Notation}";
 
         /// <summary>
         /// The game-log line of a dark-chess action, which has no notation (e.g.

@@ -10,6 +10,7 @@
 using System.Collections.Generic;
 
 using Chinese_Chess_v3.Game.Core.Pgn;
+using Chinese_Chess_v3.Game.Core.Pieces;
 using Chinese_Chess_v3.Game.Core.Players;
 
 namespace Chinese_Chess_v3.Game.Core.Endgames
@@ -33,7 +34,7 @@ namespace Chinese_Chess_v3.Game.Core.Endgames
 
         /// <summary>
         /// The main-line solution: the same list as <see cref="PgnGameFile.Moves"/> (both
-        /// sides' moves in order starting with <see cref="PgnGameFile.SideToMove"/>; empty
+        /// sides' moves in order starting with Player1, see <see cref="PgnGameFile.FirstColor"/>; empty
         /// when the file has none). Loaded and checked for legality, not shown by the UI
         /// (see docs/PLAN.md).
         /// </summary>
@@ -46,7 +47,7 @@ namespace Chinese_Chess_v3.Game.Core.Endgames
         public EndgamePuzzle() { }
 
         /// <summary>The shared fields from <paramref name="content"/>; the puzzle's own tags are set by the caller.</summary>
-        internal EndgamePuzzle(PgnFileContent content, string fen, PlayerSide sideToMove)
-            : base(content, fen, sideToMove) { }
+        internal EndgamePuzzle(PgnFileContent content, string fen, PieceColor firstColor)
+            : base(content, fen, firstColor) { }
     }
 }

@@ -3,7 +3,7 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2025/05/06
-// Update Date: 2025/10/30
+// Update Date: 2026/10/02
 // Version: v2.0
 /* ----- ----- ----- ----- */
 
@@ -12,7 +12,6 @@ using System.Collections.Generic;
 
 using Chinese_Chess_v3.Game.Core.Boards;
 using Chinese_Chess_v3.Game.Core.Movements;
-using Chinese_Chess_v3.Game.Core.Players;
 
 namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
 {
@@ -51,21 +50,21 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
             if (!board.IsInBoard(targetX, targetY))
                 return false;
 
-            switch (Side)
+            // The own half is keyed by colour, not player (Player1 can play Black).
+            switch (Color)
             {
-                case PlayerSide.Player2:
+                case PieceColor.Black:
                     return targetY <= BoardConstants.Full.RiverLineYBlackSide;
 
-                case PlayerSide.Player1:
+                case PieceColor.Red:
                     return targetY >= BoardConstants.Full.RiverLineYRedSide;
 
-                // Only the Full board's two sides have a river side; the other sides never
+                // Only the Full board's two colours have a river side; the other colours never
                 // play on the Full board.
-                case PlayerSide.Player3:
-                case PlayerSide.None:
-                case PlayerSide.Neutral:
+                case PieceColor.Yellow:
+                case PieceColor.None:
                 default:
-                    throw new InvalidOperationException($"{Side} has no side of the river on the Full board");
+                    throw new InvalidOperationException($"{Color} has no side of the river on the Full board");
             }
         }
 
@@ -95,7 +94,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
             int dx = targetX - X;
             int dy = targetY - Y;
 
-            var directions = MovePatterns.GetDiagonalTwoStep(Side);
+            var directions = MovePatterns.GetDiagonalTwoStep(Color);
 
             // Check if match move rule
             bool matched = false;
@@ -133,7 +132,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         {
             List<(int x, int y)> legalMoves = new List<(int x, int y)>();
 
-            var directions = MovePatterns.GetDiagonalTwoStep(Side);
+            var directions = MovePatterns.GetDiagonalTwoStep(Color);
 
             foreach (var (dx, dy) in directions)
             {

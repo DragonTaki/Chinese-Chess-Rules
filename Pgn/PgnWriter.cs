@@ -3,14 +3,14 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2026/10/01
-// Update Date: 2026/10/01
-// Version: v1.0
+// Update Date: 2026/10/02
+// Version: v1.1
 /* ----- ----- ----- ----- */
 
 using System.Collections.Generic;
 using System.Text;
 
-using Chinese_Chess_v3.Game.Core.Players;
+using Chinese_Chess_v3.Game.Core.Pieces;
 
 namespace Chinese_Chess_v3.Game.Core.Pgn
 {
@@ -27,10 +27,11 @@ namespace Chinese_Chess_v3.Game.Core.Pgn
     {
         /// <summary>
         /// The PGN text of <paramref name="tags"/> (in order; a null value is skipped) and
-        /// <paramref name="moves"/>, the first one made by <paramref name="firstSide"/>,
-        /// ending with <paramref name="result"/> (<c>1-0</c>, <c>0-1</c>, <c>1/2-1/2</c> or <c>*</c>).
+        /// <paramref name="moves"/>, the first one made by the <paramref name="firstColor"/>
+        /// player (Player1), ending with <paramref name="result"/> (<c>1-0</c>, <c>0-1</c>,
+        /// <c>1/2-1/2</c> or <c>*</c>).
         /// </summary>
-        public static string Write(IEnumerable<KeyValuePair<string, string>> tags, IReadOnlyList<PgnMoveEntry> moves, PlayerSide firstSide, string result)
+        public static string Write(IEnumerable<KeyValuePair<string, string>> tags, IReadOnlyList<PgnMoveEntry> moves, PieceColor firstColor, string result)
         {
             var sb = new StringBuilder();
             foreach (var (name, value) in tags)
@@ -41,7 +42,7 @@ namespace Chinese_Chess_v3.Game.Core.Pgn
             sb.Append('\n');
 
             // Like the move numbers of MoveRecord: a Black-first game numbers Black's first move 1.
-            int offset = firstSide == PlayerSide.Player2 ? 1 : 0;
+            int offset = firstColor == PieceColor.Black ? 1 : 0;
             for (int i = 0; i < moves.Count; i++)
             {
                 int slot = i + offset;  // even = Red's move, odd = Black's

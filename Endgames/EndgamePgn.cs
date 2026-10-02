@@ -45,7 +45,7 @@ namespace Chinese_Chess_v3.Game.Core.Endgames
             var content = PgnReader.Read(text, fileName, origin, folderCategory, filePath);
 
             string fen = content.Optional("FEN") ?? throw new FormatException("missing [FEN] tag");
-            var sideToMove = PgnReader.ParsePosition(fen);
+            var firstColor = PgnReader.ParsePosition(fen);
 
             int difficulty = PgnReader.ParseDifficulty(content) ?? throw new FormatException("missing [Difficulty] tag");
 
@@ -58,7 +58,7 @@ namespace Chinese_Chess_v3.Game.Core.Endgames
                 moveLimit = limit;
             }
 
-            return new EndgamePuzzle(content, fen, sideToMove)
+            return new EndgamePuzzle(content, fen, firstColor)
             {
                 Difficulty = difficulty,
                 Goal = content.Optional("Goal") ?? string.Empty,

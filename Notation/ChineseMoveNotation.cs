@@ -3,8 +3,8 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2026/09/30
-// Update Date: 2026/09/30
-// Version: v1.0
+// Update Date: 2026/10/02
+// Version: v1.1
 /* ----- ----- ----- ----- */
 
 using System.Collections.Generic;
@@ -12,7 +12,6 @@ using System.Linq;
 
 using Chinese_Chess_v3.Game.Core.Boards;
 using Chinese_Chess_v3.Game.Core.Pieces;
-using Chinese_Chess_v3.Game.Core.Players;
 
 namespace Chinese_Chess_v3.Game.Core.Notation
 {
@@ -26,13 +25,14 @@ namespace Chinese_Chess_v3.Game.Core.Notation
     /// target file for every 平 and for any move of 傌/馬, 相/象, 仕/士.
     /// </para>
     /// <para>
-    /// Files are counted from each side's own right-hand side: Red (Player1, back rank y = 9)
-    /// file = 9 - x, written 一..九; Black (Player2, back rank y = 0) file = x + 1, written with
+    /// Files are counted from each colour's own right-hand side (by colour, never by player
+    /// number - Player1 plays Black in a black-first game): Red (back rank y = 9)
+    /// file = 9 - x, written 一..九; Black (back rank y = 0) file = x + 1, written with
     /// full-width digits １..９ (the spec's rule: every number in a Black move is an Arabic
     /// digit, shown full-width on a computer, except the 一..五 soldier labels below).
     /// </para>
     /// <para>
-    /// Piece characters are fixed standard characters by side (Red 帥仕相俥傌炮兵, Black
+    /// Piece characters are fixed standard characters by colour (Red 帥仕相俥傌炮兵, Black
     /// 將士象車馬砲卒), independent of how the pieces are drawn (piece skins).
     /// </para>
     /// <para>
@@ -60,7 +60,7 @@ namespace Chinese_Chess_v3.Game.Core.Notation
         /// <summary>
         /// Notation of moving the piece at (fromX, fromY) to (toX, toY), read on the board
         /// <b>before</b> the move (the prefix depends on the other pieces on the file).
-        /// Null if the board is not the Full board or there is no Player1/Player2 piece there.
+        /// Null if the board is not the Full board or there is no Red/Black piece there.
         /// </summary>
         public static string Format(Board board, int fromX, int fromY, int toX, int toY)
         {
@@ -75,7 +75,7 @@ namespace Chinese_Chess_v3.Game.Core.Notation
         /// <summary>
         /// As <see cref="Format(Board, int, int, int, int)"/> on a position snapshot (e.g. a
         /// replayed position); dead pieces are ignored. Coordinates are Full-board coordinates.
-        /// Null if no live Player1/Player2 piece of a notated type stands on (fromX, fromY), or
+        /// Null if no live Red/Black piece of a notated type stands on (fromX, fromY), or
         /// the move does not move.
         /// </summary>
         public static string Format(IEnumerable<PieceInfo> position, int fromX, int fromY, int toX, int toY)
@@ -84,30 +84,30 @@ namespace Chinese_Chess_v3.Game.Core.Notation
             var mover = live.FirstOrDefault(p => p.X == fromX && p.Y == fromY);
             if (mover == null || (fromX == toX && fromY == toY))
                 return null;
-            var side = mover.Side;
-            if (side != PlayerSide.Player1 && side != PlayerSide.Player2)
+            var color = mover.Color;
+            if (color != PieceColor.Red && color != PieceColor.Black)
                 return null;
-            char pieceChar = PieceChar(mover.Type, side);
+            char pieceChar = PieceChar(mover.Type, color);
             if (pieceChar == '\0')
                 return null;
 
             string name = PieceName(live, mover, pieceChar);
 
-            int forwardSteps = side == PlayerSide.Player1 ? fromY - toY : toY - fromY;
+            int forwardSteps = color == PieceColor.Red ? fromY - toY : toY - fromY;
             if (forwardSteps == 0)
-                return name + Sideways + FileChar(side, toX);
+                return name + Sideways + FileChar(color, toX);
 
             char action = forwardSteps > 0 ? Forward : Backward;
             char target = IsStraightMover(mover.Type)
-                ? Number(side, System.Math.Abs(forwardSteps))
-                : FileChar(side, toX);
+                ? Number(color, System.Math.Abs(forwardSteps))
+                : FileChar(color, toX);
             return name + action + target;
         }
 
-        /// <summary>The standard character of <paramref name="type"/> for <paramref name="side"/>; '\0' if none.</summary>
-        public static char PieceChar(PieceType type, PlayerSide side)
+        /// <summary>The standard character of <paramref name="type"/> for <paramref name="color"/> (Red, otherwise Black's); '\0' if none.</summary>
+        public static char PieceChar(PieceType type, PieceColor color)
         {
-            bool red = side == PlayerSide.Player1;
+            bool red = color == PieceColor.Red;
             return type switch
             {
                 PieceType.General => red ? '帥' : '將',
@@ -121,15 +121,15 @@ namespace Chinese_Chess_v3.Game.Core.Notation
             };
         }
 
-        /// <summary>The side's own file number (1 = its right-most file) of board column <paramref name="x"/>.</summary>
-        public static int OwnFile(PlayerSide side, int x) =>
-            side == PlayerSide.Player1 ? BoardConstants.Full.Columns - x : x + 1;
+        /// <summary>The colour's own file number (1 = its right-most file) of board column <paramref name="x"/>.</summary>
+        public static int OwnFile(PieceColor color, int x) =>
+            color == PieceColor.Red ? BoardConstants.Full.Columns - x : x + 1;
 
         /// <summary>Red: 一..九; Black: full-width １..９.</summary>
-        private static char Number(PlayerSide side, int n) =>
-            (side == PlayerSide.Player1 ? RedNumerals : BlackNumerals)[n - 1];
+        private static char Number(PieceColor color, int n) =>
+            (color == PieceColor.Red ? RedNumerals : BlackNumerals)[n - 1];
 
-        private static char FileChar(PlayerSide side, int x) => Number(side, OwnFile(side, x));
+        private static char FileChar(PieceColor color, int x) => Number(color, OwnFile(color, x));
 
         /// <summary>進/退 counts steps for these; the others (馬 相 仕) name the target file.</summary>
         private static bool IsStraightMover(PieceType type) =>
@@ -138,16 +138,16 @@ namespace Chinese_Chess_v3.Game.Core.Notation
 
         /// <summary>Distance of a piece from its own back rank (larger = further forward).</summary>
         private static int Advance(PieceInfo p) =>
-            p.Side == PlayerSide.Player1 ? BoardConstants.Full.Rows - 1 - p.Y : p.Y;
+            p.Color == PieceColor.Red ? BoardConstants.Full.Rows - 1 - p.Y : p.Y;
 
         /// <summary>The first two characters: piece + file, or a label + piece (see the class summary).</summary>
         private static string PieceName(List<PieceInfo> live, PieceInfo mover, char pieceChar)
         {
-            string plain = pieceChar.ToString() + FileChar(mover.Side, mover.X);
+            string plain = pieceChar.ToString() + FileChar(mover.Color, mover.X);
             if (mover.Type == PieceType.Advisor || mover.Type == PieceType.Elephant || mover.Type == PieceType.General)
                 return plain;
 
-            var same = live.Where(p => p.Type == mover.Type && p.Side == mover.Side).ToList();
+            var same = live.Where(p => p.Type == mover.Type && p.Color == mover.Color).ToList();
             var multiFiles = same.GroupBy(p => p.X).Where(g => g.Count() >= 2).Select(g => g.Key).ToList();
             if (!multiFiles.Contains(mover.X))
                 return plain;
@@ -156,7 +156,7 @@ namespace Chinese_Chess_v3.Game.Core.Notation
             {
                 // Label every piece on the crowded files together.
                 var ordered = same.Where(p => multiFiles.Contains(p.X))
-                    .OrderBy(p => OwnFile(p.Side, p.X))
+                    .OrderBy(p => OwnFile(p.Color, p.X))
                     .ThenByDescending(Advance)
                     .ToList();
                 return Label(ordered.IndexOf(mover), ordered.Count, forceNumbers: true) + pieceChar;

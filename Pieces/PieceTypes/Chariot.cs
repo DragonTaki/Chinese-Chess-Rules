@@ -94,7 +94,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         {
             List<(int x, int y)> legalMoves = new List<(int x, int y)>();
 
-            var directions = MovePatterns.GetOrthogonalOneStep(Side);
+            var directions = MovePatterns.GetOrthogonalOneStep(Color);
 
             foreach (var (dx, dy) in directions)
             {
@@ -190,7 +190,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
 
             List<(int x, int y)> legalMoves = new List<(int x, int y)>();
 
-            foreach (var (dx, dy) in MovePatterns.GetOrthogonalOneStep(Side))
+            foreach (var (dx, dy) in MovePatterns.GetOrthogonalOneStep(Color))
             {
                 int newX = X + dx;
                 int newY = Y + dy;
@@ -263,7 +263,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
 
             List<(int x, int y)> legalMoves = new List<(int x, int y)>();
 
-            foreach (var (dx, dy) in MovePatterns.GetOrthogonalOneStep(Side))
+            foreach (var (dx, dy) in MovePatterns.GetOrthogonalOneStep(Color))
             {
                 int newX = X + dx;
                 int newY = Y + dy;

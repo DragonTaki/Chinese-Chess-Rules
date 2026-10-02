@@ -50,7 +50,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
             if (!board.GameRules.CanAdvisorLeavePalace)
             {
                 // Only can stay in palace (九宮格)
-                if (!board.IsInPalace(Side, targetX, targetY))
+                if (!board.IsInPalace(Color, targetX, targetY))
                     return false;
             }
             else
@@ -83,7 +83,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
             int dx = targetX - X;
             int dy = targetY - Y;
 
-            var directions = MovePatterns.GetDiagonalOneStep(Side);
+            var directions = MovePatterns.GetDiagonalOneStep(Color);
 
             // Check if match move rule
             bool matched = false;
@@ -117,7 +117,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         {
             List<(int x, int y)> legalMoves = new List<(int x, int y)>();
 
-            var directions = MovePatterns.GetDiagonalOneStep(Side);
+            var directions = MovePatterns.GetDiagonalOneStep(Color);
 
             foreach (var (dx, dy) in directions)
             {

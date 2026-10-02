@@ -3,8 +3,8 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2026/09/30
-// Update Date: 2026/10/01
-// Version: v1.0
+// Update Date: 2026/10/02
+// Version: v1.1
 /* ----- ----- ----- ----- */
 
 using System;
@@ -24,11 +24,17 @@ namespace Chinese_Chess_v3.Game.Core.Pgn
     /// <para>
     /// Ranks are listed from Black's back rank to Red's back rank, each from Red's left
     /// (file a) to Red's right (file i); digits are runs of empty points. Upper case is Red
-    /// (<see cref="PlayerSide.Player1"/>, <see cref="PieceColor.Red"/>), lower case Black
-    /// (<see cref="PlayerSide.Player2"/>, <see cref="PieceColor.Black"/>). Letters:
-    /// K general, A advisor, B elephant (E accepted), N horse (H accepted), R chariot,
-    /// C cannon, P soldier. The next field is the side to move: <c>w</c> or <c>r</c> = Red,
-    /// <c>b</c> = Black (missing = Red); later fields (castling, move counters) are ignored.
+    /// (<see cref="PieceColor.Red"/>), lower case Black (<see cref="PieceColor.Black"/>).
+    /// Letters: K general, A advisor, B elephant (E accepted), N horse (H accepted),
+    /// R chariot, C cannon, P soldier. The next field is the colour to move: <c>w</c> or
+    /// <c>r</c> = Red, <c>b</c> = Black (missing = Red); later fields (castling, move
+    /// counters) are ignored.
+    /// </para>
+    /// <para>
+    /// Players are numbered by turn order (CLAUDE.md): the colour to move is
+    /// <see cref="PlayerSide.Player1"/>'s, the other one <see cref="PlayerSide.Player2"/>'s, so
+    /// a parsed position always has Player1 to move and its pieces are owned accordingly
+    /// (<see cref="PieceColors.AssignOwners"/>). Writing uses only the pieces' colours.
     /// </para>
     /// <para>
     /// The i-th rank maps to board row <c>y = i</c> and the j-th point to column <c>x = j</c>,
@@ -46,12 +52,14 @@ namespace Chinese_Chess_v3.Game.Core.Pgn
         private const int Rows = 10;
 
         /// <summary>
-        /// Parses a FEN into face-up pieces and the side to move. Syntax only (piece letters,
+        /// Parses a FEN into face-up pieces and the colour to move (<c>FirstColor</c>). The
+        /// pieces of <c>FirstColor</c> are owned by <see cref="PlayerSide.Player1"/> (who moves
+        /// first), the others by <see cref="PlayerSide.Player2"/>. Syntax only (piece letters,
         /// 10 ranks of 9 points); whether the position is playable is checked by
         /// <see cref="ValidatePosition"/>.
         /// </summary>
         /// <exception cref="FormatException">The text is not a valid xiangqi FEN.</exception>
-        public static (List<PieceInfo> Pieces, PlayerSide SideToMove) Parse(string fen)
+        public static (List<PieceInfo> Pieces, PieceColor FirstColor) Parse(string fen)
         {
             if (string.IsNullOrWhiteSpace(fen))
                 throw new FormatException("FEN is empty");
@@ -60,6 +68,17 @@ namespace Chinese_Chess_v3.Game.Core.Pgn
             var ranks = fields[0].Split('/');
             if (ranks.Length != Rows)
                 throw new FormatException($"FEN has {ranks.Length} ranks, expected {Rows}");
+
+            var firstColor = PieceColor.Red;
+            if (fields.Length > 1)
+            {
+                firstColor = fields[1].ToLowerInvariant() switch
+                {
+                    "w" or "r" => PieceColor.Red,
+                    "b" => PieceColor.Black,
+                    _ => throw new FormatException($"FEN side to move '{fields[1]}' is not w/r/b"),
+                };
+            }
 
             var pieces = new List<PieceInfo>();
             for (int y = 0; y < Rows; y++)
@@ -77,8 +96,8 @@ namespace Chinese_Chess_v3.Game.Core.Pgn
                     if (x >= Columns)
                         throw new FormatException($"FEN rank {y + 1} is longer than {Columns} points");
 
-                    var side = char.IsUpper(c) ? PlayerSide.Player1 : PlayerSide.Player2;
-                    var color = side == PlayerSide.Player1 ? PieceColor.Red : PieceColor.Black;
+                    var color = char.IsUpper(c) ? PieceColor.Red : PieceColor.Black;
+                    var side = color == firstColor ? PlayerSide.Player1 : PlayerSide.Player2;
                     pieces.Add(new PieceInfo(type, x, y, color, side, isFaceUp: true, isDead: false, turnIndex: 0));
                     x++;
                 }
@@ -86,43 +105,34 @@ namespace Chinese_Chess_v3.Game.Core.Pgn
                     throw new FormatException($"FEN rank {y + 1} has {x} points, expected {Columns}");
             }
 
-            var sideToMove = PlayerSide.Player1;
-            if (fields.Length > 1)
-            {
-                sideToMove = fields[1].ToLowerInvariant() switch
-                {
-                    "w" or "r" => PlayerSide.Player1,
-                    "b" => PlayerSide.Player2,
-                    _ => throw new FormatException($"FEN side to move '{fields[1]}' is not w/r/b"),
-                };
-            }
-
-            return (pieces, sideToMove);
+            return (pieces, firstColor);
         }
 
         /// <summary>
-        /// The FEN of <paramref name="pieces"/> (living Red/Black pieces on the 9x10 board)
-        /// with <paramref name="sideToMove"/> (<c>w</c> for Red, <c>b</c> for Black).
+        /// The FEN of <paramref name="pieces"/> (living Red/Black pieces on the 9x10 board, by
+        /// their <see cref="PieceInfo.Color"/>; owners are not written) with
+        /// <paramref name="colorToMove"/> (<c>w</c> for Red, <c>b</c> for Black).
         /// </summary>
-        /// <exception cref="ArgumentException">A piece is off the board, not Red/Black, of an
-        /// unsupported type, or two pieces share a point.</exception>
-        public static string Format(IEnumerable<PieceInfo> pieces, PlayerSide sideToMove)
+        /// <exception cref="ArgumentException"><paramref name="colorToMove"/> is not Red/Black,
+        /// or a piece is off the board, not Red/Black, of an unsupported type, or two pieces
+        /// share a point.</exception>
+        public static string Format(IEnumerable<PieceInfo> pieces, PieceColor colorToMove)
         {
-            if (sideToMove != PlayerSide.Player1 && sideToMove != PlayerSide.Player2)
-                throw new ArgumentException($"Side to move must be Player1 or Player2, not {sideToMove}", nameof(sideToMove));
+            if (colorToMove != PieceColor.Red && colorToMove != PieceColor.Black)
+                throw new ArgumentException($"The colour to move must be Red or Black, not {colorToMove}", nameof(colorToMove));
 
             var grid = new char[Columns, Rows];
             foreach (var p in pieces.Where(p => p != null && !p.IsDead))
             {
                 if (p.X < 0 || p.X >= Columns || p.Y < 0 || p.Y >= Rows)
                     throw new ArgumentException($"{p.Type} at ({p.X},{p.Y}) is off the 9x10 board", nameof(pieces));
-                if (p.Side != PlayerSide.Player1 && p.Side != PlayerSide.Player2)
-                    throw new ArgumentException($"{p.Type} at ({p.X},{p.Y}) belongs to {p.Side}; FEN only has Red and Black", nameof(pieces));
+                if (p.Color != PieceColor.Red && p.Color != PieceColor.Black)
+                    throw new ArgumentException($"{p.Type} at ({p.X},{p.Y}) is {p.Color}; FEN only has Red and Black", nameof(pieces));
                 if (grid[p.X, p.Y] != '\0')
                     throw new ArgumentException($"Two pieces on ({p.X},{p.Y})", nameof(pieces));
 
                 char letter = GetLetter(p.Type);
-                grid[p.X, p.Y] = p.Side == PlayerSide.Player1 ? letter : char.ToLowerInvariant(letter);
+                grid[p.X, p.Y] = p.Color == PieceColor.Red ? letter : char.ToLowerInvariant(letter);
             }
 
             var sb = new StringBuilder();
@@ -147,22 +157,23 @@ namespace Chinese_Chess_v3.Game.Core.Pgn
                 if (empty > 0)
                     sb.Append((char)('0' + empty));
             }
-            sb.Append(sideToMove == PlayerSide.Player1 ? " w" : " b");
+            sb.Append(colorToMove == PieceColor.Red ? " w" : " b");
             return sb.ToString();
         }
 
-        /// <summary>The FEN of a board's current pieces with <paramref name="sideToMove"/>.</summary>
-        public static string Format(Board board, PlayerSide sideToMove) =>
-            Format(board.GetAllPieces().Select(p => p.CurrentInfo), sideToMove);
+        /// <summary>The FEN of a board's current pieces with <paramref name="colorToMove"/> (e.g. <c>GameManager.ColorOf(CurrentTurn)</c>).</summary>
+        public static string Format(Board board, PieceColor colorToMove) =>
+            Format(board.GetAllPieces().Select(p => p.CurrentInfo), colorToMove);
 
         /// <summary>
-        /// Whether <paramref name="pieces"/> is a playable Full-board position with
-        /// <paramref name="sideToMove"/> to move: exactly one General per side, each inside
-        /// its own palace; the Generals not facing each other; the side that just moved not
-        /// in check. Returns null when playable, otherwise the reason (English, for the log).
-        /// Piece placement beyond that (e.g. an elephant off its points) is not checked.
+        /// Whether <paramref name="pieces"/> (as <see cref="Parse"/> returns them: owned by
+        /// Player1 / Player2) is a playable Full-board position with Player1 to move: exactly
+        /// one General per side, each inside its own colour's palace; the Generals not facing
+        /// each other; Player2 (who just moved) not in check. Returns null when playable,
+        /// otherwise the reason (English, for the log). Piece placement beyond that (e.g. an
+        /// elephant off its points) is not checked.
         /// </summary>
-        public static string ValidatePosition(List<PieceInfo> pieces, PlayerSide sideToMove)
+        public static string ValidatePosition(List<PieceInfo> pieces)
         {
             var board = new Board(BoardType.Full);
             board.Initialize(pieces);
@@ -173,16 +184,15 @@ namespace Chinese_Chess_v3.Game.Core.Pgn
                 if (count != 1)
                     return $"{side} has {count} Generals, expected 1";
                 var general = board.GetGeneral(side);
-                if (!board.IsInPalace(side, general.X, general.Y))
+                if (!board.IsInPalace(general.Color, general.X, general.Y))
                     return $"{side}'s General at ({general.X},{general.Y}) is outside its palace";
             }
 
             if (board.AreGeneralsFacing())
                 return "the Generals face each other";
 
-            var opponent = sideToMove == PlayerSide.Player1 ? PlayerSide.Player2 : PlayerSide.Player1;
-            if (board.IsSideInCheck(opponent))
-                return $"{opponent} is in check but it is {sideToMove}'s move";
+            if (board.IsSideInCheck(PlayerSide.Player2))
+                return $"{PlayerSide.Player2} (who just moved) is in check but it is {PlayerSide.Player1}'s move";
 
             return null;
         }

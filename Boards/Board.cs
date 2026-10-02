@@ -3,8 +3,8 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2025/05/06
-// Update Date: 2026/10/01
-// Version: v2.3
+// Update Date: 2026/10/02
+// Version: v2.4
 /* ----- ----- ----- ----- */
 
 using System;
@@ -437,25 +437,27 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         }
 
         /// <summary>
-        /// Determines whether a coordinate lies within the palace area for a given side.
+        /// Determines whether a coordinate lies within the palace area of a given colour (red's
+        /// palace at the bottom, y 7-9; black's at the top, y 0-2). Keyed by colour, not player:
+        /// Player1 plays Black in a black-first game.
         /// </summary>
         /// <param name="x">The X-coordinate of the target position.</param>
         /// <param name="y">The Y-coordinate of the target position.</param>
-        /// <param name="side">The player side to check (Player1 or Player2).</param>
+        /// <param name="color">The piece colour to check (Red or Black).</param>
         /// <returns>
-        /// <c>true</c> if the position is inside the palace for the given side,
-        /// or if the side is not recognized (treated as unrestricted); otherwise, <c>false</c>.
+        /// <c>true</c> if the position is inside the palace of the given colour,
+        /// or if the colour is not Red/Black (treated as unrestricted); otherwise, <c>false</c>.
         /// </returns>
-        public bool IsInPalace(PlayerSide side, int x, int y)
+        public bool IsInPalace(PieceColor color, int x, int y)
         {
-            if (side == PlayerSide.Player1)
+            if (color == PieceColor.Red)
             {
                 return x >= BoardConstants.Full.PalaceXRange.MinX &&
                        x <= BoardConstants.Full.PalaceXRange.MaxX &&
                        y >= BoardConstants.Full.RedPalaceYRange.MinY &&
                        y <= BoardConstants.Full.RedPalaceYRange.MaxY;
             }
-            else if (side == PlayerSide.Player2)
+            else if (color == PieceColor.Black)
             {
                 return x >= BoardConstants.Full.PalaceXRange.MinX &&
                        x <= BoardConstants.Full.PalaceXRange.MaxX &&
@@ -464,19 +466,21 @@ namespace Chinese_Chess_v3.Game.Core.Boards
             }
             else
             {
-                // For non-standard or neutral sides, assume no restriction
+                // For the other colours, assume no restriction
                 return true;
             }
         }
 
         /// <summary>
-        /// Determines whether the given coordinate has crossed the river (from player's perspective).
+        /// Determines whether the given row is across the river from the perspective of
+        /// <paramref name="color"/> (red's own half is the bottom, y 5-9; black's the top,
+        /// y 0-4); true for any other colour. Keyed by colour, not player.
         /// </summary>
-        public bool IsPassRiver(PlayerSide side, int y)
+        public bool IsPassRiver(PieceColor color, int y)
         {
-            if (side == PlayerSide.Player1)
+            if (color == PieceColor.Red)
                 return y < BoardConstants.Full.RiverLineYRedSide;
-            else if (side == PlayerSide.Player2)
+            else if (color == PieceColor.Black)
                 return y > BoardConstants.Full.RiverLineYBlackSide;
             else
                 return true;
@@ -511,31 +515,31 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         /// </remarks>
         public bool IsGeneralFaceToFaceAfterMove(int fromX, int fromY, int toX, int toY)
         {
-            var redGenerals = QueryPieces(type: PieceType.General, side: PlayerSide.Player1);
-            var blackGenerals = QueryPieces(type: PieceType.General,  side: PlayerSide.Player2);
+            var firstGenerals = QueryPieces(type: PieceType.General, side: PlayerSide.Player1);
+            var secondGenerals = QueryPieces(type: PieceType.General,  side: PlayerSide.Player2);
 
-            if (redGenerals.Count != 1 || blackGenerals.Count != 1)
+            if (firstGenerals.Count != 1 || secondGenerals.Count != 1)
                 return false;
 
-            (int x, int y) red = (redGenerals[0].X, redGenerals[0].Y);
-            (int x, int y) black = (blackGenerals[0].X, blackGenerals[0].Y);
+            (int x, int y) first = (firstGenerals[0].X, firstGenerals[0].Y);
+            (int x, int y) second = (secondGenerals[0].X, secondGenerals[0].Y);
 
             // Capturing a General leaves no pair to face.
-            if ((toX, toY) == red || (toX, toY) == black)
+            if ((toX, toY) == first || (toX, toY) == second)
                 return false;
 
             // A moving General is at its destination afterwards.
-            if ((fromX, fromY) == red)
-                red = (toX, toY);
-            else if ((fromX, fromY) == black)
-                black = (toX, toY);
+            if ((fromX, fromY) == first)
+                first = (toX, toY);
+            else if ((fromX, fromY) == second)
+                second = (toX, toY);
 
-            if (red.x != black.x)
+            if (first.x != second.x)
                 return false;
 
-            int x = red.x;
-            int yMin = Math.Min(red.y, black.y) + 1;
-            int yMax = Math.Max(red.y, black.y);
+            int x = first.x;
+            int yMin = Math.Min(first.y, second.y) + 1;
+            int yMax = Math.Max(first.y, second.y);
 
             for (int y = yMin; y < yMax; y++)
             {
@@ -551,7 +555,8 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         /// <summary>
         /// Checks whether a General of <paramref name="side"/> standing on (targetX, targetY) would
         /// be legal regarding the face-to-face rule (王見王). The check scans vertically from that
-        /// square in the direction of the opponent's side and stops at the first piece found.
+        /// square in both directions (so it does not depend on which colour - top or bottom -
+        /// <paramref name="side"/> plays) and stops at the first piece found each way.
         /// <paramref name="side"/>'s own General is not a blocker: it is the piece that moves (its
         /// square is empty afterwards), e.g. when it steps back along an open file.
         /// </summary>
@@ -562,28 +567,27 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         /// <exception cref="ArgumentException"><paramref name="side"/> is not Player1 or Player2.</exception>
         public bool IsGeneralTargetLegal(PlayerSide side, int targetX, int targetY)
         {
-            // Determine scanning direction based on side
-            int step = side switch
-            {
-                PlayerSide.Player1   => -1,  // Player1 (Red) scans upwards (Y--)
-                PlayerSide.Player2 =>  1,  // Player2 (Black) scans downwards (Y++)
-                _ => throw new ArgumentException($"Only Player1 and Player2 have a General on the Full board, not {side}", nameof(side))
-            };
+            if (side != PlayerSide.Player1 && side != PlayerSide.Player2)
+                throw new ArgumentException($"Only Player1 and Player2 have a General on the Full board, not {side}", nameof(side));
 
-            int y = targetY + step;
-
-            while (y >= 0 && y < Rows)
+            // Up (Y--) and down (Y++): the opposing General is on whichever side of the board
+            // its colour plays.
+            foreach (int step in new[] { -1, 1 })
             {
-                var piece = Grid[targetX, y];
-                if (piece != null && !(piece.Type == PieceType.General && piece.Side == side))
+                int y = targetY + step;
+
+                while (y >= 0 && y < Rows)
                 {
-                    if (piece.Type == PieceType.General && piece.Side != side)
-                        return false;  // Hit the opposing General -> not legal
-                    else
-                        return true;  // Hit any other piece -> it blocks the line, so the face-to-face rule is not violated; stop scanning
-                }
+                    var piece = Grid[targetX, y];
+                    if (piece != null && !(piece.Type == PieceType.General && piece.Side == side))
+                    {
+                        if (piece.Type == PieceType.General)
+                            return false;  // Hit the opposing General -> not legal
+                        break;  // Hit any other piece -> it blocks the line this way; stop scanning
+                    }
 
-                y += step;
+                    y += step;
+                }
             }
 
             return true;  // No opposing General found along the line -> legal
@@ -620,16 +624,16 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         /// </summary>
         public bool AreGeneralsFacing()
         {
-            var red = GetGeneral(PlayerSide.Player1);
-            var black = GetGeneral(PlayerSide.Player2);
-            if (red == null || black == null || red.X != black.X)
+            var first = GetGeneral(PlayerSide.Player1);
+            var second = GetGeneral(PlayerSide.Player2);
+            if (first == null || second == null || first.X != second.X)
                 return false;
 
-            int yMin = Math.Min(red.Y, black.Y) + 1;
-            int yMax = Math.Max(red.Y, black.Y);
+            int yMin = Math.Min(first.Y, second.Y) + 1;
+            int yMax = Math.Max(first.Y, second.Y);
             for (int y = yMin; y < yMax; y++)
             {
-                if (Grid[red.X, y] != null)
+                if (Grid[first.X, y] != null)
                     return false;
             }
             return true;

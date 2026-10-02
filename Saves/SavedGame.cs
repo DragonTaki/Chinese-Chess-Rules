@@ -11,6 +11,7 @@ using System;
 
 using Chinese_Chess_v3.Game.Core.Boards;
 using Chinese_Chess_v3.Game.Core.Pgn;
+using Chinese_Chess_v3.Game.Core.Pieces;
 using Chinese_Chess_v3.Game.Core.Players;
 
 namespace Chinese_Chess_v3.Game.Core.Saves
@@ -50,25 +51,38 @@ namespace Chinese_Chess_v3.Game.Core.Saves
         /// <summary>The <c>[Date]</c> tag as written (<c>yyyy.MM.dd</c>); null when missing.</summary>
         public string Date { get; init; }
 
-        /// <summary>The <c>[Result]</c> tag: <c>1-0</c>, <c>0-1</c> or <c>*</c> (game not over).</summary>
+        /// <summary>The <c>[Result]</c> tag (PGN standard, by colour): <c>1-0</c> (Red won), <c>0-1</c> (Black won) or <c>*</c> (game not over).</summary>
         public string Result { get; init; } = "*";
 
         /// <summary>The <c>[Termination]</c> tag: how an ended game ended; null for a game still in play.</summary>
         public GameOverReason? Termination { get; init; }
 
-        /// <summary>The <c>[PlayerSide]</c> tag: the side the player played (己方); Player1 (紅方) when missing (older saves).</summary>
+        /// <summary>The <c>[PlayerSide]</c> tag: the side the player played (己方); Player1 when missing.</summary>
         public PlayerSide PlayerSide { get; init; } = PlayerSide.Player1;
 
         /// <summary>The <c>[BoardType]</c> tag; only <see cref="Boards.BoardType.Full"/> games can be saved.</summary>
         public BoardType BoardType { get; init; } = BoardType.Full;
 
-        /// <summary>The winner by <see cref="Result"/>: Player1 for <c>1-0</c>, Player2 for <c>0-1</c>, otherwise None.</summary>
-        public PlayerSide Winner => Result switch
+        /// <summary>
+        /// The winner by <see cref="Result"/>: the player of the winning colour (Red for
+        /// <c>1-0</c>, Black for <c>0-1</c>; Player1 plays <see cref="PgnGameFile.FirstColor"/>),
+        /// otherwise None.
+        /// </summary>
+        public PlayerSide Winner
         {
-            "1-0" => PlayerSide.Player1,
-            "0-1" => PlayerSide.Player2,
-            _ => PlayerSide.None,
-        };
+            get
+            {
+                var winningColor = Result switch
+                {
+                    "1-0" => PieceColor.Red,
+                    "0-1" => PieceColor.Black,
+                    _ => PieceColor.None,
+                };
+                if (winningColor == PieceColor.None)
+                    return PlayerSide.None;
+                return winningColor == FirstColor ? PlayerSide.Player1 : PlayerSide.Player2;
+            }
+        }
 
         // ----- Time control and clocks (null = tag missing: the current default is used) -----
 
@@ -91,12 +105,12 @@ namespace Chinese_Chess_v3.Game.Core.Saves
         public bool? EndGameWhenTimesUp { get; init; }
 
         /// <summary>
-        /// The <c>[RedTimeUsed]</c> / <c>[RedStepUsed]</c> tags (seconds): Red's (Player1's)
+        /// The <c>[RedTimeUsed]</c> / <c>[RedStepUsed]</c> tags (seconds): the Red player's
         /// elapsed total and current step time when saved; null when neither tag is there.
         /// </summary>
         public ClockState? RedClock { get; init; }
 
-        /// <summary>The <c>[BlackTimeUsed]</c> / <c>[BlackStepUsed]</c> tags: Black's (Player2's) clock, like <see cref="RedClock"/>.</summary>
+        /// <summary>The <c>[BlackTimeUsed]</c> / <c>[BlackStepUsed]</c> tags: the Black player's clock, like <see cref="RedClock"/>.</summary>
         public ClockState? BlackClock { get; init; }
 
         // ----- Full-board rules (null = tag missing: the current default is used) -----
@@ -145,7 +159,7 @@ namespace Chinese_Chess_v3.Game.Core.Saves
         public SavedGame() { }
 
         /// <summary>The shared fields from <paramref name="content"/>; the saved game's own tags are set by the caller.</summary>
-        internal SavedGame(PgnFileContent content, string fen, PlayerSide sideToMove)
-            : base(content, fen, sideToMove) { }
+        internal SavedGame(PgnFileContent content, string fen, PieceColor firstColor)
+            : base(content, fen, firstColor) { }
     }
 }

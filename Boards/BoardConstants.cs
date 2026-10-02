@@ -43,7 +43,7 @@ namespace Chinese_Chess_v3.Game.Core.Boards
                     X →             Red Side
             */
             // Left to right (x-axis): 0~8; Top to bottom (y-axis): 0~9
-            // Black (Player2) area (y-axis): 0~4; Red (Player1) area (y-axis): 5~9
+            // Black area (y-axis): 0~4; Red area (y-axis): 5~9 (by colour; either player can play either colour)
 
             /* ----- In palace: General, Advisor ----- */
             // Both side palace area 3 <= X <= 5
