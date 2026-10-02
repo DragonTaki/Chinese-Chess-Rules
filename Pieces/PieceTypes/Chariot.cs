@@ -136,8 +136,8 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
 
         /// <summary>
         /// On HalfCenter (8×4, 明棋／暗棋半盤), the Chariot only gets its
-        /// Full-board straight-line sweep when <c>Rules.CanChariotRush</c>
-        /// (車衝) is enabled; otherwise it moves one square orthogonally
+        /// Full-board straight-line sweep (車衝) when <c>Rules.IsChariotRushHorseDiagonal</c>
+        /// (車衝馬斜) is enabled; otherwise it moves one square orthogonally
         /// like every other non-Cannon piece there. With 車衝, a capture after
         /// moving more than one square ignores rank (any enemy piece, General
         /// included); capturing the adjacent piece by a one-step move follows
@@ -147,7 +147,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         /// </summary>
         protected override bool IsValidMoveHalfCenter(Board board, int targetX, int targetY)
         {
-            if (!board.GameRules.CanChariotRush)
+            if (!board.GameRules.IsChariotRushHorseDiagonal)
                 return IsValidOrthogonalOneStepDarkChess(board, targetX, targetY);
 
             if (!IsDestinationLegalHalfCenter(board, targetX, targetY))
@@ -185,7 +185,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
 
         protected override List<(int x, int y)> GetLegalMovesHalfCenter(Board board)
         {
-            if (!board.GameRules.CanChariotRush)
+            if (!board.GameRules.IsChariotRushHorseDiagonal)
                 return GetOrthogonalOneStepMovesDarkChess(board);
 
             List<(int x, int y)> legalMoves = new List<(int x, int y)>();
@@ -220,13 +220,13 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
 
         /// <summary>
         /// Same dark-chess mechanic as HalfCenter — see General.cs's
-        /// HalfCross note. <c>Rules.CanChariotRush</c> still governs
+        /// HalfCross note. <c>Rules.IsChariotRushHorseDiagonal</c> (車衝馬斜) still governs
         /// whether this Chariot gets its Full-board straight-line sweep
         /// here too.
         /// </summary>
         protected override bool IsValidMoveHalfCross(Board board, int targetX, int targetY)
         {
-            if (!board.GameRules.CanChariotRush)
+            if (!board.GameRules.IsChariotRushHorseDiagonal)
                 return IsValidOrthogonalOneStepDarkChess(board, targetX, targetY);
 
             if (!board.IsInBoard(targetX, targetY))
@@ -258,7 +258,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
 
         protected override List<(int x, int y)> GetLegalMovesHalfCross(Board board)
         {
-            if (!board.GameRules.CanChariotRush)
+            if (!board.GameRules.IsChariotRushHorseDiagonal)
                 return GetOrthogonalOneStepMovesDarkChess(board);
 
             List<(int x, int y)> legalMoves = new List<(int x, int y)>();
