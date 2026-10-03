@@ -506,7 +506,13 @@ namespace Chinese_Chess_v3.Game.Core
             PlayerSide? localSide = null)
         {
             SetUpPosition(customInitialPieces, null, boardType, localSide: localSide, firstColor: firstColor);
+            if (boardType == BoardType.HalfCenter)
+                _customHalfCenterStart = customInitialPieces.Select(p => p.Clone()).ToList();
         }
+
+        // The pieces a custom HalfCenter game started from (LoadCustomBoard), so Restart puts
+        // them back instead of shuffling; null for a shuffled game and every other setup.
+        private List<PieceInfo> _customHalfCenterStart;
 
         /// <summary>
         /// Starts a game from <paramref name="puzzle"/>'s position (its FEN); Player1 moves first
@@ -533,7 +539,8 @@ namespace Chinese_Chess_v3.Game.Core
         /// and a saved game's preset plies are replayed again; they are the start):
         /// a standard game goes back to the standard start (or to the custom start position it
         /// began from); a HalfCenter game becomes a new shuffled game of the same variant
-        /// (暗棋 or 明棋); an endgame challenge or an opening practice starts the same puzzle /
+        /// (暗棋 or 明棋), or, set up with <see cref="LoadCustomBoard"/>, starts again from its
+        /// custom layout; an endgame challenge or an opening practice starts the same puzzle /
         /// line again; a loaded saved game is loaded again (<see cref="LoadSavedGame"/>): the
         /// position, moves, clocks and ending exactly as when it was loaded (an ended save comes
         /// back ended), from the <see cref="SavedGame"/> read at load time - the file is not read
@@ -550,7 +557,18 @@ namespace Chinese_Chess_v3.Game.Core
 
             if (Board.Type == BoardType.HalfCenter)
             {
-                SetUpHalfCenter(rules, null);
+                // A custom layout starts again as it was set up (author decision 2026-10-02); a
+                // shuffled game is shuffled again.
+                if (_customHalfCenterStart != null)
+                {
+                    var start = _customHalfCenterStart;
+                    SetUpPosition(start.Select(p => p.Clone()).ToList(), null, BoardType.HalfCenter, rules, LocalSide);
+                    _customHalfCenterStart = start;
+                }
+                else
+                {
+                    SetUpHalfCenter(rules, null);
+                }
                 return;
             }
             if (Board.Type != BoardType.Full)
@@ -663,6 +681,8 @@ namespace Chinese_Chess_v3.Game.Core
         private void SetUpPosition(List<PieceInfo> pieces, PgnGameFile source, BoardType boardType = BoardType.Full,
             Rules rules = null, PlayerSide? localSide = null, PieceColor firstColor = PieceColor.Red)
         {
+            _customHalfCenterStart = null;
+
             // Players are numbered by turn order: on the Full board the first colour is Player1's.
             if (boardType == BoardType.Full)
                 pieces = PieceColors.AssignOwners(pieces, firstColor);
