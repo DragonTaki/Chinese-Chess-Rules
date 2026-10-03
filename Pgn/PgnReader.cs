@@ -48,8 +48,7 @@ namespace Chinese_Chess_v3.Game.Core.Pgn
     }
 
     /// <summary>
-    /// The Chinese-chess PGN format shared by every kind of game file (format:
-    /// docs/ENDGAMES.md section 3): the file naming rule (<c>0001-名稱.pgn</c>), tag pairs
+    /// The Chinese-chess PGN format shared by every kind of game file: the file naming rule (<c>0001-名稱.pgn</c>), tag pairs
     /// (<c>[Name "value"]</c>, names case-insensitive, <c>\"</c> and <c>\\</c> escapes) and the
     /// movetext - the main line in ICCS (<c>h2e2</c> / <c>H2-E2</c>); move numbers
     /// (<c>1.</c>, <c>1...</c>), results (<c>1-0</c>, <c>0-1</c>, <c>1/2-1/2</c>, <c>*</c>),

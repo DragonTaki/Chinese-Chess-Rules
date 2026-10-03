@@ -32,7 +32,7 @@ namespace Chinese_Chess_v3.Game.Core
         #region Timer Setting
 
         // Read by GameManager when it creates the two players' clocks (the defaults below
-        // are what a game uses unless the player settings say otherwise, docs/SETTINGS.md).
+        // are what a game uses unless the player settings say otherwise).
 
         /// <summary>Each side's total time (局時); countdown only (count-up has no limit). Default: 30 minutes</summary>
         public TimeSpan TotalTimeLimit { get; set; } = TimeSpan.FromMinutes(30);
@@ -162,14 +162,14 @@ namespace Chinese_Chess_v3.Game.Core
         #region HalfCross Board Rule Options (三國半盤規則選項)
 
         /// <summary>
-        /// 分隊: which of the two team splits a 三國半盤 game uses (docs/DARK-CHESS-RULES.md §1.2).
+        /// 分隊: which of the two team splits a 三國半盤 game uses.
         /// 未實作: a per-kind rule option (settings.ini <c>[rules.three_kingdoms]</c>) that no
         /// gameplay reads yet. Default: <see cref="HalfCrossTeamVariant.Standard"/>
         /// </summary>
         public HalfCrossTeamVariant HalfCrossTeamVariant { get; set; } = HalfCrossTeamVariant.Standard;
 
         /// <summary>
-        /// 勝負方式: how a 三國半盤 game is won (docs/DARK-CHESS-RULES.md §1.2). 未實作: a
+        /// 勝負方式: how a 三國半盤 game is won. 未實作: a
         /// per-kind rule option that no gameplay reads yet. Default: <see cref="HalfCrossWinCondition.Points"/> (the author's scoring)
         /// </summary>
         public HalfCrossWinCondition HalfCrossWinCondition { get; set; } = HalfCrossWinCondition.Points;

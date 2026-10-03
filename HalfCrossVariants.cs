@@ -10,7 +10,7 @@
 namespace Chinese_Chess_v3.Game.Core
 {
     /// <summary>
-    /// 三國半盤 team split (分隊, docs/DARK-CHESS-RULES.md §1.2). A rule option only: no
+    /// 三國半盤 team split (分隊). A rule option only: no
     /// gameplay reads it yet (未實作; <see cref="Rules.HalfCrossTeamSetup"/> is the split the
     /// unfinished HalfCross code uses).
     /// </summary>
@@ -24,7 +24,7 @@ namespace Chinese_Chess_v3.Game.Core
     }
 
     /// <summary>
-    /// 三國半盤 way of deciding the winner (勝負方式, docs/DARK-CHESS-RULES.md §1.2「作者決定」 4-5):
+    /// 三國半盤 way of deciding the winner (勝負方式):
     /// the author's own scoring by default, the wiki's ways as alternatives. A rule option only:
     /// no gameplay reads it yet (未實作).
     /// </summary>

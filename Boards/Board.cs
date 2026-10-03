@@ -748,7 +748,7 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         /// either flipping any face-down piece (翻子) or moving one's own face-up piece; a
         /// face-down piece is never moved (or selected) as itself, and the first flip decides
         /// which player owns which colour. HalfCross (三國暗棋) is a separate rule system still
-        /// being specified (docs/DARK-CHESS-RULES.md §1.2), so it is not included.
+        /// being specified, so it is not included.
         /// </summary>
         public bool UsesDarkChessRules => Type == BoardType.HalfCenter;
 

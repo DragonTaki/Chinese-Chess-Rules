@@ -15,7 +15,7 @@ using Chinese_Chess_v3.Game.Core.Pgn;
 namespace Chinese_Chess_v3.Game.Core.Openings
 {
     /// <summary>
-    /// Reads one opening from Chinese-chess PGN text (format: docs/OPENINGS.md; the file
+    /// Reads one opening from Chinese-chess PGN text (the file
     /// name, tag and movetext rules are the shared <see cref="PgnReader"/> ones, as for
     /// endgames).
     /// <para>

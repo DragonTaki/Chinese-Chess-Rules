@@ -124,7 +124,7 @@ namespace Chinese_Chess_v3.Game.Core
     /// <remarks>
     /// Checkmate/stalemate results also carry the final position, the mating move and
     /// the pieces giving check, so a later classifier can recognise named mating patterns
-    /// (側面虎, 雙車錯, 馬後炮, 困斃, ... — see docs/PLAN.md) and trigger special effects.
+    /// (側面虎, 雙車錯, 馬後炮, 困斃, ...) and trigger special effects.
     /// No pattern detection is done here.
     /// </remarks>
     public sealed class GameOverInfo

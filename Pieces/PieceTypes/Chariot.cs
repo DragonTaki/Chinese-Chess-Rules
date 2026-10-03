@@ -141,8 +141,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         /// like every other non-Cannon piece there. With 車衝, a capture after
         /// moving more than one square ignores rank (any enemy piece, General
         /// included); capturing the adjacent piece by a one-step move follows
-        /// rank like any other piece (docs/DARK-CHESS-RULES.md §2 / §4, the
-        /// standard rule, author decision 2026-10-02). A hidden capture (暗吃)
+        /// rank like any other piece (the standard rule, author decision 2026-10-02). A hidden capture (暗吃)
         /// judges the revealed piece the same way.
         /// </summary>
         protected override bool IsValidMoveHalfCenter(Board board, int targetX, int targetY)

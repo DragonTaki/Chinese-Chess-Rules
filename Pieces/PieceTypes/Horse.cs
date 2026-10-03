@@ -127,8 +127,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         /// enabled; otherwise it moves one square orthogonally like every
         /// other non-Cannon piece there (not its Full-board "L" shape).
         /// A 馬斜 diagonal capture ignores rank: it takes any enemy piece,
-        /// General included (docs/DARK-CHESS-RULES.md §2 / §4 「馬斜一格、吃任何子」,
-        /// author decision 2026-10-02). A hidden capture (暗吃) judges the
+        /// General included (author decision 2026-10-02). A hidden capture (暗吃) judges the
         /// revealed piece the same way. (With 馬斜 the Horse has no orthogonal
         /// move here, so it never captures by rank.)
         /// </summary>

@@ -232,7 +232,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         /// long-range version: slides any number of empty squares, and
         /// <c>Rules.IsCannonMustJumpToCapture</c> governs the jump-to-capture
         /// requirement, captures following rank. Not the HalfCenter rules: HalfCross
-        /// is being re-specified as a separate system (docs/DARK-CHESS-RULES.md), so
+        /// is being re-specified as a separate system, so
         /// its rules are left as they are until then.
         /// </summary>
         protected override bool IsValidMoveHalfCross(Board board, int targetX, int targetY)

@@ -12,7 +12,7 @@ namespace Chinese_Chess_v3.Game.Core
     /// <summary>
     /// The kinds of game a new game can be (the new-game menu's modes). Each kind has its own
     /// rule set (<see cref="GameRuleSets"/>; the player's choices per kind are the
-    /// <c>[rules.*]</c> sections of settings.ini, docs/SETTINGS.md). Whether a half-board game
+    /// <c>[rules.*]</c> sections of settings.ini). Whether a half-board game
     /// is dark or open is the kind itself (<see cref="DarkHalf"/> / <see cref="OpenHalf"/>),
     /// not a rule setting.
     /// </summary>

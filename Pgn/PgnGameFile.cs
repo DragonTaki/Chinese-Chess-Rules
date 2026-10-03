@@ -25,8 +25,7 @@ namespace Chinese_Chess_v3.Game.Core.Pgn
     }
 
     /// <summary>
-    /// What every game file loaded from a PGN file has in common (docs/ENDGAMES.md,
-    /// docs/OPENINGS.md): where it came from, its category and title, the start position
+    /// What every game file loaded from a PGN file has in common: where it came from, its category and title, the start position
     /// and the main-line moves. The kinds of file (<c>EndgamePuzzle</c>, <c>OpeningLine</c>)
     /// derive from it and add their own tags. Plain, immutable data: the original file
     /// content only. A record so a changed copy can be made with <c>with</c>.

@@ -31,7 +31,7 @@ namespace Chinese_Chess_v3.Game.Core.Pgn
     /// counters) are ignored.
     /// </para>
     /// <para>
-    /// Players are numbered by turn order (CLAUDE.md): the colour to move is
+    /// Players are numbered by turn order: the colour to move is
     /// <see cref="PlayerSide.Player1"/>'s, the other one <see cref="PlayerSide.Player2"/>'s, so
     /// a parsed position always has Player1 to move and its pieces are owned accordingly
     /// (<see cref="PieceColors.AssignOwners"/>). Writing uses only the pieces' colours.

@@ -14,8 +14,7 @@ using Chinese_Chess_v3.Game.Core.Players;
 namespace Chinese_Chess_v3.Game.Core.Openings
 {
     /// <summary>
-    /// One opening (開局) for opening practice, as loaded from a PGN file (see
-    /// docs/OPENINGS.md): the shared file data (<see cref="PgnGameFile"/>) plus the opening's
+    /// One opening (開局) for opening practice, as loaded from a PGN file: the shared file data (<see cref="PgnGameFile"/>) plus the opening's
     /// own tags. <see cref="PgnGameFile.Moves"/> is the opening line that is played onto the
     /// board when the opening is started (<c>GameManager.StartOpening</c>); the player
     /// continues from the position after it, with

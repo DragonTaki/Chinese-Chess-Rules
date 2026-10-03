@@ -16,7 +16,7 @@ using Chinese_Chess_v3.Game.Core.Players;
 namespace Chinese_Chess_v3.Game.Core.Endgames
 {
     /// <summary>
-    /// One endgame puzzle (殘局) as loaded from a PGN file (see docs/ENDGAMES.md): the shared
+    /// One endgame puzzle (殘局) as loaded from a PGN file: the shared
     /// file data (<see cref="PgnGameFile"/>: Id, file, origin, category, title, FEN, moves,
     /// description, source, tags) plus the puzzle's own tags. The moves are the puzzle's
     /// solution (<see cref="Solution"/>). Player results and best scores are kept elsewhere.
@@ -29,14 +29,13 @@ namespace Chinese_Chess_v3.Game.Core.Endgames
         /// <summary>The <c>[Goal]</c> tag as written (e.g. <c>紅先勝</c>, <c>紅先和</c>); empty when missing.</summary>
         public string Goal { get; init; } = string.Empty;
 
-        /// <summary>The <c>[MoveLimit]</c> tag (optional). Loaded only; not enforced yet (see docs/PLAN.md).</summary>
+        /// <summary>The <c>[MoveLimit]</c> tag (optional). Loaded only; not enforced yet.</summary>
         public int? MoveLimit { get; init; }
 
         /// <summary>
         /// The main-line solution: the same list as <see cref="PgnGameFile.Moves"/> (both
         /// sides' moves in order starting with Player1, see <see cref="PgnGameFile.FirstColor"/>; empty
-        /// when the file has none). Loaded and checked for legality, not shown by the UI
-        /// (see docs/PLAN.md).
+        /// when the file has none). Loaded and checked for legality, not shown by the UI.
         /// </summary>
         public IReadOnlyList<IccsMove> Solution
         {

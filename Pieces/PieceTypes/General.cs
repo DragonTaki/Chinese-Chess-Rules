@@ -154,7 +154,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         /// HalfCross (9×5, 三國半盤) is the same dark-chess mechanic as
         /// HalfCenter, just shuffled onto a differently-shaped board and
         /// with a full 32-piece Xiangqi set instead of HalfCenter's own set
-        /// (confirmed by the author — see docs/PLAN.md).
+        /// (confirmed by the author).
         /// </summary>
         protected override bool IsValidMoveHalfCross(Board board, int targetX, int targetY) =>
             IsValidOrthogonalOneStepDarkChess(board, targetX, targetY);

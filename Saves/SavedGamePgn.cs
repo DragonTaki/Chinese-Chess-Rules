@@ -20,7 +20,7 @@ using Chinese_Chess_v3.Game.Core.Pieces;
 namespace Chinese_Chess_v3.Game.Core.Saves
 {
     /// <summary>
-    /// The saved-game PGN format (棋譜存檔, docs/PLAN.md notation phase 2): written by
+    /// The saved-game PGN format (棋譜存檔): written by
     /// <see cref="Write"/>, read by <see cref="Parse"/> with the shared <see cref="PgnReader"/>
     /// rules (any <c>*.pgn</c> file name).
     /// <para>

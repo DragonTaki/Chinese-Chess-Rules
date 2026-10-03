@@ -159,7 +159,7 @@ namespace Chinese_Chess_v3.Game.Core
         /// (<see cref="ResetBoardToDefault"/>, <see cref="LoadCustomBoard"/>,
         /// <see cref="StartEndgame"/>, <see cref="StartOpening"/> (before its line is
         /// played), <see cref="ClearBoard"/>). The base for PGN export,
-        /// undo and replay (docs/PLAN.md). Read-only view of the live list.
+        /// undo and replay. Read-only view of the live list.
         /// </summary>
         public IReadOnlyList<MoveRecord> Moves => _movesView;
 
@@ -397,8 +397,8 @@ namespace Chinese_Chess_v3.Game.Core
         /// New games start with <paramref name="ruleSets"/>' rules for their kind (null: the
         /// default <see cref="Rules"/> for every kind): the board's rule toggles and the players'
         /// clocks (total / step time, increment, step timer on/off, count mode) all come from
-        /// them. The launchers pass the rule sets built from the player settings
-        /// (docs/SETTINGS.md). The first game is a <see cref="GameKind.Traditional"/> one.
+        /// them. The launchers pass the rule sets built from the player settings.
+        /// The first game is a <see cref="GameKind.Traditional"/> one.
         /// </summary>
         public GameManager(GameRuleSets ruleSets)
         {
@@ -1521,7 +1521,7 @@ namespace Chinese_Chess_v3.Game.Core
         /// <see cref="MoveKind.HiddenStrongerSuicide"/>); otherwise the opponent loses if it
         /// has no action on its turn (no legal move and nothing to flip,
         /// <see cref="Board.HasAnyAction"/>; <see cref="GameOverReason.Stalemate"/>). Draw rules
-        /// are not decided yet (docs/DARK-CHESS-RULES.md §1.1), so none is applied.
+        /// are not decided yet, so none is applied.
         /// </summary>
         /// <returns>Whether the game ended.</returns>
         private bool EndDarkChessGameIfOver(PlayerSide mover)

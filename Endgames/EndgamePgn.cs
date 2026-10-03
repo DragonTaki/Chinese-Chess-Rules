@@ -15,9 +15,8 @@ using Chinese_Chess_v3.Game.Core.Pgn;
 namespace Chinese_Chess_v3.Game.Core.Endgames
 {
     /// <summary>
-    /// Reads one endgame puzzle from Chinese-chess PGN text (format: docs/ENDGAMES.md; the
-    /// file name, tag and movetext rules shared with the other kinds are
-    /// <see cref="PgnReader"/>).
+    /// Reads one endgame puzzle from Chinese-chess PGN text (the file name, tag and movetext
+    /// rules shared with the other kinds are <see cref="PgnReader"/>).
     /// <para>
     /// Puzzle tags: <c>FEN</c> and <c>Difficulty</c> (1-5) are required; <c>Title</c>,
     /// <c>Goal</c>, <c>Category</c>, <c>MoveLimit</c>, <c>Description</c>, <c>Source</c>
