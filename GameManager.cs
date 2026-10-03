@@ -738,6 +738,7 @@ namespace Chinese_Chess_v3.Game.Core
                 timer.IncrementPerMove = rules.IncrementPerMove;
                 timer.EnableStepTimer = rules.EnableStepTimer;
                 timer.Mode = rules.TimerMode;
+                timer.ContinueAfterTimeUp = !rules.EndGameWhenTimesUp;
             }
         }
 
@@ -1812,9 +1813,10 @@ namespace Chinese_Chess_v3.Game.Core
         }
 
         /// <summary>
-        /// A clock ran out (PlayerTimer has already set itself Terminated). With
-        /// <c>Rules.EndGameWhenTimesUp</c> (default) its owner loses; otherwise the game
-        /// goes on with that clock stopped. Never happens with count-up clocks (正數, only
+        /// A clock ran out. With <c>Rules.EndGameWhenTimesUp</c> (default) its owner loses (the
+        /// PlayerTimer has already set itself Terminated); otherwise the game goes on and the
+        /// clock keeps running into overtime, shown as a negative time
+        /// (<see cref="PlayerTimer.ContinueAfterTimeUp"/>); this is raised once per overtime. Never happens with count-up clocks (正數, only
         /// measuring: <see cref="PlayerTimer.HasTimeLimit"/>); ignored there just in case.
         /// </summary>
         private void OnTimeUp(Player loser)

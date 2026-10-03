@@ -40,6 +40,22 @@ namespace Chinese_Chess_v3.Game.Core.Players
         /// </summary>
         public bool HasTimeLimit => Mode == TimerMode.CountDown && !Unlimited;
 
+        /// <summary>
+        /// What happens when a limit is reached: false (default) stops the clock
+        /// (<see cref="TimerState.Terminated"/>) before raising <see cref="TimeUp"/>; true keeps it
+        /// running into overtime (<see cref="IsOvertime"/>, shown as a negative time) and raises
+        /// <see cref="TimeUp"/> once each time it newly goes over (<c>Rules.EndGameWhenTimesUp</c>
+        /// off, author decision 2026-10-02).
+        /// </summary>
+        public bool ContinueAfterTimeUp { get; set; } = false;
+
+        /// <summary>Whether a limit is reached: the total time, or the step time while <see cref="EnableStepTimer"/>.</summary>
+        public bool IsOvertime => HasTimeLimit
+            && ((EnableStepTimer && CurrentStepTime >= StepTimeLimit) || CurrentTotalTime >= TotalTimeLimit);
+
+        // Whether TimeUp was raised for the current overtime (ContinueAfterTimeUp).
+        private bool _overtimeRaised;
+
 #nullable enable
         public event Action? TimeUp;
 #nullable disable
@@ -152,15 +168,23 @@ namespace Chinese_Chess_v3.Game.Core.Players
                     CurrentTotalTime += delta;
 
                     // Auto end game if time reach limit (countdown only: count-up just measures)
-                    if (HasTimeLimit)
+                    if (IsOvertime)
                     {
-                        if ((EnableStepTimer && CurrentStepTime >= StepTimeLimit) ||
-                            CurrentTotalTime >= TotalTimeLimit)
+                        if (!ContinueAfterTimeUp)
                         {
                             State = TimerState.Terminated;
                             TimeUp?.Invoke();
                             return;
                         }
+                        if (!_overtimeRaised)
+                        {
+                            _overtimeRaised = true;
+                            TimeUp?.Invoke();
+                        }
+                    }
+                    else
+                    {
+                        _overtimeRaised = false;
                     }
 
                     break;
@@ -207,6 +231,7 @@ namespace Chinese_Chess_v3.Game.Core.Players
             CurrentStepTime = TimeSpan.Zero;
             CurrentTotalTime = TimeSpan.Zero;
             State = TimerState.Idle;
+            _overtimeRaised = false;
         }
 
         /// <summary>
@@ -227,6 +252,7 @@ namespace Chinese_Chess_v3.Game.Core.Players
         {
             CurrentStepTime = state.StepTime;
             CurrentTotalTime = state.TotalTime;
+            _overtimeRaised = IsOvertime;
             _lastUpdate = DateTime.UtcNow;
             State = !active ? TimerState.Idle : (paused ? TimerState.Paused : TimerState.Active);
         }
@@ -243,8 +269,7 @@ namespace Chinese_Chess_v3.Game.Core.Players
                 ? StepTimeLimit - CurrentStepTime
                 : CurrentStepTime;
 
-            if (display < TimeSpan.Zero) display = TimeSpan.Zero;
-            return FormatTimeSpan(display);
+            return FormatClock(display);
         }
 
         public string GetTotalTimeString()
@@ -253,8 +278,19 @@ namespace Chinese_Chess_v3.Game.Core.Players
                 ? TotalTimeLimit - CurrentTotalTime
                 : CurrentTotalTime;
 
-            if (display < TimeSpan.Zero) display = TimeSpan.Zero;
-            return FormatTimeSpan(display);
+            return FormatClock(display);
+        }
+
+        /// <summary>
+        /// A countdown value for display: time past a limit is shown as a negative time (e.g.
+        /// <c>-00:12.30</c>) when the clock runs on into overtime (<see cref="ContinueAfterTimeUp"/>),
+        /// otherwise it stops at zero.
+        /// </summary>
+        private string FormatClock(TimeSpan display)
+        {
+            if (display >= TimeSpan.Zero)
+                return FormatTimeSpan(display);
+            return ContinueAfterTimeUp ? "-" + FormatTimeSpan(display.Negate()) : FormatTimeSpan(TimeSpan.Zero);
         }
 
         private string FormatTimeSpan(TimeSpan time)
