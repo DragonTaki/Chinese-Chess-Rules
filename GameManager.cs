@@ -232,6 +232,13 @@ namespace Chinese_Chess_v3.Game.Core
         /// </summary>
         public int UndoFloor { get; private set; } = 0;
 
+        /// <summary>
+        /// Whether any move has been played in this game beyond its preset start (the
+        /// <see cref="UndoFloor"/> moves of an opening line). False for a fresh game, endgame or
+        /// opening; true once a player has moved (a loaded save counts its played moves).
+        /// </summary>
+        public bool HasPlayedMoves => _moves.Count > UndoFloor;
+
         /// <summary>How many moves one <see cref="Undo"/> takes back: a round, the last move of each side.</summary>
         public const int UndoRoundPlies = 2;
 
