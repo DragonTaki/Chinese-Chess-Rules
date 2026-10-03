@@ -21,7 +21,7 @@ namespace Chinese_Chess_v3.Game.Core
         /// <summary>傳統大盤: the standard Full-board game (also endgames, openings and saved games).</summary>
         Traditional,
 
-        /// <summary>揭棋大盤: the Full board with the pieces shuffled face down (<see cref="Rules.IsJieqi"/>; no start position yet).</summary>
+        /// <summary>揭棋大盤: the Full board with the pieces shuffled face down (<c>Board.IsJieqi</c>; no start position yet).</summary>
         Flip,
 
         /// <summary>暗棋半盤: the HalfCenter board, every piece face down (<see cref="Rules.IsHiddenChess"/> on).</summary>

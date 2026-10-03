@@ -86,6 +86,18 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         /// </summary>
         /// <param name="type">Board type (grid size).</param>
         /// <param name="rules">The rules this board plays by; null for the default <see cref="Rules"/>.</param>
+        /// <summary>
+        /// Whether this is a 揭棋 (Jieqi/FlipChess) game: the Full board with every piece except
+        /// the two Generals starting face down, shuffled among its own side's non-General
+        /// starting squares. A still-hidden piece's first move follows the movement rules of the
+        /// piece type that canonically starts on its square
+        /// (<c>PieceConstants.GetClassicPieceTypeAt</c>), not its own identity; moving reveals it,
+        /// after which it moves as itself. It is the game kind (<see cref="GameKind.Flip"/>), not
+        /// a rule (author decision 2026-10-02), so whoever sets up a 揭棋 game sets it; no start
+        /// position exists yet.
+        /// </summary>
+        public bool IsJieqi { get; internal set; } = false;
+
         public Board(BoardType type = BoardType.Full, Rules rules = null)
         {
             Type = type;

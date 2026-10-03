@@ -381,7 +381,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         }
 
         /// <summary>
-        /// 揭棋 (Jieqi/FlipChess — see <see cref="Rules.IsJieqi"/>): a piece
+        /// 揭棋 (Jieqi/FlipChess — see <see cref="Board.IsJieqi"/>): a piece
         /// that hasn't moved yet is still face-down, and its first move
         /// must follow the movement rules of whichever piece type
         /// canonically starts at this square in the classic layout — not
@@ -429,7 +429,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
                     // itself — see IsValidMoveAsOriginalPosition. Once
                     // revealed (IsFaceUp), it's back to moving as itself,
                     // same as a normal Full-board game.
-                    if (board.GameRules.IsJieqi && !CurrentInfo.IsFaceUp)
+                    if (board.IsJieqi && !CurrentInfo.IsFaceUp)
                     {
                         return funcType switch
                         {

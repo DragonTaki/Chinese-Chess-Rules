@@ -39,12 +39,12 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         /// <returns><c>true</c> if the destination is within the Elephant's allowed side; otherwise, <c>false</c>.</returns>
         protected override bool IsDestinationLegalFull(Board board, int targetX, int targetY)
         {
-            // 揭棋 (Jieqi/FlipChess — Rules.IsJieqi): once revealed, an
+            // 揭棋 (Jieqi/FlipChess — Board.IsJieqi): once revealed, an
             // Elephant can cross the river freely. A still-hidden Elephant
             // (IsFaceUp false) making its first move is not affected by
             // this — it's bound by the normal river restriction below, same
             // as any other Full-board game.
-            if (board.GameRules.IsJieqi && CurrentInfo.IsFaceUp)
+            if (board.IsJieqi && CurrentInfo.IsFaceUp)
                 return board.IsInBoard(targetX, targetY);
 
             if (!board.IsInBoard(targetX, targetY))

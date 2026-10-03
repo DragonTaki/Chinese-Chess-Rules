@@ -122,7 +122,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         /// <summary>
         /// Looks up which piece type canonically starts at (x, y) in the
         /// classic Full-board layout, regardless of what's actually there
-        /// now. Used by 揭棋 (Jieqi/FlipChess — see <c>Rules.IsJieqi</c>): a
+        /// now. Used by 揭棋 (Jieqi/FlipChess — see <c>Board.IsJieqi</c>): a
         /// still-hidden piece's first move follows this square's canonical
         /// type, not its own true identity.
         /// </summary>

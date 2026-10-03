@@ -119,7 +119,7 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         /// dark-chess boards (HalfCenter, HalfCross) only for a face-up piece: a face-down
         /// one's identity is hidden information, and it cannot move before it is flipped
         /// anyway, so it neither attacks nor defends. Always on the Full board — there a
-        /// face-down piece only exists in 揭棋 (<see cref="Rules.IsJieqi"/>), whose side is
+        /// face-down piece only exists in 揭棋 (<see cref="Board.IsJieqi"/>), whose side is
         /// public and which moves as the type its square starts with, not as itself.
         /// </summary>
         private static bool IsIdentityKnown(Board board, Piece piece) =>
