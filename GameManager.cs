@@ -1096,6 +1096,12 @@ namespace Chinese_Chess_v3.Game.Core
                 ExecuteHiddenCapture(piece, hiddenTarget);
                 return;
             }
+            // 自殺: a move onto a stronger face-up enemy piece kills the mover (see ExecuteSuicide).
+            if (Board.UsesDarkChessRules && piece.IsSuicideMove(Board, toX, toY))
+            {
+                ExecuteSuicide(piece, toX, toY);
+                return;
+            }
 
             int fromX = piece.X;
             int fromY = piece.Y;
@@ -1320,7 +1326,8 @@ namespace Chinese_Chess_v3.Game.Core
             {
                 kind = MoveKind.HiddenOwnPiece;
             }
-            else if (piece.IsPseudoLegalMove(Board, toX, toY))
+            // With 自殺 on, a move onto a stronger enemy is legal too, so it is checked apart.
+            else if (piece.IsPseudoLegalMove(Board, toX, toY) && !piece.IsSuicideMove(Board, toX, toY))
             {
                 kind = MoveKind.HiddenCapture;
                 captured = target;
@@ -1358,7 +1365,35 @@ namespace Chinese_Chess_v3.Game.Core
         }
 
         /// <summary>
-        /// Records a dark-chess action (flip or hidden capture) applied since
+        /// Applies an already-validated 自殺 move (<see cref="Rules.CanSuicide"/>,
+        /// <see cref="Piece.IsSuicideMove"/>) as the side to move's turn: <paramref name="piece"/>
+        /// dies (taken off the board) and the face-up enemy piece on (toX, toY) stays
+        /// (<see cref="MoveKind.Suicide"/>). Recorded, logged and undone like a move.
+        /// </summary>
+        private void ExecuteSuicide(Piece piece, int toX, int toY)
+        {
+            var mover = CurrentTurn;
+            int fromX = piece.X;
+            int fromY = piece.Y;
+            var clocks = (Player1.Timer.GetClockState(), Player2.Timer.GetClockState());
+            var before = SnapshotHistoryCounts();
+            var pieceBefore = piece.CurrentInfo.Clone();
+            var target = Board.GetPiece(toX, toY).CurrentInfo.Clone();
+
+            Board.AdvanceTurn();
+            Board.RemovePiece(fromX, fromY);
+
+            AppLogger.Log($"(Action) Suicide {piece.Type} ({fromX},{fromY})->({toX},{toY}) onto {target.Color} {target.Type}", LogLevel.DEBUG);
+            RecordDarkChessAction(pieceBefore, fromX, fromY, toX, toY, MoveKind.Suicide, mover, target, null, clocks, before);
+
+            PieceCaptured?.Invoke(piece);
+            PieceRemoved?.Invoke(piece);
+
+            EndDarkChessAction();
+        }
+
+        /// <summary>
+        /// Records a dark-chess action (flip, hidden capture or 自殺) applied since
         /// <paramref name="before"/> as the next move — <see cref="LastMove"/>, the move list
         /// and the undo data (both clocks, every changed piece) — marks the game changed and
         /// writes its game-log line (<see cref="FormatDarkChessLine"/>).
@@ -1487,6 +1522,8 @@ namespace Chinese_Chess_v3.Game.Core
                     return head + $"{HiddenCaptureHead(move)}（吃不了），退回原位";
                 case MoveKind.HiddenStrongerSuicide:
                     return head + $"{HiddenCaptureHead(move)}（吃不了），{PieceText(move.Piece)}陣亡";
+                case MoveKind.Suicide:
+                    return head + $"{PieceText(move.Piece)}({move.FromX},{move.FromY})撞({move.ToX},{move.ToY}){PieceText(move.Revealed)}，自殺陣亡";
                 default:
                     return head + $"{PieceText(move.Piece)}({move.FromX},{move.FromY})→({move.ToX},{move.ToY})"
                         + (move.Captured != null ? $"，吃{PieceText(move.Captured)}" : "");

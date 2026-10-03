@@ -79,7 +79,9 @@ namespace Chinese_Chess_v3.Game.Core.Boards
             int y = target.Y;
             foreach (var attacker in pieces)
             {
-                if (!IsIdentityKnown(board, attacker) || attacker.IsSameFaction(target) || !attacker.CanMoveTo(board, x, y))
+                // A 自殺 move (Rules.CanSuicide) kills the mover, not the target: not an attack.
+                if (!IsIdentityKnown(board, attacker) || attacker.IsSameFaction(target) || !attacker.CanMoveTo(board, x, y)
+                    || attacker.IsSuicideMove(board, x, y))
                     continue;
 
                 // A single capture that cannot be answered is enough.
@@ -105,7 +107,7 @@ namespace Chinese_Chess_v3.Game.Core.Boards
                     if (defender == target || !IsIdentityKnown(board, defender) || !defender.IsSameFaction(target)
                         || board.IsSimulatedCapture(defender))
                         continue;
-                    if (defender.CanMoveTo(board, x, y))
+                    if (defender.CanMoveTo(board, x, y) && !defender.IsSuicideMove(board, x, y))
                         return true;
                 }
                 return false;

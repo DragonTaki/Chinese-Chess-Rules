@@ -130,6 +130,9 @@ namespace Chinese_Chess_v3.Game.Core.Saves
         /// <summary>The <c>[HorseLegBlocks]</c> tag (<see cref="Rules.CanHorseLegHobbled"/>).</summary>
         public bool? CanHorseLegHobbled { get; init; }
 
+        /// <summary>The <c>[CaptureOwnPiece]</c> tag (<see cref="Rules.CanCaptureOwnPiece"/>).</summary>
+        public bool? CanCaptureOwnPiece { get; init; }
+
         /// <summary>
         /// The rules this game is played by when loaded: a copy of <paramref name="defaults"/>
         /// (the current settings' rules) with every time-control and rule value the file has
@@ -150,6 +153,7 @@ namespace Chinese_Chess_v3.Game.Core.Saves
             if (CanAdvisorLeavePalace is bool advisorLeaves) rules.CanAdvisorLeavePalace = advisorLeaves;
             if (CanElephantEyeBlocked is bool elephantEye) rules.CanElephantEyeBlocked = elephantEye;
             if (CanHorseLegHobbled is bool horseLeg) rules.CanHorseLegHobbled = horseLeg;
+            if (CanCaptureOwnPiece is bool captureOwn) rules.CanCaptureOwnPiece = captureOwn;
             return rules;
         }
 

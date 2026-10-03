@@ -135,6 +135,7 @@ namespace Chinese_Chess_v3.Game.Core.Saves
         public const string AdvisorCanLeavePalaceTag = "AdvisorCanLeavePalace";
         public const string ElephantEyeBlocksTag = "ElephantEyeBlocks";
         public const string HorseLegBlocksTag = "HorseLegBlocks";
+        public const string CaptureOwnPieceTag = "CaptureOwnPiece";
 
         /// <summary>The <c>[TimeControl]</c> value for no time control (PGN standard), written for count-up clocks.</summary>
         public const string NoTimeControl = "-";
@@ -166,6 +167,7 @@ namespace Chinese_Chess_v3.Game.Core.Saves
             tags.Add(new(AdvisorCanLeavePalaceTag, Bool(rules.CanAdvisorLeavePalace)));
             tags.Add(new(ElephantEyeBlocksTag, Bool(rules.CanElephantEyeBlocked)));
             tags.Add(new(HorseLegBlocksTag, Bool(rules.CanHorseLegHobbled)));
+            tags.Add(new(CaptureOwnPieceTag, Bool(rules.CanCaptureOwnPiece)));
         }
 
         /// <summary>Seconds with up to 3 decimals (<c>1800</c>, <c>12.345</c>, <c>-9.5</c>).</summary>
@@ -298,6 +300,7 @@ namespace Chinese_Chess_v3.Game.Core.Saves
                 CanAdvisorLeavePalace = ParseBool(content, AdvisorCanLeavePalaceTag),
                 CanElephantEyeBlocked = ParseBool(content, ElephantEyeBlocksTag),
                 CanHorseLegHobbled = ParseBool(content, HorseLegBlocksTag),
+                CanCaptureOwnPiece = ParseBool(content, CaptureOwnPieceTag),
                 Mode = ParseEvent(content.Optional("Event")),
                 OriginId = originId,
                 OriginTitle = originTitle,

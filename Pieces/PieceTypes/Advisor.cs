@@ -64,7 +64,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
 
         /// <summary>
         /// Checks whether the Advisor can move to the target position according to Chinese Chess rules.
-        /// The Advisor must move exactly one step diagonally, remain in its palace, and cannot capture allied pieces.
+        /// The Advisor must move exactly one step diagonally, remain in its palace, and cannot capture own pieces (unless <see cref="Rules.CanCaptureOwnPiece"/>).
         /// </summary>
         /// <param name="targetX">The X-coordinate of the target position.</param>
         /// <param name="targetY">The Y-coordinate of the target position.</param>
@@ -98,8 +98,8 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
             if (!matched)
                 return false;
 
-            // Check if there is an ally piece at the destination
-            if (board.IsLocationSamePlayerSide(Side, targetX, targetY) == true)
+            // An own piece at the destination blocks (unless 吃己棋, see IsBlockedByOwnPieceFull)
+            if (IsBlockedByOwnPieceFull(board, targetX, targetY))
                 return false;
 
             return true;
@@ -134,7 +134,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
                     continue;
 
                 // Skip if destination occupied by ally
-                if (board.IsLocationSamePlayerSide(Side, newX, newY) == true)
+                if (IsBlockedByOwnPieceFull(board, newX, newY))
                     continue;
 
                 // Add to legal moves

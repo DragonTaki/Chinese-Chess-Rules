@@ -18,7 +18,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
     /// <summary>
     /// Represents the <b>Chariot (俥/車)</b> piece in Chinese Chess.
     /// The Chariot moves any number of squares horizontally or vertically, like the Rook in Western chess.
-    /// It cannot jump over other pieces and cannot capture allied pieces.
+    /// It cannot jump over other pieces and cannot capture own pieces (unless <see cref="Rules.CanCaptureOwnPiece"/>).
     /// </summary>
     public class Chariot : Piece
     {
@@ -34,7 +34,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         /// <para>
         /// - The Chariot moves in a straight line horizontally or vertically.
         /// - It cannot jump over other pieces.
-        /// - The destination cannot contain an allied piece.
+        /// - The destination cannot contain an own piece (unless <see cref="Rules.CanCaptureOwnPiece"/>; never the own General).
         /// </para>
         /// </summary>
         /// <param name="targetX">The X-coordinate of the target position.</param>
@@ -75,8 +75,8 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
                 newY += stepY;
             }
 
-            // Check if there is an ally piece at the destination
-            if (board.IsLocationSamePlayerSide(Side, targetX, targetY) == true)
+            // An own piece at the destination blocks (unless 吃己棋, see IsBlockedByOwnPieceFull)
+            if (IsBlockedByOwnPieceFull(board, targetX, targetY))
                 return false;
 
             return true;
@@ -119,8 +119,8 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
                     }
                     else
                     {
-                        // Encounter piece — can capture if enemy, then stop
-                        if (obstacle.Side != this.Side && !exposes)
+                        // Encounter piece — can capture unless blocked as an own piece, then stop
+                        if (!IsBlockedByOwnPieceFull(board, newX, newY) && !exposes)
                             // Add to legal moves
                             legalMoves.Add((newX, newY));
                         break;

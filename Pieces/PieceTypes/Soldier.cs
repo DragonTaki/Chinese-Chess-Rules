@@ -72,8 +72,8 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
             if (!matched)
                 return false;
 
-            // Check if there is an ally piece at the destination
-            if (board.IsLocationSamePlayerSide(Side, targetX, targetY) == true)
+            // An own piece at the destination blocks (unless 吃己棋, see IsBlockedByOwnPieceFull)
+            if (IsBlockedByOwnPieceFull(board, targetX, targetY))
                 return false;
 
             return true;
@@ -105,7 +105,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
                     continue;
 
                 // Skip if destination occupied by ally
-                if (board.IsLocationSamePlayerSide(Side, newX, newY) == true)
+                if (IsBlockedByOwnPieceFull(board, newX, newY))
                     continue;
 
                 // Add to legal moves

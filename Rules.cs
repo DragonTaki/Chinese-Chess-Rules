@@ -82,14 +82,13 @@ namespace Chinese_Chess_v3.Game.Core
         public bool CanHorseLegHobbled { get; set; } = true;
 
         /// <summary>
-        /// Whether a piece can capture a friendly piece (吃己棋). Default: false
+        /// Whether a piece can capture one of its own side's pieces (吃己棋). Full board: any own
+        /// piece except the General. HalfCenter: any face-up own piece, General included, by the
+        /// same rank rules as an enemy piece (a face-down one is still a 暗吃 that turns out to be
+        /// one's own: the target is only revealed). Not used by 三國 (no capturing within a
+        /// faction). Author decisions 2026-10-02. Default: false
         /// </summary>
         public bool CanCaptureOwnPiece { get; set; } = false;
-
-        /// <summary>
-        /// Whether a piece can kill itself (單獨自殺). Default: false
-        /// </summary>
-        public bool CanSuicide { get; set; } = false;
 
         #endregion
 
@@ -129,6 +128,14 @@ namespace Chinese_Chess_v3.Game.Core
         /// becomes revealed. Equal rank is a plain capture. Default: true
         /// </summary>
         public bool IsCaptureHiddenPieceStrongerSuicide { get; set; } = true;
+
+        /// <summary>
+        /// HalfCenter 自殺: whether a piece may move onto a face-up enemy piece it is too weak to
+        /// capture by rank (a one-square orthogonal capture; rank-free captures never need it). The
+        /// mover dies and the target stays (<c>MoveKind.Suicide</c>). Author decision 2026-10-02.
+        /// Default: false
+        /// </summary>
+        public bool CanSuicide { get; set; } = false;
 
         /// <summary>
         /// Whether multiple captures in a row are allowed (連吃). Default: false

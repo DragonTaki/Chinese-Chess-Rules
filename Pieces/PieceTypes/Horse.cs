@@ -34,7 +34,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         /// <para>
         /// - Must move in an "L" shape (1+2 or 2+1 squares).
         /// - Must not be blocked by a piece in the primary movement direction ("horse leg", when <see cref="Rules.CanHorseLegHobbled"/>).
-        /// - Cannot capture an allied piece.
+        /// - Cannot capture an own piece (unless <see cref="Rules.CanCaptureOwnPiece"/>; never the own General).
         /// </para>
         /// </summary>
         /// <param name="targetX">The X-coordinate of the target position.</param>
@@ -73,8 +73,8 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
             if (board.GameRules.CanHorseLegHobbled && IsHorseLegHobbled(board, dx, dy))
                 return false;
 
-            // Check if there is an ally piece at the destination
-            if (board.IsLocationSamePlayerSide(Side, targetX, targetY) == true)
+            // An own piece at the destination blocks (unless 吃己棋, see IsBlockedByOwnPieceFull)
+            if (IsBlockedByOwnPieceFull(board, targetX, targetY))
                 return false;
 
             return true;
@@ -111,7 +111,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
                     continue;
 
                 // Skip if destination occupied by ally
-                if (board.IsLocationSamePlayerSide(Side, newX, newY) == true)
+                if (IsBlockedByOwnPieceFull(board, newX, newY))
                     continue;
 
                 // Add to legal moves

@@ -178,6 +178,23 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
             return Side == other.Side;
         }
 
+        /// <summary>
+        /// Full board: whether the piece on (targetX, targetY) is one this piece may not move
+        /// onto because it is its own (吃己棋). An own piece always blocks unless
+        /// <see cref="Rules.CanCaptureOwnPiece"/> is on, and the own General always blocks (the
+        /// Full board's check rules need both Generals; author decision 2026-10-02).
+        /// </summary>
+        protected bool IsBlockedByOwnPieceFull(Board board, int targetX, int targetY)
+        {
+            var target = board.GetPiece(targetX, targetY);
+            if (target == null || target.Side != Side)
+                return false;
+            // Its own square is never a destination.
+            if (target == this)
+                return true;
+            return !board.GameRules.CanCaptureOwnPiece || target.Type == PieceType.General;
+        }
+
         // Only check destination location
         protected virtual bool IsDestinationLegalFull(Board board, int targetX, int targetY) => board.IsInBoard(targetX, targetY);
         protected virtual bool IsDestinationLegalHalfCenter(Board board, int targetX, int targetY) => board.IsInBoard(targetX, targetY);
@@ -214,6 +231,10 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         /// is a state change <c>GameManager</c> applies when the move is made (it reveals
         /// the target and re-checks this with the target face up), not a legality question.
         /// The same goes for a hidden target that turns out to be one's own piece.
+        /// With <see cref="Rules.CanSuicide"/> on, a ranked capture of a stronger face-up
+        /// enemy piece is a legal move too: the mover dies (<see cref="IsSuicideMove"/>).
+        /// With <see cref="Rules.CanCaptureOwnPiece"/> on, a face-up own piece is a target
+        /// like an enemy one, rank included (author decision 2026-10-02), but never a suicide.
         /// </remarks>
         /// <param name="board">The board the move is made on.</param>
         /// <param name="targetX">Target square X.</param>
@@ -242,19 +263,29 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
             if (!target.CurrentInfo.IsFaceUp)
                 return rules.CanCaptureHiddenPiece;
 
-            // Capturing an allied piece is never allowed on this board type.
-            // CanCaptureOwnPiece is declared under Rules.cs's "Full Board
-            // Rules" region, so it's scoped to the Full board only. Before the
-            // factions are decided (明棋半盤's first move) the colours tell them apart.
-            if (IsSameFaction(target))
+            // An own piece is a target only with 吃己棋 on (then by the same rules as an enemy
+            // piece, rank included). Before the factions are decided (明棋半盤's first move)
+            // the colours tell them apart.
+            bool own = IsSameFaction(target);
+            if (own && !rules.CanCaptureOwnPiece)
                 return false;
 
-            if (ignoreRank)
+            if (ignoreRank || OutranksForCapture(target, rules))
                 return true;
 
-            // Standard dark-chess exception to the rank order: the weakest piece (Soldier)
-            // can capture the strongest (General), and the General cannot capture a
-            // Soldier. Every other pair follows PieceRankings.
+            // Too weak for a ranked capture: with 自殺 on, moving onto a stronger enemy piece is
+            // still a legal move, in which the mover dies (IsSuicideMove). Never onto an own piece.
+            return rules.CanSuicide && !own;
+        }
+
+        /// <summary>
+        /// The dark-chess rank order for a ranked capture (吃子看大小): whether this piece is
+        /// strong enough to capture <paramref name="target"/>. A Soldier can capture a General
+        /// and a General cannot capture a Soldier (the standard exception); every other pair
+        /// follows <see cref="Rules.PieceRankings"/> (same rank or stronger).
+        /// </summary>
+        private bool OutranksForCapture(Piece target, Rules rules)
+        {
             if (Type == PieceType.Soldier && target.Type == PieceType.General)
                 return true;
             if (Type == PieceType.General && target.Type == PieceType.Soldier)
@@ -267,6 +298,26 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
             // means a stronger piece; capturing requires being the same
             // rank or stronger.
             return myRank <= targetRank;
+        }
+
+        /// <summary>
+        /// HalfCenter 自殺 (<see cref="Rules.CanSuicide"/>): whether moving this piece onto the
+        /// face-up piece at (<paramref name="targetX"/>, <paramref name="targetY"/>) is a suicide
+        /// — the target is an enemy piece this piece may not capture by rank, so this piece dies
+        /// and the target stays. Only a one-square orthogonal capture follows rank (author
+        /// decision 2026-10-02: 車衝 over more than one square, the Cannon's jump and the 馬斜
+        /// diagonal ignore rank), so only such a move can be a suicide. Does not check the move
+        /// itself; ask <see cref="IsPseudoLegalMove"/> for that.
+        /// </summary>
+        public bool IsSuicideMove(Board board, int targetX, int targetY)
+        {
+            var target = board.GetPiece(targetX, targetY);
+            if (board.Type != BoardType.HalfCenter || target == null || target == this || !target.CurrentInfo.IsFaceUp
+                || IsSameFaction(target))
+                return false;
+            if (Math.Abs(targetX - X) + Math.Abs(targetY - Y) != 1)
+                return false;
+            return !OutranksForCapture(target, board.GameRules);
         }
 
         /// <summary>

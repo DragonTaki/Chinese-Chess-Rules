@@ -18,7 +18,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
     /// Represents the <b>General (帥/將)</b> piece in Chinese Chess.
     /// The General moves exactly 1 square horizontally or vertically and must stay within the palace (九宮格)
     /// unless <see cref="Rules.CanGeneralLeavePalace"/> is on.
-    /// It cannot move diagonally and cannot capture allied pieces.
+    /// It cannot move diagonally and cannot capture own pieces (unless <see cref="Rules.CanCaptureOwnPiece"/>).
     /// </summary>
     public class General : Piece
     {
@@ -58,7 +58,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         /// <para>
         /// - Must move exactly 1 square horizontally or vertically.
         /// - Must remain within the palace (unless <see cref="Rules.CanGeneralLeavePalace"/>).
-        /// - Cannot capture an allied piece.
+        /// - Cannot capture an own piece (unless <see cref="Rules.CanCaptureOwnPiece"/>; never the own General).
         /// </para>
         /// </summary>
         /// <param name="targetX">The X-coordinate of the target position.</param>
@@ -93,8 +93,8 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
             if (!matched)
                 return false;
 
-            // Check if there is an ally piece at the destination
-            if (board.IsLocationSamePlayerSide(Side, targetX, targetY) == true)
+            // An own piece at the destination blocks (unless 吃己棋, see IsBlockedByOwnPieceFull)
+            if (IsBlockedByOwnPieceFull(board, targetX, targetY))
                 return false;
 
             return true;
@@ -125,7 +125,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
                     continue;
 
                 // Skip if destination occupied by ally
-                if (board.IsLocationSamePlayerSide(Side, newX, newY) == true)
+                if (IsBlockedByOwnPieceFull(board, newX, newY))
                     continue;
 
                 // Check if two side general face to face

@@ -3,7 +3,7 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2026/10/01
-// Update Date: 2026/10/01
+// Update Date: 2026/10/04
 // Version: v1.0
 /* ----- ----- ----- ----- */
 
@@ -51,5 +51,11 @@ namespace Chinese_Chess_v3.Game.Core
         /// (taken off the board) and the target stays, now face up.
         /// </summary>
         HiddenStrongerSuicide,
+
+        /// <summary>
+        /// 自殺 (<c>Rules.CanSuicide</c>, HalfCenter): the mover moved onto a face-up enemy piece it
+        /// may not capture by rank; the mover dies (taken off the board) and the target stays.
+        /// </summary>
+        Suicide,
     }
 }

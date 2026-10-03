@@ -36,7 +36,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         /// <para>
         /// - The Cannon must move strictly in a straight line (horizontal or vertical).
         /// - For a normal move (non-capture), there must be no pieces in between.
-        /// - For a capture, there must be exactly one piece between the Cannon and its target, and the target must be an enemy.
+        /// - For a capture, there must be exactly one piece between the Cannon and its target, and the target must be an enemy (or an own piece other than the General with <see cref="Rules.CanCaptureOwnPiece"/>).
         /// </para>
         /// </summary>
         /// <param name="targetX">The X-coordinate of the target position.</param>
@@ -71,8 +71,8 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
             }
             else
             {
-                // Capturing — must have exactly one piece in between, and target must be an enemy
-                return count == 1 && targetPiece.Side != this.Side;
+                // Capturing — must have exactly one piece in between, and the target must not be blocked as an own piece
+                return count == 1 && !IsBlockedByOwnPieceFull(board, targetX, targetY);
             }
         }
 
@@ -120,10 +120,10 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
                     else
                     {
                         // After jumping, skip empty squares; the next piece
-                        // encountered must be an enemy to capture
+                        // encountered is the capture target (an enemy, or an own piece with 吃己棋)
                         if (target != null)
                         {
-                            if (target.Side != this.Side && !WouldExposeGeneralsFull(board, newX, newY))
+                            if (!IsBlockedByOwnPieceFull(board, newX, newY) && !WouldExposeGeneralsFull(board, newX, newY))
                             {
                                 // Add to legal moves
                                 legalMoves.Add((newX, newY));
