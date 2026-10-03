@@ -3,7 +3,7 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2026/09/30
-// Update Date: 2026/09/30
+// Update Date: 2026/10/04
 // Version: v1.0
 /* ----- ----- ----- ----- */
 
@@ -31,10 +31,17 @@ namespace Chinese_Chess_v3.Game.Core
         /// <summary>Opponent chariots/horses/cannons that were hanging before the move.</summary>
         internal HashSet<Piece> HangingMajors { get; }
 
-        internal TacticalSnapshot(HashSet<Piece> capturableChariots, HashSet<Piece> hangingMajors)
+        /// <summary>
+        /// Opponent chariots already trapped (打死車) before the move: judged on the pre-move
+        /// board over every legal opponent move there, as if the opponent were to move.
+        /// </summary>
+        internal HashSet<Piece> TrappedChariots { get; }
+
+        internal TacticalSnapshot(HashSet<Piece> capturableChariots, HashSet<Piece> hangingMajors, HashSet<Piece> trappedChariots)
         {
             CapturableChariots = capturableChariots;
             HangingMajors = hangingMajors;
+            TrappedChariots = trappedChariots;
         }
     }
 
@@ -63,8 +70,9 @@ namespace Chinese_Chess_v3.Game.Core
             var opponent = OpponentOf(mover);
             var capturable = new HashSet<Piece>();
             var hanging = new HashSet<Piece>();
+            var trapped = new HashSet<Piece>();
             if (board == null || !board.UsesCheckRules)
-                return new TacticalSnapshot(capturable, hanging);
+                return new TacticalSnapshot(capturable, hanging, trapped);
 
             var pieces = board.GetAllPieces().ToArray();
             foreach (var chariot in pieces)
@@ -77,7 +85,10 @@ namespace Chinese_Chess_v3.Game.Core
                 if (p.Side == opponent && IsMajor(p.Type))
                     hanging.Add(p);
             }
-            return new TacticalSnapshot(capturable, hanging);
+            var replies = GetLegalReplies(board, pieces, opponent);
+            if (replies.Count > 0)
+                trapped.UnionWith(FindTrappedChariots(board, pieces, replies, mover));
+            return new TacticalSnapshot(capturable, hanging, trapped);
         }
 
         /// <summary>
@@ -132,7 +143,10 @@ namespace Chinese_Chess_v3.Game.Core
                     }
                 }
 
-                var trapped = FindTrappedChariots(board, pieces, replies, mover);
+                // Only a newly trapped chariot (author decision 2026-10-02): one that was already
+                // trapped before this move is not reported again.
+                var trapped = FindTrappedChariots(board, pieces, replies, mover)
+                    .Where(c => !before.TrappedChariots.Contains(c)).ToList();
                 if (trapped.Count > 0)
                     Add(TacticalEventType.TrappedChariot, trapped);
             }
@@ -220,7 +234,8 @@ namespace Chinese_Chess_v3.Game.Core
 
         /// <summary>
         /// 打死車: opponent chariots that, after every legal reply (including the chariot's
-        /// own moves, wherever it goes), a mover cannon can legally capture.
+        /// own moves, wherever it goes), a mover cannon can legally capture. <see cref="Analyze"/>
+        /// reports only those not already in <see cref="TacticalSnapshot.TrappedChariots"/>.
         /// </summary>
         private static List<Piece> FindTrappedChariots(
             Board board, Piece[] pieces, List<(Piece piece, int x, int y)> replies, PlayerSide mover)
