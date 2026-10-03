@@ -232,6 +232,36 @@ namespace Chinese_Chess_v3.Game.Core
         /// </summary>
         public int UndoFloor { get; private set; } = 0;
 
+        // Local players' names, indexed Player1..Player3 (null or empty: unnamed).
+        private readonly string[] _playerNames = new string[3];
+
+        /// <summary>
+        /// Sets the local players' names (設定 → 玩家一／二／三名稱; a network game would use the
+        /// accounts instead). Null or empty leaves a player unnamed (see <see cref="NameOf"/>).
+        /// </summary>
+        public void SetPlayerNames(string player1, string player2, string player3)
+        {
+            _playerNames[0] = player1;
+            _playerNames[1] = player2;
+            _playerNames[2] = player3;
+        }
+
+        /// <summary>
+        /// The name set for <paramref name="side"/> (<see cref="SetPlayerNames"/>), or null when
+        /// it has none (unnamed, or not a player: the caller shows a default).
+        /// </summary>
+        public string NameOf(PlayerSide side)
+        {
+            int index = side switch
+            {
+                PlayerSide.Player1 => 0,
+                PlayerSide.Player2 => 1,
+                PlayerSide.Player3 => 2,
+                _ => -1,
+            };
+            return index >= 0 && !string.IsNullOrEmpty(_playerNames[index]) ? _playerNames[index] : null;
+        }
+
         /// <summary>
         /// Whether any move has been played in this game beyond its preset start (the
         /// <see cref="UndoFloor"/> moves of an opening line). False for a fresh game, endgame or
