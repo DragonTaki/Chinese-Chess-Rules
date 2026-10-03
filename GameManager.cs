@@ -110,7 +110,8 @@ namespace Chinese_Chess_v3.Game.Core
         /// <summary>
         /// True while <see cref="LoadSavedGame"/> replays a saved game: a <see cref="GameOver"/>
         /// raised then is the saved game's old ending coming back, not a game just ended, so
-        /// the UI does not announce it.
+        /// the UI does not announce it. Also true while a position set up with its side to move
+        /// already checkmated or stalemated is ended for display (see <see cref="LoadCustomBoard"/>).
         /// </summary>
         public bool IsReplaying { get; private set; } = false;
 
@@ -741,6 +742,23 @@ namespace Chinese_Chess_v3.Game.Core
                 PieceAdded?.Invoke(p);
 
             UpdateHangingPieces();
+
+            // A position whose side to move is already checkmated or stalemated (a custom board
+            // or an endgame) is shown as an ended game (author decision 2026-10-02): it ends at
+            // once, flagged IsReplaying so no result dialog is shown.
+            if (Board.UsesCheckRules && Board.GetGeneral(PlayerSide.Player1) != null && !Board.HasAnyLegalMove(PlayerSide.Player1))
+            {
+                bool replaying = IsReplaying;
+                IsReplaying = true;
+                try
+                {
+                    EndGame(PlayerSide.Player2, PlayerSide.Player1, IsInCheck ? GameOverReason.Checkmate : GameOverReason.Stalemate);
+                }
+                finally
+                {
+                    IsReplaying = replaying;
+                }
+            }
         }
 
         /// <summary>
