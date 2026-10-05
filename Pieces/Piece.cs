@@ -3,13 +3,12 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2025/05/06
-// Update Date: 2026/10/01
-// Version: v2.3
+// Update Date: 2026/10/05
+// Version: v2.4
 /* ----- ----- ----- ----- */
 
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 
 using Chinese_Chess_v3.Game.Core.Boards;
 using Chinese_Chess_v3.Game.Core.Movements;
@@ -66,9 +65,9 @@ namespace Chinese_Chess_v3.Game.Core.Pieces
         public int Y => CurrentInfo.Y;
 
         /// <summary>
-        /// Returns the current position of the piece as a Point.
+        /// Returns the current position of the piece as a <see cref="GridPoint"/>.
         /// </summary>
-        public Point Position => new Point(X, Y);
+        public GridPoint Position => new GridPoint(X, Y);
 
         /* ----- Construction and state updates ----- */
 
