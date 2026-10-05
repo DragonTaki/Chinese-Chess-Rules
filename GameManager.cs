@@ -3,8 +3,8 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2025/05/06
-// Update Date: 2026/10/02
-// Version: v1.7
+// Update Date: 2026/10/05
+// Version: v1.8
 /* ----- ----- ----- ----- */
 
 using System;
@@ -28,7 +28,12 @@ namespace Chinese_Chess_v3.Game.Core
 {
     public class GameManager
     {
-        public IGameLog Logger { get; private set; }
+        /// <summary>
+        /// Raised for each game-log entry (a game set up, a click, a move, a check, an undo, the
+        /// result... see <see cref="GameLogEvent"/>), as plain data at the moment it happens; the
+        /// logic layer above composes the lines the sidebar's log box shows.
+        /// </summary>
+        public event Action<GameLogEvent> Logged;
 
         /// <summary>
         /// The board of the current game. Replaced by a new <see cref="Boards.Board"/> instance
@@ -433,11 +438,6 @@ namespace Chinese_Chess_v3.Game.Core
             UpdateHangingPieces();
         }
 
-        public void SetLogger(IGameLog loggerHandler)
-        {
-            Logger = loggerHandler ?? throw new ArgumentNullException(nameof(loggerHandler));
-        }
-
         public void ResetBoardToDefault()
         {
             // Load default pieces (the standard start: Red moves first, so Red is Player1)
@@ -478,7 +478,7 @@ namespace Chinese_Chess_v3.Game.Core
             var pieces = BoardConfigLoader.CreateShuffledHalfCenter(random, rules.IsHiddenChess);
             SetUpPosition(pieces, null, BoardType.HalfCenter, rules);
             AppLogger.Log($"(DarkChess) Started a HalfCenter game, hidden: {rules.IsHiddenChess}, seed: {shuffleSeed}", LogLevel.DEBUG);
-            Logger?.AddMessage(rules.IsHiddenChess ? "(DarkChess) 新局：暗棋半盤" : "(DarkChess) 新局：明棋半盤");
+            Logged?.Invoke(new GameLogEvent.HalfCenterStarted(rules.IsHiddenChess));
         }
 
         /// <summary>
@@ -531,7 +531,7 @@ namespace Chinese_Chess_v3.Game.Core
             var (pieces, firstColor) = XiangqiFen.Parse(puzzle.Fen);
             SetUpPosition(pieces, puzzle, BoardType.Full, rules, firstColor: firstColor);
             AppLogger.Log($"(Endgame) Started {puzzle.FileName}: {puzzle.Title}, {firstColor} to move", LogLevel.DEBUG);
-            Logger?.AddMessage($"(Endgame) {puzzle.Title} ({puzzle.Goal})");
+            Logged?.Invoke(new GameLogEvent.EndgameStarted(puzzle.Title, puzzle.Goal));
         }
 
         /// <summary>
@@ -605,7 +605,7 @@ namespace Chinese_Chess_v3.Game.Core
         /// used, not the file: it already is the file as loaded, and a file edited, overwritten or
         /// deleted since cannot change or break the restart.
         /// </summary>
-        private void RestartSavedGame(SavedGame saved, Rules rules) => SetUpSavedGame(saved, rules, "(Restart)");
+        private void RestartSavedGame(SavedGame saved, Rules rules) => SetUpSavedGame(saved, rules, isRestart: true);
 
         /// <summary>
         /// Starts a game from <paramref name="opening"/>: its position (the standard start
@@ -628,7 +628,7 @@ namespace Chinese_Chess_v3.Game.Core
             ArgumentNullException.ThrowIfNull(opening);
             var (pieces, firstColor) = XiangqiFen.Parse(opening.Fen);
             SetUpPosition(pieces, opening, BoardType.Full, rules, firstColor: firstColor);
-            Logger?.AddMessage(opening.Ecco != null ? $"(Opening) {opening.Title} ({opening.Ecco})" : $"(Opening) {opening.Title}");
+            Logged?.Invoke(new GameLogEvent.OpeningStarted(opening.Title, opening.Ecco));
 
             int played = 0;
             foreach (var move in opening.Moves)
@@ -829,7 +829,7 @@ namespace Chinese_Chess_v3.Game.Core
 
             HasUnsavedChanges = false;
             AppLogger.Log($"(Save) Saved {Moves.Count} move(s) to {filePath}", LogLevel.DEBUG);
-            Logger?.AddMessage($"(Save) {Path.GetFileName(filePath)}");
+            Logged?.Invoke(new GameLogEvent.GameSaved(Path.GetFileName(filePath)));
             return filePath;
         }
 
@@ -853,20 +853,20 @@ namespace Chinese_Chess_v3.Game.Core
         /// <returns>The number of moves replayed: all of them unless one is not legal (files
         /// from <see cref="SavedGameLoader"/> have already been checked), where replay stops.</returns>
         /// <exception cref="FormatException">The saved game's FEN is not valid.</exception>
-        public int LoadSavedGame(SavedGame saved) => SetUpSavedGame(saved, null, "(Load)");
+        public int LoadSavedGame(SavedGame saved) => SetUpSavedGame(saved, null, isRestart: false);
 
         /// <summary>
         /// <see cref="LoadSavedGame"/> played by <paramref name="rules"/> (this game's own copy;
         /// null for <see cref="SavedGame.RulesFor"/> over the current <see cref="GameKind.Traditional"/> defaults),
-        /// its game-log line headed <paramref name="logTag"/>. <see cref="Restart"/> of a loaded
+        /// its game-log entry marked as a restart when <paramref name="isRestart"/>. <see cref="Restart"/> of a loaded
         /// saved game uses it with the loaded game's rules, so it comes back exactly as loaded.
         /// </summary>
-        private int SetUpSavedGame(SavedGame saved, Rules rules, string logTag)
+        private int SetUpSavedGame(SavedGame saved, Rules rules, bool isRestart)
         {
             ArgumentNullException.ThrowIfNull(saved);
             var (pieces, firstColor) = XiangqiFen.Parse(saved.Fen);
             SetUpPosition(pieces, saved, BoardType.Full, rules, firstColor: firstColor);
-            Logger?.AddMessage($"{logTag} {saved.Title}");
+            Logged?.Invoke(new GameLogEvent.SavedGameStarted(saved.Title, isRestart));
 
             IsReplaying = true;
             try
@@ -1085,8 +1085,8 @@ namespace Chinese_Chess_v3.Game.Core
             AppLogger.Log(
                 $"Current turn: {CurrentTurn}, holding: {(_selectedPiece == null ? "null" : _selectedPiece.Type.ToString())},\n" +
                 $"clicked at ({x},{y}), on: {DescribeForLog(clickedPiece)}", LogLevel.DEBUG);
-            Logger?.AddMessage($"Current turn: {CurrentTurn}, holding: {(_selectedPiece == null ? "null" : _selectedPiece.Type.ToString())},\n" +
-                $"clicked at ({x},{y}), on: {DescribeForLog(clickedPiece)}");
+            Logged?.Invoke(new GameLogEvent.BoardClicked(CurrentTurn, _selectedPiece?.Type, x, y, clickedPiece?.Type,
+                clickedPiece != null && Board.UsesDarkChessRules && !clickedPiece.CurrentInfo.IsFaceUp));
 
             // No selected piece: flip a face-down piece (dark chess), or try to select one
             if (_selectedPiece == null)
@@ -1100,7 +1100,7 @@ namespace Chinese_Chess_v3.Game.Core
                 {
                     _selectedPiece = clickedPiece;
                     AppLogger.Log($"(Action) Selected {clickedPiece.Type} at ({x},{y})", LogLevel.DEBUG);
-                    Logger?.AddMessage($"(Action) Selected {clickedPiece.Type} at ({x},{y})");
+                    Logged?.Invoke(new GameLogEvent.SelectionChanged(SelectionChange.Selected, clickedPiece.Type, x, y));
                     PieceSelected?.Invoke(_selectedPiece);
                 }
                 return;
@@ -1114,14 +1114,14 @@ namespace Chinese_Chess_v3.Game.Core
                 if (clickedPiece == _selectedPiece)
                 {
                     AppLogger.Log($"(Action) Un-selected {_selectedPiece.Type} at ({x},{y})", LogLevel.DEBUG);
-                    Logger?.AddMessage($"(Action) Un-selected {_selectedPiece.Type} at ({x},{y})");
+                    Logged?.Invoke(new GameLogEvent.SelectionChanged(SelectionChange.Unselected, _selectedPiece.Type, x, y));
                     PieceUnselected?.Invoke(_selectedPiece);
                     _selectedPiece = null;
                 }
                 else
                 {
                     AppLogger.Log($"(Action) Switched to {clickedPiece.Type} at ({x},{y})", LogLevel.DEBUG);
-                    Logger?.AddMessage($"(Action) Switched to {clickedPiece.Type} at ({x},{y})");
+                    Logged?.Invoke(new GameLogEvent.SelectionChanged(SelectionChange.Switched, clickedPiece.Type, x, y));
                     PieceUnselected?.Invoke(_selectedPiece);
                     _selectedPiece = clickedPiece;
                     PieceSelected?.Invoke(_selectedPiece);
@@ -1140,13 +1140,13 @@ namespace Chinese_Chess_v3.Game.Core
                 if (clickedPiece == null)
                 {
                     AppLogger.Log($"(Action) Un-selected {_selectedPiece.Type} at ({x},{y})", LogLevel.DEBUG);
-                    Logger?.AddMessage($"(Action) Un-selected {_selectedPiece.Type} at ({x},{y})");
+                    Logged?.Invoke(new GameLogEvent.SelectionChanged(SelectionChange.Unselected, _selectedPiece.Type, x, y));
                 }
                 // Invalid catch
                 else
                 {
                     AppLogger.Log($"(Action) Invalid move to ({x},{y})", LogLevel.DEBUG);
-                    Logger?.AddMessage($"(Action) Invalid move to ({x},{y})");
+                    Logged?.Invoke(new GameLogEvent.SelectionChanged(SelectionChange.Invalid, _selectedPiece.Type, x, y));
                 }
                 PieceUnselected?.Invoke(_selectedPiece);
                 _selectedPiece = null;
@@ -1220,7 +1220,7 @@ namespace Chinese_Chess_v3.Game.Core
             {
                 Board.RemovePiece(toX, toY);
                 AppLogger.Log($"(Action) Captured {targetPiece.Type} at ({toX},{toY})", LogLevel.DEBUG);
-                Logger?.AddMessage($"(Action) Captured {targetPiece.Type} at ({toX},{toY})");
+                Logged?.Invoke(new GameLogEvent.PieceTaken(targetPiece.Type, toX, toY));
                 PieceCaptured?.Invoke(targetPiece);
                 PieceRemoved?.Invoke(targetPiece);
             }
@@ -1228,22 +1228,16 @@ namespace Chinese_Chess_v3.Game.Core
             // move logic
             Board.MovePiece(fromX, fromY, toX, toY);
             AppLogger.Log($"(Action) Moved {piece.Type} to ({toX},{toY})", LogLevel.DEBUG);
-            Logger?.AddMessage($"(Action) Moved {piece.Type} to ({toX},{toY})");
+            Logged?.Invoke(new GameLogEvent.PieceMoved(piece.Type, toX, toY));
             if (decidesFactions)
                 _stateChanges[_stateChanges.Count - 1] = ChangesSince(historyBefore);
 
             // raise moved event AFTER board updated
             PieceMoved?.Invoke(piece, toX, toY);
 
-            // Readable move-list line, in addition to the debug lines above.
-            string line = LastMove.Notation != null ? FormatMoveLine(LastMove)
-                : Board.UsesDarkChessRules ? FormatDarkChessLine(LastMove)
-                : null;
-            if (line != null)
-            {
-                AppLogger.Log(line, LogLevel.DEBUG);
-                Logger?.AddMessage(line);
-            }
+            // Readable move-list entry, in addition to the debug entries above.
+            AppLogger.Log($"(Action) Recorded move {LastMove.Ply}: {LastMove.Notation ?? LastMove.Kind.ToString()}", LogLevel.DEBUG);
+            Logged?.Invoke(new GameLogEvent.MovePlayed(LastMove, ColorOf(LastMove.Side), LineStyleOf(LastMove)));
             if (decidesFactions)
                 LogFactions();
             MoveRecorded?.Invoke(LastMove);
@@ -1284,7 +1278,7 @@ namespace Chinese_Chess_v3.Game.Core
                 if (opponentInCheck)
                 {
                     AppLogger.Log($"(Check) {opponent} is in check", LogLevel.DEBUG);
-                    Logger?.AddMessage($"(Check) {opponent} is in check");
+                    Logged?.Invoke(new GameLogEvent.CheckGiven(opponent));
                     Check?.Invoke(opponent);
                 }
                 RaiseTacticalEvents(tactical);
@@ -1356,12 +1350,13 @@ namespace Chinese_Chess_v3.Game.Core
             EndDarkChessAction();
         }
 
-        /// <summary>Writes the faction decision's log line (which player plays which colour).</summary>
+        /// <summary>Reports the faction decision (which player plays which colour) to the game log.</summary>
         private void LogFactions()
         {
-            string factions = $"(Faction) {PlayerSide.Player1} 執{ColorName(ColorOf(PlayerSide.Player1))}，{PlayerSide.Player2} 執{ColorName(ColorOf(PlayerSide.Player2))}";
-            AppLogger.Log(factions, LogLevel.DEBUG);
-            Logger?.AddMessage(factions);
+            var player1 = ColorOf(PlayerSide.Player1);
+            var player2 = ColorOf(PlayerSide.Player2);
+            AppLogger.Log($"(Faction) {PlayerSide.Player1} plays {player1}, {PlayerSide.Player2} plays {player2}", LogLevel.DEBUG);
+            Logged?.Invoke(new GameLogEvent.FactionsDecided(player1, player2));
         }
 
         /// <summary>
@@ -1472,7 +1467,7 @@ namespace Chinese_Chess_v3.Game.Core
         /// Records a dark-chess action (flip, hidden capture or 自殺) applied since
         /// <paramref name="before"/> as the next move — <see cref="LastMove"/>, the move list
         /// and the undo data (both clocks, every changed piece) — marks the game changed and
-        /// writes its game-log line (<see cref="FormatDarkChessLine"/>).
+        /// reports it to the game log (<see cref="GameLogEvent.MovePlayed"/>).
         /// </summary>
         private void RecordDarkChessAction(PieceInfo pieceBefore, int fromX, int fromY, int toX, int toY, MoveKind kind,
             PlayerSide mover, PieceInfo revealed, Piece captured, (ClockState, ClockState) clocks, Dictionary<Piece, int> before)
@@ -1487,9 +1482,7 @@ namespace Chinese_Chess_v3.Game.Core
             _stateChanges.Add(ChangesSince(before));
             HasUnsavedChanges = true;
 
-            string line = FormatDarkChessLine(LastMove);
-            AppLogger.Log(line, LogLevel.DEBUG);
-            Logger?.AddMessage(line);
+            Logged?.Invoke(new GameLogEvent.MovePlayed(LastMove, ColorOf(mover), MoveLineStyle.DarkChess));
         }
 
         /// <summary>
@@ -1542,8 +1535,8 @@ namespace Chinese_Chess_v3.Game.Core
         }
 
         /// <summary>
-        /// Writes one game-log line per tactical event (Chinese name, event type, mover,
-        /// move and involved pieces) and raises <see cref="TacticalEvents"/> if any.
+        /// Reports each tactical event to the game log (and the debug log) and raises
+        /// <see cref="TacticalEvents"/> if any.
         /// </summary>
         private void RaiseTacticalEvents(List<TacticalEvent> events)
         {
@@ -1558,7 +1551,7 @@ namespace Chinese_Chess_v3.Game.Core
                     : string.Join(", ", e.Pieces.Select(p => $"{p.Side} {p.Type} ({p.X},{p.Y})"));
                 string line = $"(Tactic) {e.ChineseName} [{e.Type}] {e.Mover} {m.Piece.Type} ({m.FromX},{m.FromY})->({m.ToX},{m.ToY}); pieces: {involved}";
                 AppLogger.Log(line, LogLevel.DEBUG);
-                Logger?.AddMessage(line);
+                Logged?.Invoke(new GameLogEvent.TacticDetected(e));
             }
             TacticalEvents?.Invoke(events);
         }
@@ -1569,58 +1562,6 @@ namespace Chinese_Chess_v3.Game.Core
             HangingPieces = BoardAnalysis.GetHangingPieces(Board);
             HangingPiecesChanged?.Invoke(HangingPieces);
         }
-
-        /// <summary>
-        /// The game-log line of a move: <c>第{MoveNumber}回合 紅：{Notation}</c> or
-        /// <c>第{MoveNumber}回合 黑：{Notation}</c> (e.g. <c>第1回合 紅：炮二平五</c>). The side name is
-        /// the moved piece's colour, like the notation's piece characters.
-        /// </summary>
-        public static string FormatMoveLine(MoveRecord move) =>
-            $"第{move.MoveNumber}回合 {(move.Color == PieceColor.Red ? "紅" : "黑")}：{move.Notation}";
-
-        /// <summary>
-        /// The game-log line of a dark-chess action, which has no notation (e.g.
-        /// <c>第1回合 紅：翻開(3,2) 俥</c>). The side name is the mover's colour as decided
-        /// now (<see cref="ColorOf"/>), so call it while the action is on the board.
-        /// </summary>
-        private string FormatDarkChessLine(MoveRecord move)
-        {
-            string head = $"第{move.MoveNumber}回合 {ColorName(ColorOf(move.Side))}：";
-            switch (move.Kind)
-            {
-                case MoveKind.Flip:
-                    return head + $"翻開({move.FromX},{move.FromY}) {PieceText(move.Revealed)}";
-                case MoveKind.HiddenCapture:
-                    return head + $"{HiddenCaptureHead(move)}，吃掉";
-                case MoveKind.HiddenOwnPiece:
-                    return head + $"{HiddenCaptureHead(move)}（己方），退回原位";
-                case MoveKind.HiddenStrongerReturn:
-                    return head + $"{HiddenCaptureHead(move)}（吃不了），退回原位";
-                case MoveKind.HiddenStrongerSuicide:
-                    return head + $"{HiddenCaptureHead(move)}（吃不了），{PieceText(move.Piece)}陣亡";
-                case MoveKind.Suicide:
-                    return head + $"{PieceText(move.Piece)}({move.FromX},{move.FromY})撞({move.ToX},{move.ToY}){PieceText(move.Revealed)}，自殺陣亡";
-                default:
-                    return head + $"{PieceText(move.Piece)}({move.FromX},{move.FromY})→({move.ToX},{move.ToY})"
-                        + (move.Captured != null ? $"，吃{PieceText(move.Captured)}" : "");
-            }
-        }
-
-        /// <summary>The common start of a hidden-capture log line, e.g. 紅俥(2,1)暗吃(3,1)，翻出黑卒.</summary>
-        private static string HiddenCaptureHead(MoveRecord move) =>
-            $"{PieceText(move.Piece)}({move.FromX},{move.FromY})暗吃({move.ToX},{move.ToY})，翻出{PieceText(move.Revealed)}";
-
-        /// <summary>A piece's character with its colour name, e.g. 黑卒 (see <see cref="PieceConstants.GetPieceText"/>).</summary>
-        private static string PieceText(PieceInfo info) =>
-            info == null ? "?" : ColorName(info.Color) + PieceConstants.GetPieceText(info.Type, info.Color);
-
-        /// <summary>紅 / 黑 for the log lines; 未定 for a colour not decided yet.</summary>
-        private static string ColorName(PieceColor color) => color switch
-        {
-            PieceColor.Red => "紅",
-            PieceColor.Black => "黑",
-            _ => "未定",
-        };
 
         /// <summary>
         /// Takes back one round (悔棋): the last move of each side (<see cref="UndoRoundPlies"/>
@@ -1697,15 +1638,13 @@ namespace Chinese_Chess_v3.Game.Core
             else
             {
                 var piece = Board.GetPiece(record.ToX, record.ToY);
-                // Written before the board changes back (the side names follow the factions).
-                string undoLine = record.Notation != null ? $"(Undo) {FormatMoveLine(record)}"
-                    : Board.UsesDarkChessRules ? $"(Undo) {FormatDarkChessLine(record)}"
-                    : $"(Undo) {piece.Type} back to ({record.FromX},{record.FromY})";
+                // Taken before the board changes back (the side names follow the factions).
+                var undoEntry = new GameLogEvent.MoveTakenBack(record, ColorOf(record.Side), LineStyleOf(record), piece.Type);
 
                 Board.UnmakeMove(piece, record.FromX, record.FromY, record.ToX, record.ToY, captured);
 
                 AppLogger.Log($"(Undo) {piece.Type} back to ({record.FromX},{record.FromY})", LogLevel.DEBUG);
-                Logger?.AddMessage(undoLine);
+                Logged?.Invoke(undoEntry);
 
                 PieceMoved?.Invoke(piece, record.FromX, record.FromY);
                 if (captured != null)
@@ -1750,8 +1689,8 @@ namespace Chinese_Chess_v3.Game.Core
         /// </summary>
         private void UndoStateChanges(MoveRecord record, List<(Piece piece, int snapshots)> changes)
         {
-            // Written before the board changes back (the side names follow the factions).
-            string line = $"(Undo) {FormatDarkChessLine(record)}";
+            // Taken before the board changes back (the side names follow the factions).
+            var undoEntry = new GameLogEvent.MoveTakenBack(record, ColorOf(record.Side), MoveLineStyle.DarkChess, record.Piece.Type);
 
             var wasOnBoard = new Dictionary<Piece, (bool onBoard, int x, int y)>();
             foreach (var (p, _) in changes)
@@ -1760,7 +1699,7 @@ namespace Chinese_Chess_v3.Game.Core
             Board.RevertStates(changes);
 
             AppLogger.Log($"(Undo) {record.Kind} at ({record.ToX},{record.ToY}) taken back", LogLevel.DEBUG);
-            Logger?.AddMessage(line);
+            Logged?.Invoke(undoEntry);
 
             foreach (var (p, _) in changes)
             {
@@ -1773,6 +1712,12 @@ namespace Chinese_Chess_v3.Game.Core
                     PieceMoved?.Invoke(p, p.X, p.Y);
             }
         }
+
+        /// <summary>The game-log line style of an ordinary move: its notation when it has one, else the dark-chess line on a dark-chess board.</summary>
+        private MoveLineStyle LineStyleOf(MoveRecord move) =>
+            move.Notation != null ? MoveLineStyle.Notation
+            : Board.UsesDarkChessRules ? MoveLineStyle.DarkChess
+            : MoveLineStyle.Plain;
 
         private static PlayerSide OpponentOf(PlayerSide side) =>
             side == PlayerSide.Player1 ? PlayerSide.Player2 : PlayerSide.Player1;
@@ -1865,7 +1810,7 @@ namespace Chinese_Chess_v3.Game.Core
             if (!Board.GameRules.EndGameWhenTimesUp)
             {
                 AppLogger.Log($"(Timer) {loser.Side} ran out of time (EndGameWhenTimesUp is off)", LogLevel.DEBUG);
-                Logger?.AddMessage($"(Timer) {loser.Side} ran out of time");
+                Logged?.Invoke(new GameLogEvent.TimeRanOut(loser.Side));
                 return;
             }
 
@@ -1910,7 +1855,7 @@ namespace Chinese_Chess_v3.Game.Core
             }
 
             AppLogger.Log($"(Game over) {winner} wins ({reason})", LogLevel.DEBUG);
-            Logger?.AddMessage($"(Game over) {winner} wins ({reason})");
+            Logged?.Invoke(new GameLogEvent.GameEnded(winner, reason));
             GameOver?.Invoke(Result);
         }
 
