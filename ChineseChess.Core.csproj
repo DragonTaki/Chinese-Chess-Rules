@@ -1,10 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- 下層 (logic): the rules and the game state. -->
+  <!-- 下層 (logic): the rules and the game state. No engine dependency (2026-10-06): the rules
+       are shared with the server's rules host, so they must build on their own. -->
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
     <RootNamespace>Chinese_Chess_v3.Game.Core</RootNamespace>
   </PropertyGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\..\Engine\Engine.csproj" />
-  </ItemGroup>
 </Project>

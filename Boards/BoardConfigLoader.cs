@@ -3,8 +3,8 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2025/10/21
-// Update Date: 2026/10/01
-// Version: v1.2
+// Update Date: 2026/10/06
+// Version: v1.3
 /* ----- ----- ----- ----- */
 
 using System;
@@ -16,7 +16,6 @@ using System.Text.Json;
 using Chinese_Chess_v3.Game.Core.Pieces;
 using Chinese_Chess_v3.Game.Core.Players;
 
-using Engine.Randomization;
 
 namespace Chinese_Chess_v3.Game.Core.Boards
 {
@@ -62,54 +61,6 @@ namespace Chinese_Chess_v3.Game.Core.Boards
 
             // 3. Fall back to the default board
             return DeepCopyPieces(PieceConstants.InitialClassicPieces);
-        }
-
-        /// <summary>
-        /// A fresh HalfCenter (台灣暗棋半盤, 8×4) start position: both colours'
-        /// <see cref="PieceConstants.HalfCenterPieceSet"/> (32 pieces) shuffled over all 32
-        /// squares (Fisher–Yates with <paramref name="random"/>).
-        /// </summary>
-        /// <param name="random">The random source; the game passes a clock-seeded <see cref="RandomTable"/> (see <c>GameManager.StartHalfCenter</c>).</param>
-        /// <param name="faceDown">
-        /// true (暗棋, <c>Rules.IsHiddenChess</c>): every piece face down and owned by nobody
-        /// (<c>PlayerSide.None</c>) — the first flip decides the factions. false (明棋半盤): every
-        /// piece face up and still owned by nobody — the first move decides the factions (the
-        /// mover gets the moved piece's colour, see <c>GameManager.ColorOf</c>).
-        /// </param>
-        /// <returns>32 pieces, one per square.</returns>
-        /// <exception cref="ArgumentNullException"><paramref name="random"/> is null.</exception>
-        public static List<PieceInfo> CreateShuffledHalfCenter(IRandomProvider random, bool faceDown = true)
-        {
-            ArgumentNullException.ThrowIfNull(random);
-
-            var squares = new List<(int x, int y)>();
-            for (int y = 0; y < BoardConstants.HalfCenter.Rows; y++)
-            {
-                for (int x = 0; x < BoardConstants.HalfCenter.Columns; x++)
-                    squares.Add((x, y));
-            }
-
-            // Fisher–Yates: every square order equally likely (as far as the source is).
-            for (int i = squares.Count - 1; i > 0; i--)
-            {
-                int j = random.NextInt(i + 1);
-                (squares[i], squares[j]) = (squares[j], squares[i]);
-            }
-
-            var pieces = new List<PieceInfo>(squares.Count);
-            int next = 0;
-            foreach (var color in new[] { PieceColor.Red, PieceColor.Black })
-            {
-                foreach (var (type, count) in PieceConstants.HalfCenterPieceSet)
-                {
-                    for (int i = 0; i < count; i++)
-                    {
-                        var (x, y) = squares[next++];
-                        pieces.Add(new PieceInfo(type, x, y, color, PlayerSide.None, isFaceUp: !faceDown));
-                    }
-                }
-            }
-            return pieces;
         }
 
         /// <summary>

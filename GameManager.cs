@@ -21,7 +21,6 @@ using Chinese_Chess_v3.Game.Core.Pieces;
 using Chinese_Chess_v3.Game.Core.Players;
 using Chinese_Chess_v3.Game.Core.Saves;
 
-using Engine.Randomization;
 
 namespace Chinese_Chess_v3.Game.Core
 {
@@ -444,11 +443,11 @@ namespace Chinese_Chess_v3.Game.Core
         }
 
         /// <summary>
-        /// Starts a new HalfCenter game (台灣暗棋半盤, 8×4): the 32 pieces shuffled
-        /// (<see cref="BoardConfigLoader.CreateShuffledHalfCenter"/>) and owned by nobody, face
-        /// down when <see cref="Rules.IsHiddenChess"/>, otherwise face up (明棋半盤). Player1 acts
-        /// first — its first flip (or, face up, its first move) decides who plays which colour
-        /// (see <see cref="ColorOf"/>).
+        /// Starts a new HalfCenter game (台灣暗棋半盤, 8×4) from a layout <paramref name="deal"/>
+        /// makes: the 32 pieces owned by nobody, face down when <see cref="Rules.IsHiddenChess"/>,
+        /// otherwise face up (明棋半盤). Player1 acts first — its first flip (or, face up, its first
+        /// move) decides who plays which colour (see <see cref="ColorOf"/>). Dealing is not a rule:
+        /// the caller deals (a local game's dealer in the logic layer, an online game's server).
         /// </summary>
         /// <param name="hiddenChess">
         /// 暗棋半盤 (true: <see cref="GameKind.DarkHalf"/>, face down) or 明棋半盤 (false:
@@ -456,35 +455,31 @@ namespace Chinese_Chess_v3.Game.Core
         /// by a copy of that kind's <see cref="DefaultRulesFor"/>, its <see cref="Rules.IsHiddenChess"/>
         /// set to match, so <see cref="Rules"/> tells a restart which variant to deal again.
         /// </param>
-        /// <param name="seed">
-        /// The shuffle's seed; null (the game's choice) seeds it from the clock, so every new game
-        /// is a different layout. A fixed seed always gives the same layout (tests, replaying a
-        /// layout from the log). <see cref="GlobalRandom"/> is not used: its fixed seed would
-        /// deal the same layout on every launch.
+        /// <param name="deal">
+        /// Makes a layout: given whether the pieces are face down, 32 pieces owned by nobody, one per
+        /// square. Called now and again on every <see cref="Restart"/> (a restart deals a new layout).
         /// </param>
-        public void StartHalfCenter(bool hiddenChess, int? seed = null)
+        /// <exception cref="ArgumentNullException"><paramref name="deal"/> is null.</exception>
+        public void StartHalfCenter(bool hiddenChess, Func<bool, List<PieceInfo>> deal)
         {
+            ArgumentNullException.ThrowIfNull(deal);
             var rules = DefaultRulesFor(hiddenChess ? GameKind.DarkHalf : GameKind.OpenHalf).Clone();
             rules.IsHiddenChess = hiddenChess;
-            SetUpHalfCenter(rules, seed);
+            _halfCenterDeal = deal;
+            SetUpHalfCenter(rules);
         }
+
+        // The dealer of the HalfCenter game started with StartHalfCenter, for Restart to deal again.
+        private Func<bool, List<PieceInfo>> _halfCenterDeal;
 
         /// <summary><see cref="StartHalfCenter"/> played by <paramref name="rules"/> (this game's own copy; its <see cref="Rules.IsHiddenChess"/> picks the variant).</summary>
-        private void SetUpHalfCenter(Rules rules, int? seed)
+        private void SetUpHalfCenter(Rules rules)
         {
-            int shuffleSeed = seed ?? Environment.TickCount;
-            var random = new RandomTable(HalfCenterShuffleTableSize, shuffleSeed);
-            var pieces = BoardConfigLoader.CreateShuffledHalfCenter(random, rules.IsHiddenChess);
+            var pieces = _halfCenterDeal(rules.IsHiddenChess);
             SetUpPosition(pieces, null, BoardType.HalfCenter, rules);
-            CoreLog.Log($"(DarkChess) Started a HalfCenter game, hidden: {rules.IsHiddenChess}, seed: {shuffleSeed}", CoreLogLevel.Debug);
+            CoreLog.Log($"(DarkChess) Started a HalfCenter game, hidden: {rules.IsHiddenChess}", CoreLogLevel.Debug);
             Logged?.Invoke(new GameLogEvent.HalfCenterStarted(rules.IsHiddenChess));
         }
-
-        /// <summary>
-        /// Size of the <see cref="RandomTable"/> a HalfCenter shuffle draws from: at least the
-        /// 31 draws one Fisher–Yates pass over the 32 squares takes, so no value repeats.
-        /// </summary>
-        private const int HalfCenterShuffleTableSize = 64;
 
         /// <summary>
         /// Starts a game from <paramref name="customInitialPieces"/> on a board of
@@ -567,7 +562,9 @@ namespace Chinese_Chess_v3.Game.Core
                 }
                 else
                 {
-                    SetUpHalfCenter(rules, null);
+                    if (_halfCenterDeal == null)
+                        throw new InvalidOperationException("This HalfCenter game has no dealer to restart with");
+                    SetUpHalfCenter(rules);
                 }
                 return;
             }
