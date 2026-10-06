@@ -10,6 +10,7 @@
 using System;
 using System.Collections.Generic;
 
+using Chinese_Chess_v3.Game.Core.Families.ThreeKingdoms;
 using Chinese_Chess_v3.Game.Core.Pieces;
 using Chinese_Chess_v3.Game.Core.Players;
 
@@ -24,8 +25,8 @@ namespace Chinese_Chess_v3.Game.Core
         /// <summary>
         /// A copy of these rules, so one game's rules can be changed (e.g. by a loaded saved
         /// game, <see cref="Saves.SavedGame.RulesFor"/>) without touching the rules it came
-        /// from. Shallow: <see cref="PieceRankings"/> and <see cref="HalfCrossTeamSetup"/> are
-        /// shared with the original (nothing changes them during play).
+        /// from. Shallow: <see cref="PieceRankings"/> is shared with the original (nothing changes it
+        /// during play); <see cref="HalfCrossTeams"/> is immutable.
         /// </summary>
         public Rules Clone() => (Rules)MemberwiseClone();
 
@@ -169,50 +170,15 @@ namespace Chinese_Chess_v3.Game.Core
 
         #endregion
 
-        #region HalfCross Board Team Setup (三國半盤隊伍)
+        #region HalfCross Board Team Split (三國分隊)
 
         /// <summary>
-        /// Piece composition for each of HalfCross's three independently
-        /// hostile factions (confirmed by the author — not an alliance by
-        /// color). <c>side</c> is the actual owning faction; <c>color</c> is
-        /// only the visual color (a physical set only has two, so faction 3
-        /// necessarily reuses both — see <see cref="Players.PlayerSide.Player3"/>).
-        /// Key: arbitrary faction number, Value: that faction's pieces.
+        /// 自訂分隊: the team of every colour and piece type in a 三國半盤 game (settings.ini
+        /// <c>[rules.three_kingdoms]</c> <c>team_red_chariot</c> etc.). Every team needs a piece; a
+        /// team's threshold is its piece count. Default: <see cref="ThreeKingdomsTeamSplit.Standard"/>
+        /// (帥將兵卒／仕相俥傌炮／士象車馬包).
         /// </summary>
-        public Dictionary<int, List<(PieceType type, int count, PieceColor color, PlayerSide side)>> HalfCrossTeamSetup { get; set; }
-            = new Dictionary<int, List<(PieceType, int, PieceColor, PlayerSide)>>()
-        {
-            // Faction 1 (Player1, red pieces)
-            [1] = new List<(PieceType, int, PieceColor, PlayerSide)>()
-            {
-                (PieceType.Advisor,  2, PieceColor.Red, PlayerSide.Player1),
-                (PieceType.Elephant, 2, PieceColor.Red, PlayerSide.Player1),
-                (PieceType.Chariot,  2, PieceColor.Red, PlayerSide.Player1),
-                (PieceType.Horse,    2, PieceColor.Red, PlayerSide.Player1),
-                (PieceType.Cannon,   2, PieceColor.Red, PlayerSide.Player1),
-            },
-
-            // Faction 2 (Player2, black pieces)
-            [2] = new List<(PieceType, int, PieceColor, PlayerSide)>()
-            {
-                (PieceType.Advisor,  2, PieceColor.Black, PlayerSide.Player2),
-                (PieceType.Elephant, 2, PieceColor.Black, PlayerSide.Player2),
-                (PieceType.Chariot,  2, PieceColor.Black, PlayerSide.Player2),
-                (PieceType.Horse,    2, PieceColor.Black, PlayerSide.Player2),
-                (PieceType.Cannon,   2, PieceColor.Black, PlayerSide.Player2),
-            },
-
-            // Faction 3: the Generals' side (將帥方) — its own independent faction (PlayerSide.Player3),
-            // even though half its pieces are colored to look like the
-            // other two factions' pieces (see the field doc above).
-            [3] = new List<(PieceType, int, PieceColor, PlayerSide)>()
-            {
-                (PieceType.General, 1, PieceColor.Red,   PlayerSide.Player3),
-                (PieceType.General, 1, PieceColor.Black, PlayerSide.Player3),
-                (PieceType.Soldier, 5, PieceColor.Red,   PlayerSide.Player3),
-                (PieceType.Soldier, 5, PieceColor.Black, PlayerSide.Player3),
-            },
-        };
+        public ThreeKingdomsTeamSplit HalfCrossTeams { get; set; } = ThreeKingdomsTeamSplit.Standard;
 
         #endregion
     }

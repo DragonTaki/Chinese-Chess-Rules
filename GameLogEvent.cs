@@ -7,6 +7,7 @@
 // Version: v1.1
 /* ----- ----- ----- ----- */
 
+using Chinese_Chess_v3.Game.Core.Families.ThreeKingdoms;
 using Chinese_Chess_v3.Game.Core.Pieces;
 using Chinese_Chess_v3.Game.Core.Players;
 
@@ -76,8 +77,8 @@ namespace Chinese_Chess_v3.Game.Core
         /// <summary>The first action decided the factions: the colours Player1 and Player2 now play.</summary>
         public sealed record FactionsDecided(PieceColor Player1Color, PieceColor Player2Color) : GameLogEvent;
 
-        /// <summary>三國: <paramref name="Side"/> claimed team <paramref name="Team"/> (1..3).</summary>
-        public sealed record TeamClaimed(PlayerSide Side, int Team) : GameLogEvent;
+        /// <summary>三國: <paramref name="Side"/> claimed team <paramref name="Team"/> (1..3) of the game's <paramref name="Split"/>.</summary>
+        public sealed record TeamClaimed(PlayerSide Side, int Team, ThreeKingdomsTeamSplit Split) : GameLogEvent;
 
         /// <summary>三國: <paramref name="Side"/> has no action and its turn is skipped.</summary>
         public sealed record TurnSkipped(PlayerSide Side) : GameLogEvent;

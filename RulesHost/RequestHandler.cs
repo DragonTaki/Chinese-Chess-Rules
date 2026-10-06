@@ -245,6 +245,8 @@ namespace Chinese_Chess_v3.Game.Core.RulesHost
         {
             if (dto == null)
                 throw new BadRequestException("missing position.threeKingdoms");
+            if (!rules.HalfCrossTeams.IsValid)
+                throw new BadRequestException("rules.halfCrossTeams: every team needs a piece");
             if (dto.Teams?.Length != 3 || dto.Scores?.Length != 3 || dto.Resigned?.Length != 3 || dto.OutOrder?.Length != 3)
                 throw new BadRequestException("position.threeKingdoms arrays need 3 entries");
 
@@ -269,7 +271,7 @@ namespace Chinese_Chess_v3.Game.Core.RulesHost
 
             foreach (var p in pieces)
             {
-                int team = ThreeKingdomsTeams.TeamOf(p.Type, p.Color);
+                int team = rules.HalfCrossTeams.TeamOf(p.Color, p.Type);
                 if (p.Side != state.OwnerOf(team))
                     throw new BadRequestException($"the piece on ({p.X},{p.Y}) does not belong to its team's owner");
             }

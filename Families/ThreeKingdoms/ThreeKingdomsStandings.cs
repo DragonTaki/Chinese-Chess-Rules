@@ -76,7 +76,7 @@ namespace Chinese_Chess_v3.Game.Core.Families.ThreeKingdoms
                 case HalfCrossWinCondition.Annihilation:
                     return state.Scores[i];
                 default:
-                    return state.Scores[i] - (team == 0 ? 0 : ThreeKingdomsTeams.Threshold(team));
+                    return state.Scores[i] - (team == 0 ? 0 : rules.HalfCrossTeams.PieceCount(team));
             }
         }
 
@@ -85,7 +85,7 @@ namespace Chinese_Chess_v3.Game.Core.Families.ThreeKingdoms
             if (state.Teams[ThreeKingdomsState.Index(side)] != 0)
                 return board.QueryPieces(side: side).Count == 0;
             return !board.QueryPieces(side: PlayerSide.None)
-                .Any(p => state.OwnerOf(ThreeKingdomsTeams.TeamOf(p.Type, p.Color)) == PlayerSide.None);
+                .Any(p => state.OwnerOf(board.GameRules.HalfCrossTeams.TeamOf(p.Color, p.Type)) == PlayerSide.None);
         }
 
     }

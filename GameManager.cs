@@ -532,12 +532,15 @@ namespace Chinese_Chess_v3.Game.Core
         /// <param name="deal">Makes a layout; called now and again on every <see cref="Restart"/>.</param>
         /// <exception cref="ArgumentNullException"><paramref name="deal"/> is null.</exception>
         /// <exception cref="NotSupportedException">The rules pick 收軍 (<see cref="HalfCrossWinCondition.Recall"/>), whose rules are not decided yet.</exception>
+        /// <exception cref="InvalidOperationException">The team split (<see cref="Rules.HalfCrossTeams"/>) leaves a team without pieces.</exception>
         public void StartThreeKingdoms(Func<List<PieceInfo>> deal)
         {
             ArgumentNullException.ThrowIfNull(deal);
             var rules = DefaultRulesFor(GameKind.ThreeKingdoms).Clone();
             if (rules.HalfCrossWinCondition == HalfCrossWinCondition.Recall)
                 throw new NotSupportedException("收軍 (Recall) is not decided yet");
+            if (!rules.HalfCrossTeams.IsValid)
+                throw new InvalidOperationException("Every 三國 team needs at least one piece");
             _threeKingdomsDeal = deal;
             SetUpThreeKingdoms(rules);
         }
@@ -1456,7 +1459,7 @@ namespace Chinese_Chess_v3.Game.Core
                     if (team != 0 && kingdomsBefore?.Teams[i] != team)
                     {
                         CoreLog.Log($"(Faction) {side} claims team {team}", CoreLogLevel.Debug);
-                        Logged?.Invoke(new GameLogEvent.TeamClaimed(side, team));
+                        Logged?.Invoke(new GameLogEvent.TeamClaimed(side, team, Rules.HalfCrossTeams));
                     }
                 }
                 return;

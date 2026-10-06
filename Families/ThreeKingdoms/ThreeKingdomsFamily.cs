@@ -109,7 +109,7 @@ namespace Chinese_Chess_v3.Game.Core.Families.ThreeKingdoms
             var state = StateOf(board);
             var pieceBefore = piece.CurrentInfo.Clone();
             board.FlipPiece(piece.X, piece.Y);
-            int team = ThreeKingdomsTeams.TeamOf(piece.Type, piece.Color);
+            int team = board.GameRules.HalfCrossTeams.TeamOf(piece.Color, piece.Type);
             bool decides = state.Teams[ThreeKingdomsState.Index(mover)] == 0 && state.OwnerOf(team) == PlayerSide.None;
             if (decides)
             {
@@ -175,7 +175,7 @@ namespace Chinese_Chess_v3.Game.Core.Families.ThreeKingdoms
             state.Teams[ThreeKingdomsState.Index(side)] = team;
             foreach (var p in board.GetAllPieces())
             {
-                if (p.Side == PlayerSide.None && ThreeKingdomsTeams.TeamOf(p.Type, p.Color) == team)
+                if (p.Side == PlayerSide.None && board.GameRules.HalfCrossTeams.TeamOf(p.Color, p.Type) == team)
                     p.UpdateState(board.Turn, side: side);
             }
         }
