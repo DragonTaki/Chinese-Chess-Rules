@@ -3,8 +3,8 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2026/10/01
-// Update Date: 2026/10/01
-// Version: v1.0
+// Update Date: 2026/10/06
+// Version: v1.1
 /* ----- ----- ----- ----- */
 
 using System;
@@ -12,7 +12,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
-using Engine.Logging;
 
 namespace Chinese_Chess_v3.Game.Core.Pgn
 {
@@ -174,7 +173,7 @@ namespace Chinese_Chess_v3.Game.Core.Pgn
         private void Warn(List<string> warnings, string message)
         {
             warnings?.Add(message);
-            AppLogger.Log($"({_label}) {message}", LogLevel.WARN);
+            CoreLog.Log($"({_label}) {message}", CoreLogLevel.Warn);
         }
     }
 }

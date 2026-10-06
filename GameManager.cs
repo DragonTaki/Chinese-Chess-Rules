@@ -3,8 +3,8 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2025/05/06
-// Update Date: 2026/10/05
-// Version: v1.8
+// Update Date: 2026/10/06
+// Version: v1.9
 /* ----- ----- ----- ----- */
 
 using System;
@@ -21,7 +21,6 @@ using Chinese_Chess_v3.Game.Core.Pieces;
 using Chinese_Chess_v3.Game.Core.Players;
 using Chinese_Chess_v3.Game.Core.Saves;
 
-using Engine.Logging;
 using Engine.Randomization;
 
 namespace Chinese_Chess_v3.Game.Core
@@ -477,7 +476,7 @@ namespace Chinese_Chess_v3.Game.Core
             var random = new RandomTable(HalfCenterShuffleTableSize, shuffleSeed);
             var pieces = BoardConfigLoader.CreateShuffledHalfCenter(random, rules.IsHiddenChess);
             SetUpPosition(pieces, null, BoardType.HalfCenter, rules);
-            AppLogger.Log($"(DarkChess) Started a HalfCenter game, hidden: {rules.IsHiddenChess}, seed: {shuffleSeed}", LogLevel.DEBUG);
+            CoreLog.Log($"(DarkChess) Started a HalfCenter game, hidden: {rules.IsHiddenChess}, seed: {shuffleSeed}", CoreLogLevel.Debug);
             Logged?.Invoke(new GameLogEvent.HalfCenterStarted(rules.IsHiddenChess));
         }
 
@@ -530,7 +529,7 @@ namespace Chinese_Chess_v3.Game.Core
             ArgumentNullException.ThrowIfNull(puzzle);
             var (pieces, firstColor) = XiangqiFen.Parse(puzzle.Fen);
             SetUpPosition(pieces, puzzle, BoardType.Full, rules, firstColor: firstColor);
-            AppLogger.Log($"(Endgame) Started {puzzle.FileName}: {puzzle.Title}, {firstColor} to move", LogLevel.DEBUG);
+            CoreLog.Log($"(Endgame) Started {puzzle.FileName}: {puzzle.Title}, {firstColor} to move", CoreLogLevel.Debug);
             Logged?.Invoke(new GameLogEvent.EndgameStarted(puzzle.Title, puzzle.Goal));
         }
 
@@ -594,7 +593,7 @@ namespace Chinese_Chess_v3.Game.Core
                     SetUpPosition(pieces, null, BoardType.Full, rules, LocalSide, firstColor);
                     break;
             }
-            AppLogger.Log($"(Restart) Restarted the {Mode} game", LogLevel.DEBUG);
+            CoreLog.Log($"(Restart) Restarted the {Mode} game", CoreLogLevel.Debug);
         }
 
         /// <summary>
@@ -635,7 +634,7 @@ namespace Chinese_Chess_v3.Game.Core
             {
                 if (!TryMove(move.FromX, move.FromY, move.ToX, move.ToY))
                 {
-                    AppLogger.Log($"(Opening) {opening.FileName}: move {played + 1} ({move}) is not legal here; line stopped", LogLevel.WARN);
+                    CoreLog.Log($"(Opening) {opening.FileName}: move {played + 1} ({move}) is not legal here; line stopped", CoreLogLevel.Warn);
                     break;
                 }
                 played++;
@@ -647,7 +646,7 @@ namespace Chinese_Chess_v3.Game.Core
                 RestartClocks();
             // The preset line is part of the new game, not a change to it.
             HasUnsavedChanges = false;
-            AppLogger.Log($"(Opening) Started {opening.FileName}: {opening.Title}, {played} move(s) played, {CurrentTurn} to move", LogLevel.DEBUG);
+            CoreLog.Log($"(Opening) Started {opening.FileName}: {opening.Title}, {played} move(s) played, {CurrentTurn} to move", CoreLogLevel.Debug);
             return played;
         }
 
@@ -791,7 +790,7 @@ namespace Chinese_Chess_v3.Game.Core
             }
             catch (ArgumentException ex)
             {
-                AppLogger.Log($"(Save) Start position has no FEN: {ex.Message}", LogLevel.WARN);
+                CoreLog.Log($"(Save) Start position has no FEN: {ex.Message}", CoreLogLevel.Warn);
                 return null;
             }
         }
@@ -828,7 +827,7 @@ namespace Chinese_Chess_v3.Game.Core
             File.WriteAllText(filePath, text);
 
             HasUnsavedChanges = false;
-            AppLogger.Log($"(Save) Saved {Moves.Count} move(s) to {filePath}", LogLevel.DEBUG);
+            CoreLog.Log($"(Save) Saved {Moves.Count} move(s) to {filePath}", CoreLogLevel.Debug);
             Logged?.Invoke(new GameLogEvent.GameSaved(Path.GetFileName(filePath)));
             return filePath;
         }
@@ -887,7 +886,7 @@ namespace Chinese_Chess_v3.Game.Core
             {
                 if (!TryMove(move.FromX, move.FromY, move.ToX, move.ToY))
                 {
-                    AppLogger.Log($"(Load) {saved.FileName}: move {played + 1} ({move}) is not legal here; replay stopped", LogLevel.WARN);
+                    CoreLog.Log($"(Load) {saved.FileName}: move {played + 1} ({move}) is not legal here; replay stopped", CoreLogLevel.Warn);
                     break;
                 }
                 played++;
@@ -911,7 +910,7 @@ namespace Chinese_Chess_v3.Game.Core
             else if (!IsGameOver)
                 RestartClocks();
             HasUnsavedChanges = false;
-            AppLogger.Log($"(Load) Loaded {saved.FileName}: {played} move(s) replayed, {CurrentTurn} to move, over: {IsGameOver}", LogLevel.DEBUG);
+            CoreLog.Log($"(Load) Loaded {saved.FileName}: {played} move(s) replayed, {CurrentTurn} to move, over: {IsGameOver}", CoreLogLevel.Debug);
             return played;
         }
 
@@ -1082,9 +1081,9 @@ namespace Chinese_Chess_v3.Game.Core
                 return;
 
             var clickedPiece = Board.GetPiece(x, y);
-            AppLogger.Log(
+            CoreLog.Log(
                 $"Current turn: {CurrentTurn}, holding: {(_selectedPiece == null ? "null" : _selectedPiece.Type.ToString())},\n" +
-                $"clicked at ({x},{y}), on: {DescribeForLog(clickedPiece)}", LogLevel.DEBUG);
+                $"clicked at ({x},{y}), on: {DescribeForLog(clickedPiece)}", CoreLogLevel.Debug);
             Logged?.Invoke(new GameLogEvent.BoardClicked(CurrentTurn, _selectedPiece?.Type, x, y, clickedPiece?.Type,
                 clickedPiece != null && Board.UsesDarkChessRules && !clickedPiece.CurrentInfo.IsFaceUp));
 
@@ -1099,7 +1098,7 @@ namespace Chinese_Chess_v3.Game.Core
                 if (IsSelectable(clickedPiece))
                 {
                     _selectedPiece = clickedPiece;
-                    AppLogger.Log($"(Action) Selected {clickedPiece.Type} at ({x},{y})", LogLevel.DEBUG);
+                    CoreLog.Log($"(Action) Selected {clickedPiece.Type} at ({x},{y})", CoreLogLevel.Debug);
                     Logged?.Invoke(new GameLogEvent.SelectionChanged(SelectionChange.Selected, clickedPiece.Type, x, y));
                     PieceSelected?.Invoke(_selectedPiece);
                 }
@@ -1113,14 +1112,14 @@ namespace Chinese_Chess_v3.Game.Core
             {
                 if (clickedPiece == _selectedPiece)
                 {
-                    AppLogger.Log($"(Action) Un-selected {_selectedPiece.Type} at ({x},{y})", LogLevel.DEBUG);
+                    CoreLog.Log($"(Action) Un-selected {_selectedPiece.Type} at ({x},{y})", CoreLogLevel.Debug);
                     Logged?.Invoke(new GameLogEvent.SelectionChanged(SelectionChange.Unselected, _selectedPiece.Type, x, y));
                     PieceUnselected?.Invoke(_selectedPiece);
                     _selectedPiece = null;
                 }
                 else
                 {
-                    AppLogger.Log($"(Action) Switched to {clickedPiece.Type} at ({x},{y})", LogLevel.DEBUG);
+                    CoreLog.Log($"(Action) Switched to {clickedPiece.Type} at ({x},{y})", CoreLogLevel.Debug);
                     Logged?.Invoke(new GameLogEvent.SelectionChanged(SelectionChange.Switched, clickedPiece.Type, x, y));
                     PieceUnselected?.Invoke(_selectedPiece);
                     _selectedPiece = clickedPiece;
@@ -1139,13 +1138,13 @@ namespace Chinese_Chess_v3.Game.Core
                 // If 2nd selection point is empty, unselected
                 if (clickedPiece == null)
                 {
-                    AppLogger.Log($"(Action) Un-selected {_selectedPiece.Type} at ({x},{y})", LogLevel.DEBUG);
+                    CoreLog.Log($"(Action) Un-selected {_selectedPiece.Type} at ({x},{y})", CoreLogLevel.Debug);
                     Logged?.Invoke(new GameLogEvent.SelectionChanged(SelectionChange.Unselected, _selectedPiece.Type, x, y));
                 }
                 // Invalid catch
                 else
                 {
-                    AppLogger.Log($"(Action) Invalid move to ({x},{y})", LogLevel.DEBUG);
+                    CoreLog.Log($"(Action) Invalid move to ({x},{y})", CoreLogLevel.Debug);
                     Logged?.Invoke(new GameLogEvent.SelectionChanged(SelectionChange.Invalid, _selectedPiece.Type, x, y));
                 }
                 PieceUnselected?.Invoke(_selectedPiece);
@@ -1219,7 +1218,7 @@ namespace Chinese_Chess_v3.Game.Core
             if (targetPiece != null)
             {
                 Board.RemovePiece(toX, toY);
-                AppLogger.Log($"(Action) Captured {targetPiece.Type} at ({toX},{toY})", LogLevel.DEBUG);
+                CoreLog.Log($"(Action) Captured {targetPiece.Type} at ({toX},{toY})", CoreLogLevel.Debug);
                 Logged?.Invoke(new GameLogEvent.PieceTaken(targetPiece.Type, toX, toY));
                 PieceCaptured?.Invoke(targetPiece);
                 PieceRemoved?.Invoke(targetPiece);
@@ -1227,7 +1226,7 @@ namespace Chinese_Chess_v3.Game.Core
 
             // move logic
             Board.MovePiece(fromX, fromY, toX, toY);
-            AppLogger.Log($"(Action) Moved {piece.Type} to ({toX},{toY})", LogLevel.DEBUG);
+            CoreLog.Log($"(Action) Moved {piece.Type} to ({toX},{toY})", CoreLogLevel.Debug);
             Logged?.Invoke(new GameLogEvent.PieceMoved(piece.Type, toX, toY));
             if (decidesFactions)
                 _stateChanges[_stateChanges.Count - 1] = ChangesSince(historyBefore);
@@ -1236,7 +1235,7 @@ namespace Chinese_Chess_v3.Game.Core
             PieceMoved?.Invoke(piece, toX, toY);
 
             // Readable move-list entry, in addition to the debug entries above.
-            AppLogger.Log($"(Action) Recorded move {LastMove.Ply}: {LastMove.Notation ?? LastMove.Kind.ToString()}", LogLevel.DEBUG);
+            CoreLog.Log($"(Action) Recorded move {LastMove.Ply}: {LastMove.Notation ?? LastMove.Kind.ToString()}", CoreLogLevel.Debug);
             Logged?.Invoke(new GameLogEvent.MovePlayed(LastMove, ColorOf(LastMove.Side), LineStyleOf(LastMove)));
             if (decidesFactions)
                 LogFactions();
@@ -1277,7 +1276,7 @@ namespace Chinese_Chess_v3.Game.Core
                 SwitchTurn();
                 if (opponentInCheck)
                 {
-                    AppLogger.Log($"(Check) {opponent} is in check", LogLevel.DEBUG);
+                    CoreLog.Log($"(Check) {opponent} is in check", CoreLogLevel.Debug);
                     Logged?.Invoke(new GameLogEvent.CheckGiven(opponent));
                     Check?.Invoke(opponent);
                 }
@@ -1342,7 +1341,7 @@ namespace Chinese_Chess_v3.Game.Core
             if (decidesFactions)
                 Board.AssignFactions(piece.Color, mover);
 
-            AppLogger.Log($"(Action) Flipped {piece.Color} {piece.Type} at ({piece.X},{piece.Y})", LogLevel.DEBUG);
+            CoreLog.Log($"(Action) Flipped {piece.Color} {piece.Type} at ({piece.X},{piece.Y})", CoreLogLevel.Debug);
             RecordDarkChessAction(pieceBefore, piece.X, piece.Y, piece.X, piece.Y, MoveKind.Flip, mover,
                 piece.CurrentInfo.Clone(), null, clocks, before);
             if (decidesFactions)
@@ -1355,7 +1354,7 @@ namespace Chinese_Chess_v3.Game.Core
         {
             var player1 = ColorOf(PlayerSide.Player1);
             var player2 = ColorOf(PlayerSide.Player2);
-            AppLogger.Log($"(Faction) {PlayerSide.Player1} plays {player1}, {PlayerSide.Player2} plays {player2}", LogLevel.DEBUG);
+            CoreLog.Log($"(Faction) {PlayerSide.Player1} plays {player1}, {PlayerSide.Player2} plays {player2}", CoreLogLevel.Debug);
             Logged?.Invoke(new GameLogEvent.FactionsDecided(player1, player2));
         }
 
@@ -1415,7 +1414,7 @@ namespace Chinese_Chess_v3.Game.Core
                 kind = MoveKind.HiddenStrongerReturn;
             }
 
-            AppLogger.Log($"(Action) Hidden capture {piece.Type} ({fromX},{fromY})->({toX},{toY}): revealed {target.Color} {target.Type}, {kind}", LogLevel.DEBUG);
+            CoreLog.Log($"(Action) Hidden capture {piece.Type} ({fromX},{fromY})->({toX},{toY}): revealed {target.Color} {target.Type}, {kind}", CoreLogLevel.Debug);
             RecordDarkChessAction(pieceBefore, fromX, fromY, toX, toY, kind, mover, revealed, captured, clocks, before);
 
             // Board events after the record, like ExecuteMove's (the board is already final).
@@ -1454,7 +1453,7 @@ namespace Chinese_Chess_v3.Game.Core
             Board.AdvanceTurn();
             Board.RemovePiece(fromX, fromY);
 
-            AppLogger.Log($"(Action) Suicide {piece.Type} ({fromX},{fromY})->({toX},{toY}) onto {target.Color} {target.Type}", LogLevel.DEBUG);
+            CoreLog.Log($"(Action) Suicide {piece.Type} ({fromX},{fromY})->({toX},{toY}) onto {target.Color} {target.Type}", CoreLogLevel.Debug);
             RecordDarkChessAction(pieceBefore, fromX, fromY, toX, toY, MoveKind.Suicide, mover, target, null, clocks, before);
 
             PieceCaptured?.Invoke(piece);
@@ -1550,7 +1549,7 @@ namespace Chinese_Chess_v3.Game.Core
                     ? "-"
                     : string.Join(", ", e.Pieces.Select(p => $"{p.Side} {p.Type} ({p.X},{p.Y})"));
                 string line = $"(Tactic) {e.ChineseName} [{e.Type}] {e.Mover} {m.Piece.Type} ({m.FromX},{m.FromY})->({m.ToX},{m.ToY}); pieces: {involved}";
-                AppLogger.Log(line, LogLevel.DEBUG);
+                CoreLog.Log(line, CoreLogLevel.Debug);
                 Logged?.Invoke(new GameLogEvent.TacticDetected(e));
             }
             TacticalEvents?.Invoke(events);
@@ -1643,7 +1642,7 @@ namespace Chinese_Chess_v3.Game.Core
 
                 Board.UnmakeMove(piece, record.FromX, record.FromY, record.ToX, record.ToY, captured);
 
-                AppLogger.Log($"(Undo) {piece.Type} back to ({record.FromX},{record.FromY})", LogLevel.DEBUG);
+                CoreLog.Log($"(Undo) {piece.Type} back to ({record.FromX},{record.FromY})", CoreLogLevel.Debug);
                 Logged?.Invoke(undoEntry);
 
                 PieceMoved?.Invoke(piece, record.FromX, record.FromY);
@@ -1698,7 +1697,7 @@ namespace Chinese_Chess_v3.Game.Core
 
             Board.RevertStates(changes);
 
-            AppLogger.Log($"(Undo) {record.Kind} at ({record.ToX},{record.ToY}) taken back", LogLevel.DEBUG);
+            CoreLog.Log($"(Undo) {record.Kind} at ({record.ToX},{record.ToY}) taken back", CoreLogLevel.Debug);
             Logged?.Invoke(undoEntry);
 
             foreach (var (p, _) in changes)
@@ -1809,7 +1808,7 @@ namespace Chinese_Chess_v3.Game.Core
 
             if (!Board.GameRules.EndGameWhenTimesUp)
             {
-                AppLogger.Log($"(Timer) {loser.Side} ran out of time (EndGameWhenTimesUp is off)", LogLevel.DEBUG);
+                CoreLog.Log($"(Timer) {loser.Side} ran out of time (EndGameWhenTimesUp is off)", CoreLogLevel.Debug);
                 Logged?.Invoke(new GameLogEvent.TimeRanOut(loser.Side));
                 return;
             }
@@ -1854,7 +1853,7 @@ namespace Chinese_Chess_v3.Game.Core
                 _selectedPiece = null;
             }
 
-            AppLogger.Log($"(Game over) {winner} wins ({reason})", LogLevel.DEBUG);
+            CoreLog.Log($"(Game over) {winner} wins ({reason})", CoreLogLevel.Debug);
             Logged?.Invoke(new GameLogEvent.GameEnded(winner, reason));
             GameOver?.Invoke(Result);
         }
