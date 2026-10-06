@@ -60,9 +60,19 @@ namespace Chinese_Chess_v3.Game.Core.Families.Xiangqi
                 _ => throw new ArgumentException($"No Full-board movement for {piece.Type}", nameof(piece)),
             };
 
-        /// <summary>The type <paramref name="piece"/> moves as: its own, or on a 揭棋 board while face down the type that starts on its square.</summary>
-        private static PieceType MovingType(Board board, Piece piece) =>
-            board.IsJieqi && !piece.CurrentInfo.IsFaceUp ? PieceConstants.GetClassicPieceTypeAt(piece.X, piece.Y) : piece.Type;
+        /// <summary>
+        /// The type <paramref name="piece"/> moves as: its own, or on a 揭棋 board while face down the
+        /// type that starts on its square. A face-down piece only stands off its starting square
+        /// during a move's simulation (a real move turns it face up at once), and then it already
+        /// counts as revealed: its own type.
+        /// </summary>
+        public static PieceType MovingType(Board board, Piece piece)
+        {
+            if (!board.IsJieqi || piece.CurrentInfo.IsFaceUp)
+                return piece.Type;
+            var startType = PieceConstants.GetClassicPieceTypeAt(piece.X, piece.Y);
+            return startType == PieceType.None ? piece.Type : startType;
+        }
 
         #region Shared checks
 

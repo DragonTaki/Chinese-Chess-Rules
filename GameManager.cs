@@ -472,6 +472,34 @@ namespace Chinese_Chess_v3.Game.Core
         // The dealer of the HalfCenter game started with StartHalfCenter, for Restart to deal again.
         private Func<bool, List<PieceInfo>> _halfCenterDeal;
 
+        /// <summary>
+        /// Starts a new 揭棋 game (<see cref="GameKind.Flip"/>, Full board, <see cref="Board.IsJieqi"/>)
+        /// from a layout <paramref name="deal"/> makes: both Generals face up on their squares, each
+        /// side's other 15 pieces face down, shuffled over that side's other starting squares. Red
+        /// (Player1) moves first. A face-down piece moves as its square's piece and turns face up
+        /// when it has moved. Dealing is not a rule: the caller deals (the client's dealer, the server).
+        /// Not saved: a 揭棋 position has no FEN.
+        /// </summary>
+        /// <param name="deal">Makes a layout; called now and again on every <see cref="Restart"/>.</param>
+        /// <exception cref="ArgumentNullException"><paramref name="deal"/> is null.</exception>
+        public void StartJieqi(Func<List<PieceInfo>> deal)
+        {
+            ArgumentNullException.ThrowIfNull(deal);
+            _jieqiDeal = deal;
+            SetUpJieqi(DefaultRulesFor(GameKind.Flip).Clone());
+        }
+
+        // The dealer of the 揭棋 game started with StartJieqi, for Restart to deal again.
+        private Func<List<PieceInfo>> _jieqiDeal;
+
+        /// <summary><see cref="StartJieqi"/> played by <paramref name="rules"/> (this game's own copy).</summary>
+        private void SetUpJieqi(Rules rules)
+        {
+            SetUpPosition(_jieqiDeal(), null, BoardType.Full, rules, firstColor: PieceColor.Red, jieqi: true);
+            CoreLog.Log("(Jieqi) Started a 揭棋 game", CoreLogLevel.Debug);
+            Logged?.Invoke(new GameLogEvent.JieqiStarted());
+        }
+
         /// <summary><see cref="StartHalfCenter"/> played by <paramref name="rules"/> (this game's own copy; its <see cref="Rules.IsHiddenChess"/> picks the variant).</summary>
         private void SetUpHalfCenter(Rules rules)
         {
@@ -570,6 +598,16 @@ namespace Chinese_Chess_v3.Game.Core
             }
             if (Board.Type != BoardType.Full)
                 throw new NotSupportedException($"Cannot restart a {Board.Type} game yet");
+
+            // A 揭棋 game is dealt again.
+            if (Board.IsJieqi)
+            {
+                if (_jieqiDeal == null)
+                    throw new InvalidOperationException("This 揭棋 game has no dealer to restart with");
+                SetUpJieqi(rules);
+                CoreLog.Log($"(Restart) Restarted the {Mode} game", CoreLogLevel.Debug);
+                return;
+            }
 
             switch (_startSource)
             {
@@ -673,10 +711,11 @@ namespace Chinese_Chess_v3.Game.Core
         /// (<see cref="ColorOf"/>); the pieces' owners are assigned from it
         /// (<see cref="PieceColors.AssignOwners"/>). Ignored on the other boards (their pieces
         /// keep their own sides; Player1's colour there is decided as <see cref="ColorOf"/> says).</param>
+        /// <param name="jieqi">A 揭棋 game (<see cref="Board.IsJieqi"/>; Full board only).</param>
         /// <exception cref="ArgumentException">Full board: <paramref name="firstColor"/> is not
         /// Red/Black, or a piece is neither Red nor Black.</exception>
         private void SetUpPosition(List<PieceInfo> pieces, PgnGameFile source, BoardType boardType = BoardType.Full,
-            Rules rules = null, PlayerSide? localSide = null, PieceColor firstColor = PieceColor.Red)
+            Rules rules = null, PlayerSide? localSide = null, PieceColor firstColor = PieceColor.Red, bool jieqi = false)
         {
             _customHalfCenterStart = null;
 
@@ -688,6 +727,8 @@ namespace Chinese_Chess_v3.Game.Core
             // are set right below).
             if (Board.Type != boardType)
                 Board = new Board(boardType, Board.GameRules);
+            // 揭棋 is the kind of game, set by StartJieqi only; every other setup is not one.
+            Board.IsJieqi = jieqi && boardType == BoardType.Full;
 
             // A saved game is played by the rules it was saved with (over the Traditional
             // defaults); every other game by a copy of its kind's defaults as they are now (or
@@ -725,7 +766,8 @@ namespace Chinese_Chess_v3.Game.Core
                 // A new game, an endgame puzzle (solved by the side to move) and a half board.
                 _ => PlayerSide.Player1,
             };
-            InitialFen = FormatInitialFen(_player1Color);
+            // A 揭棋 position (face-down pieces) has no FEN, so it cannot be saved.
+            InitialFen = Board.IsJieqi ? null : FormatInitialFen(_player1Color);
             ResetTimers(startFirstTurn: true);
             // A custom position may start with the side to move already in check.
             IsInCheck = Board.UsesCheckRules && Board.IsSideInCheck(PlayerSide.Player1);
@@ -1033,14 +1075,14 @@ namespace Chinese_Chess_v3.Game.Core
 
         /// <summary>
         /// A piece for the click log lines: its type, or just "face-down" for a face-down piece
-        /// on a <see cref="Board.UsesDarkChessRules"/> board (its type is hidden information
+        /// (dark chess, 揭棋, 三國: its type is hidden information
         /// and the game log is visible to both players).
         /// </summary>
         private string DescribeForLog(Piece piece)
         {
             if (piece == null)
                 return "null";
-            if (Board.UsesDarkChessRules && !piece.CurrentInfo.IsFaceUp)
+            if (!piece.CurrentInfo.IsFaceUp)
                 return "face-down piece";
             return piece.GetType().Name;
         }
@@ -1078,12 +1120,12 @@ namespace Chinese_Chess_v3.Game.Core
                 $"Current turn: {CurrentTurn}, holding: {(_selectedPiece == null ? "null" : _selectedPiece.Type.ToString())},\n" +
                 $"clicked at ({x},{y}), on: {DescribeForLog(clickedPiece)}", CoreLogLevel.Debug);
             Logged?.Invoke(new GameLogEvent.BoardClicked(CurrentTurn, _selectedPiece?.Type, x, y, clickedPiece?.Type,
-                clickedPiece != null && Board.UsesDarkChessRules && !clickedPiece.CurrentInfo.IsFaceUp));
+                clickedPiece != null && !clickedPiece.CurrentInfo.IsFaceUp));
 
             // No selected piece: flip a face-down piece (dark chess), or try to select one
             if (_selectedPiece == null)
             {
-                if (clickedPiece != null && Board.UsesDarkChessRules && !clickedPiece.CurrentInfo.IsFaceUp)
+                if (Board.Family.CanFlip(Board, clickedPiece))
                 {
                     ExecuteFlip(clickedPiece);
                     return;
@@ -1160,8 +1202,8 @@ namespace Chinese_Chess_v3.Game.Core
             var clocks = (Player1.Timer.GetClockState(), Player2.Timer.GetClockState());
             // Pre-move facts for the "newly ..." tactical events, taken on the unchanged board.
             var tacticalBefore = Board.UsesCheckRules ? TacticalAnalysis.TakeSnapshot(Board, piece.Side) : null;
-            // A dark-chess action is undone piece by piece: every piece's history length now.
-            var historyBefore = Board.UsesDarkChessRules ? SnapshotHistoryCounts() : null;
+            // A dark-chess action or a 揭棋 reveal is undone piece by piece: every piece's history length now.
+            var historyBefore = Board.UsesDarkChessRules || Board.IsJieqi ? SnapshotHistoryCounts() : null;
 
             Board.AdvanceTurn();
             var outcome = ActionResolver.ApplyMove(Board, mover, piece, toX, toY);
@@ -1178,9 +1220,9 @@ namespace Chinese_Chess_v3.Game.Core
             _moves.Add(LastMove);
             _capturedPieces.Add(outcome.CapturedPiece);
             _clocksBeforeMove.Add(clocks);
-            // A faction decision changes every piece's owner: undone piece by piece; any other
-            // move by Board.UnmakeMove.
-            _stateChanges.Add(outcome.DecidesFactions ? ChangesSince(historyBefore) : null);
+            // A faction decision changes every piece's owner and a 揭棋 move turns the piece face up:
+            // undone piece by piece; any other move by Board.UnmakeMove.
+            _stateChanges.Add(outcome.DecidesFactions || outcome.Revealed != null ? ChangesSince(historyBefore) : null);
             HasUnsavedChanges = true;
 
             var targetPiece = outcome.CapturedPiece;
@@ -1536,7 +1578,8 @@ namespace Chinese_Chess_v3.Game.Core
         private void UndoStateChanges(MoveRecord record, List<(Piece piece, int snapshots)> changes)
         {
             // Taken before the board changes back (the side names follow the factions).
-            var undoEntry = new GameLogEvent.MoveTakenBack(record, ColorOf(record.Side), MoveLineStyle.DarkChess, record.Piece.Type);
+            var undoEntry = new GameLogEvent.MoveTakenBack(record, ColorOf(record.Side),
+                record.Notation != null ? MoveLineStyle.Notation : MoveLineStyle.DarkChess, record.Piece.Type);
 
             var wasOnBoard = new Dictionary<Piece, (bool onBoard, int x, int y)>();
             foreach (var (p, _) in changes)

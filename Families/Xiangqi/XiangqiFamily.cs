@@ -18,7 +18,9 @@ using Chinese_Chess_v3.Game.Core.Players;
 namespace Chinese_Chess_v3.Game.Core.Families.Xiangqi
 {
     /// <summary>
-    /// The Full-board xiangqi family: standard xiangqi (傳統大盤) and 揭棋. Check rules apply (a move
+    /// The Full-board xiangqi family: standard xiangqi (傳統大盤) and 揭棋 (<see cref="Board.IsJieqi"/>:
+    /// 15 pieces per side start face down on their own side's starting squares, a face-down piece
+    /// moves as its square's piece and is turned face up by its first move). Check rules apply (a move
     /// may not leave the mover's General attacked or the Generals facing); the side to move with no
     /// legal move loses (checkmate when in check, otherwise stalemate 困斃). Movement: <see cref="XiangqiMoves"/>.
     /// </summary>
@@ -47,17 +49,24 @@ namespace Chinese_Chess_v3.Game.Core.Families.Xiangqi
             var pieceBefore = piece.CurrentInfo.Clone();
             var target = board.GetPiece(toX, toY);
 
-            // The notation also depends on the other pieces on the file (前/後), and whether the
-            // move gives check is simulated, so both are taken before the board changes.
-            string notation = ChineseMoveNotation.Format(board, fromX, fromY, toX, toY);
+            // The notation also depends on the other pieces on the file (前/後), so it is taken
+            // before the board changes. On a 揭棋
+            // board a face-down piece is written as the piece it moves as (its true type is hidden).
+            string notation = board.IsJieqi
+                ? ChineseMoveNotation.Format(ConcealedPosition(board), fromX, fromY, toX, toY)
+                : ChineseMoveNotation.Format(board, fromX, fromY, toX, toY);
+            bool reveals = board.IsJieqi && !piece.CurrentInfo.IsFaceUp;
             string iccs = new IccsMove(fromX, fromY, toX, toY).ToString();
-            var opponentSide = ActionResolver.OpponentOf(piece.Side);
-            bool givesCheck = board.SimulateMove(piece, toX, toY, () => board.IsSideInCheck(opponentSide), fallback: false);
 
             var captured = target?.CurrentInfo.Clone();
             if (target != null)
                 board.RemovePiece(toX, toY);
             board.MovePiece(fromX, fromY, toX, toY);
+            // 揭棋: a face-down piece is turned face up as soon as it has moved.
+            if (reveals)
+                board.FlipPiece(toX, toY);
+            // Checked on the board as it now is (a 揭棋 piece already shows its true type).
+            bool givesCheck = board.IsSideInCheck(ActionResolver.OpponentOf(piece.Side));
 
             return new ActionOutcome
             {
@@ -65,8 +74,25 @@ namespace Chinese_Chess_v3.Game.Core.Families.Xiangqi
                 FromX = fromX, FromY = fromY, ToX = toX, ToY = toY,
                 Piece = piece, PieceBefore = pieceBefore,
                 CapturedPiece = target, Captured = captured,
+                Revealed = reveals ? piece.CurrentInfo.Clone() : null,
                 Notation = notation, Iccs = iccs, GivesCheck = givesCheck,
             };
+        }
+
+        /// <summary>The board's pieces with every face-down piece shown as the piece it moves as (its starting square's type).</summary>
+        private static List<PieceInfo> ConcealedPosition(Board board)
+        {
+            var position = new List<PieceInfo>();
+            foreach (var p in board.GetAllPieces())
+            {
+                var info = p.CurrentInfo;
+                if (info.IsFaceUp)
+                    position.Add(info);
+                else
+                    position.Add(new PieceInfo(XiangqiMoves.MovingType(board, p), info.X, info.Y, info.Color, info.Side,
+                        isFaceUp: false, isDead: info.IsDead, turnIndex: info.TurnIndex));
+            }
+            return position;
         }
 
         public ActionOutcome ApplyFlip(Board board, PlayerSide mover, Piece piece) =>

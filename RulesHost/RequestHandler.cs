@@ -192,11 +192,12 @@ namespace Chinese_Chess_v3.Game.Core.RulesHost
             var kind = request.Kind ?? throw new BadRequestException("missing kind");
             var (boardType, hidden) = kind switch
             {
-                GameKind.Traditional => (BoardType.Full, false),
+                GameKind.Traditional or GameKind.Flip => (BoardType.Full, false),
                 GameKind.DarkHalf => (BoardType.HalfCenter, true),
                 GameKind.OpenHalf => (BoardType.HalfCenter, false),
                 _ => throw new BadRequestException($"unsupported kind: {kind}"),
             };
+            bool jieqi = kind == GameKind.Flip;
 
             var rules = request.Rules.HasValue
                 ? request.Rules.Value.Deserialize<Rules>(ProtocolJson.Options) ?? new Rules()
@@ -209,8 +210,8 @@ namespace Chinese_Chess_v3.Game.Core.RulesHost
                 throw new BadRequestException("position.toMove must be 1 or 2");
             var pieces = position.Pieces ?? throw new BadRequestException("missing position.pieces");
 
-            var board = new Board(boardType, rules);
-            var infos = CheckPieces(pieces, board, boardType);
+            var board = new Board(boardType, rules, isJieqi: jieqi);
+            var infos = CheckPieces(pieces, board, boardType, jieqi);
             board.Initialize(infos);
             return (board, position.ToMove == 1 ? PlayerSide.Player1 : PlayerSide.Player2);
         }
@@ -220,9 +221,10 @@ namespace Chinese_Chess_v3.Game.Core.RulesHost
         /// a wrong ruling): squares on the board and unique; real piece types and colours; no colour
         /// with more pieces of a type than a full set; owners consistent with the colours (one owner
         /// per colour, the two colours owned by different players; on the dark-chess board all owners
-        /// may still be undecided); on the Full board every piece face up and one General per colour.
+        /// may still be undecided); on the Full board one General per colour, face up, and other pieces
+        /// face down only in 揭棋.
         /// </summary>
-        private static List<PieceInfo> CheckPieces(List<PieceDto> pieces, Board board, BoardType boardType)
+        private static List<PieceInfo> CheckPieces(List<PieceDto> pieces, Board board, BoardType boardType, bool jieqi)
         {
             var squares = new HashSet<(int, int)>();
             var counts = new Dictionary<(PieceColor, PieceType), int>();
@@ -250,8 +252,9 @@ namespace Chinese_Chess_v3.Game.Core.RulesHost
                 if (owners.TryGetValue(p.Color, out int owner) && owner != p.Side)
                     throw new BadRequestException($"{p.Color} pieces have different owners");
                 owners[p.Color] = p.Side;
-                if (boardType == BoardType.Full && !p.FaceUp)
-                    throw new BadRequestException("face-down piece on the Full board");
+                // Face-down pieces exist on the Full board only in 揭棋, and never a General.
+                if (boardType == BoardType.Full && !p.FaceUp && (!jieqi || p.Type == PieceType.General))
+                    throw new BadRequestException("face-down piece not allowed here");
 
                 infos.Add(new PieceInfo(p.Type, p.X, p.Y, p.Color, SideOf(p.Side), isFaceUp: p.FaceUp));
             }

@@ -27,6 +27,9 @@ namespace Chinese_Chess_v3.Game.Core
         /// <summary>A shuffled HalfCenter game was dealt (暗棋半盤 when <paramref name="IsHiddenChess"/>, otherwise 明棋半盤).</summary>
         public sealed record HalfCenterStarted(bool IsHiddenChess) : GameLogEvent;
 
+        /// <summary>A 揭棋 game was dealt.</summary>
+        public sealed record JieqiStarted() : GameLogEvent;
+
         /// <summary>An endgame puzzle was set up (<see cref="GameManager.StartEndgame"/>, or its restart).</summary>
         public sealed record EndgameStarted(string Title, string Goal) : GameLogEvent;
 

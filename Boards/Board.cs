@@ -3,8 +3,8 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2025/05/06
-// Update Date: 2026/10/02
-// Version: v2.4
+// Update Date: 2026/10/06
+// Version: v2.5
 /* ----- ----- ----- ----- */
 
 using System;
@@ -99,9 +99,13 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         /// </summary>
         public bool IsJieqi { get; internal set; } = false;
 
-        public Board(BoardType type = BoardType.Full, Rules rules = null)
+        /// <param name="type">The board type.</param>
+        /// <param name="rules">The game's rules (null: the defaults).</param>
+        /// <param name="isJieqi">Full board: a 揭棋 game (<see cref="IsJieqi"/>).</param>
+        public Board(BoardType type = BoardType.Full, Rules rules = null, bool isJieqi = false)
         {
             Type = type;
+            IsJieqi = isJieqi && type == BoardType.Full;
 
             switch (Type)
             {
