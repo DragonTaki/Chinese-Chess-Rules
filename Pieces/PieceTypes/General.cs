@@ -3,14 +3,11 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2025/05/06
-// Update Date: 2025/10/30
-// Version: v2.0
+// Update Date: 2026/10/06
+// Version: v3.0
 /* ----- ----- ----- ----- */
 
-using System.Collections.Generic;
-
-using Chinese_Chess_v3.Game.Core.Boards;
-using Chinese_Chess_v3.Game.Core.Movements;
+using Chinese_Chess_v3.Game.Core.Pieces;
 
 namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
 {
@@ -19,6 +16,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
     /// The General moves exactly 1 square horizontally or vertically and must stay within the palace (九宮格)
     /// unless <see cref="Rules.CanGeneralLeavePalace"/> is on.
     /// It cannot move diagonally and cannot capture own pieces (unless <see cref="Rules.CanCaptureOwnPiece"/>).
+    /// How it moves depends on the board's rules family (<c>Families/</c>); this class is its identity only.
     /// </summary>
     public class General : Piece
     {
@@ -28,138 +26,5 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         /// <param name="info">The piece's initial state (type, position, color, side); copied.</param>
         public General(PieceInfo info)
             : base(info) { }
-
-        /// <summary>
-        /// Determines whether the target position is within the palace where the General can move.
-        /// </summary>
-        /// <param name="board">The board the move is made on.</param>
-        /// <param name="targetX">The X-coordinate of the destination.</param>
-        /// <param name="targetY">The Y-coordinate of the destination.</param>
-        /// <returns><c>true</c> if the destination is within the palace; otherwise, <c>false</c>.</returns>
-        protected override bool IsDestinationLegalFull(Board board, int targetX, int targetY)
-        {
-            if (!board.GameRules.CanGeneralLeavePalace)
-            {
-                // Only can stay in palace (九宮格)
-                if (!board.IsInPalace(Color, targetX, targetY))
-                    return false;
-            }
-            else
-            {
-                if (!board.IsInBoard(targetX, targetY))
-                    return false;
-            }
-
-            return true;
-        }
-
-        /// <summary>
-        /// Checks whether the General can move to the target position according to Chinese Chess rules.
-        /// <para>
-        /// - Must move exactly 1 square horizontally or vertically.
-        /// - Must remain within the palace (unless <see cref="Rules.CanGeneralLeavePalace"/>).
-        /// - Cannot capture an own piece (unless <see cref="Rules.CanCaptureOwnPiece"/>; never the own General).
-        /// </para>
-        /// </summary>
-        /// <param name="targetX">The X-coordinate of the target position.</param>
-        /// <param name="targetY">The Y-coordinate of the target position.</param>
-        /// <param name="board">The current game board instance used to check piece positions.</param>
-        /// <returns><c>true</c> if the move is legal for the General; otherwise, <c>false</c>.</returns>
-        protected override bool IsValidMoveFull(Board board, int targetX, int targetY)
-        {
-            // Check if still in valid area
-            if (!IsDestinationLegalFull(board, targetX, targetY))
-                return false;
-
-            // Check if two side general face to face
-            if (!board.GameRules.CanGeneralSeeGeneral && !board.IsGeneralTargetLegal(Side, targetX, targetY))
-                return false;
-
-            int dx = targetX - X;
-            int dy = targetY - Y;
-
-            var directions = MovePatterns.GetOrthogonalOneStep(Color);
-
-            // Check if match move rule
-            bool matched = false;
-            foreach (var (dirX, dirY) in directions)
-            {
-                if (dx == dirX && dy == dirY)
-                {
-                    matched = true;
-                    break;
-                }
-            }
-            if (!matched)
-                return false;
-
-            // An own piece at the destination blocks (unless 吃己棋, see IsBlockedByOwnPieceFull)
-            if (IsBlockedByOwnPieceFull(board, targetX, targetY))
-                return false;
-
-            return true;
-        }
-
-        /// <summary>
-        /// Gets a list of all legal moves the General can make from its current position.
-        /// Each move is represented as a tuple of (x, y) coordinates.
-        /// </summary>
-        /// <param name="board">The current game board state.</param>
-        /// <returns>
-        /// A list of all possible (x, y) positions the General can legally move to.
-        /// </returns>
-        protected override List<(int x, int y)> GetLegalMovesFull(Board board)
-        {
-            List<(int x, int y)> legalMoves = new List<(int x, int y)>();
-
-            var directions = MovePatterns.GetOrthogonalOneStep(Color);
-
-            foreach (var (dx, dy) in directions)
-            {
-                int newX = X + dx;
-                int newY = Y + dy;
-
-                // Skip if outside this piece's legal area (board bounds plus
-                // palace / river, same as IsValidMoveFull)
-                if (!IsDestinationLegalFull(board, newX, newY))
-                    continue;
-
-                // Skip if destination occupied by ally
-                if (IsBlockedByOwnPieceFull(board, newX, newY))
-                    continue;
-
-                // Check if two side general face to face
-                if (!board.GameRules.CanGeneralSeeGeneral && !board.IsGeneralTargetLegal(Side, newX, newY))
-                    continue;
-
-                // Add to legal moves
-                legalMoves.Add((newX, newY));
-            }
-
-            return legalMoves;
-        }
-
-        /// <summary>
-        /// On HalfCenter (8×4, 明棋／暗棋半盤) there is no palace — the
-        /// General is just the strongest rank and moves one square
-        /// orthogonally like every other non-Cannon piece there.
-        /// </summary>
-        protected override bool IsValidMoveHalfCenter(Board board, int targetX, int targetY) =>
-            IsValidOrthogonalOneStepDarkChess(board, targetX, targetY);
-
-        protected override List<(int x, int y)> GetLegalMovesHalfCenter(Board board) =>
-            GetOrthogonalOneStepMovesDarkChess(board);
-
-        /// <summary>
-        /// HalfCross (9×5, 三國半盤) is the same dark-chess mechanic as
-        /// HalfCenter, just shuffled onto a differently-shaped board and
-        /// with a full 32-piece Xiangqi set instead of HalfCenter's own set
-        /// (confirmed by the author).
-        /// </summary>
-        protected override bool IsValidMoveHalfCross(Board board, int targetX, int targetY) =>
-            IsValidOrthogonalOneStepDarkChess(board, targetX, targetY);
-
-        protected override List<(int x, int y)> GetLegalMovesHalfCross(Board board) =>
-            GetOrthogonalOneStepMovesDarkChess(board);
     }
 }

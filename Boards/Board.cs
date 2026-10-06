@@ -11,6 +11,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
+using Chinese_Chess_v3.Game.Core.Families;
 using Chinese_Chess_v3.Game.Core.Pieces;
 using Chinese_Chess_v3.Game.Core.Players;
 
@@ -610,7 +611,10 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         /// make a move illegal; no legal move loses). Only the Full board (standard
         /// xiangqi, and 揭棋 which shares it); the dark-chess boards have no such rule.
         /// </summary>
-        public bool UsesCheckRules => Type == BoardType.Full;
+        public bool UsesCheckRules => Family.UsesCheckRules;
+
+        /// <summary>The rule system this board plays by (<see cref="RulesFamilies.For"/>): everything that differs between the game kinds.</summary>
+        public IRulesFamily Family => RulesFamilies.For(Type);
 
         /// <summary>
         /// The General of <paramref name="side"/>, or null unless that side has exactly one
@@ -754,18 +758,15 @@ namespace Chinese_Chess_v3.Game.Core.Boards
 
         /// <summary>
         /// Whether <paramref name="side"/> has at least one legal move (see
-        /// <see cref="Piece.GetLegalMoves"/>). Stops at the first one found. On a
-        /// <see cref="UsesDarkChessRules"/> board a face-down piece has no moves (it can only
-        /// be flipped, see <see cref="HasAnyAction"/>), and a face-up piece nobody owns yet
-        /// (明棋半盤 before the first move decides the factions) may be moved by either player.
+        /// <see cref="Piece.GetLegalMoves"/>) with a piece it may act on (<see cref="IRulesFamily.CanAct"/>:
+        /// e.g. on the dark-chess board only face-up pieces, including a face-up piece nobody owns
+        /// yet). Stops at the first one found.
         /// </summary>
         public bool HasAnyLegalMove(PlayerSide side)
         {
             foreach (var p in _pieces)
             {
-                if (p.Side != side && !(UsesDarkChessRules && p.Side == PlayerSide.None))
-                    continue;
-                if (UsesDarkChessRules && !p.CurrentInfo.IsFaceUp)
+                if (!Family.CanAct(this, p, side))
                     continue;
                 foreach (var (x, y) in p.GetPseudoLegalMoves(this))
                 {
@@ -778,20 +779,17 @@ namespace Chinese_Chess_v3.Game.Core.Boards
 
         /// <summary>
         /// Whether <paramref name="side"/> can act at all: a legal move (see
-        /// <see cref="HasAnyLegalMove"/>), or, on a <see cref="UsesDarkChessRules"/> board,
-        /// flipping a face-down piece — any face-down piece may be flipped by either player,
-        /// so a board that still has one always offers an action (e.g. the fully face-down
+        /// <see cref="HasAnyLegalMove"/>), or flipping a face-down piece where flipping is an action
+        /// (<see cref="IRulesFamily.CanFlip"/>) — any face-down piece may be flipped by the side to
+        /// move, so a board that still has one always offers an action (e.g. the fully face-down
         /// start position, where nobody owns a piece yet).
         /// </summary>
         public bool HasAnyAction(PlayerSide side)
         {
-            if (UsesDarkChessRules)
+            foreach (var p in _pieces)
             {
-                foreach (var p in _pieces)
-                {
-                    if (!IsSimulatedCapture(p) && !p.CurrentInfo.IsFaceUp)
-                        return true;
-                }
+                if (!IsSimulatedCapture(p) && Family.CanFlip(this, p))
+                    return true;
             }
             return HasAnyLegalMove(side);
         }

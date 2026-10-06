@@ -3,14 +3,11 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2025/05/06
-// Update Date: 2025/10/30
-// Version: v2.0
+// Update Date: 2026/10/06
+// Version: v3.0
 /* ----- ----- ----- ----- */
 
-using System.Collections.Generic;
-
-using Chinese_Chess_v3.Game.Core.Boards;
-using Chinese_Chess_v3.Game.Core.Movements;
+using Chinese_Chess_v3.Game.Core.Pieces;
 
 namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
 {
@@ -19,6 +16,7 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
     /// The Advisor protects the General and can only move diagonally by one step.
     /// It remains within the 3×3 palace area of its own side (unless <see cref="Rules.CanAdvisorLeavePalace"/>,
     /// or it is a revealed 揭棋 piece).
+    /// How it moves depends on the board's rules family (<c>Families/</c>); this class is its identity only.
     /// </summary>
     public class Advisor : Piece
     {
@@ -28,138 +26,5 @@ namespace Chinese_Chess_v3.Game.Core.Pieces.PieceTypes
         /// <param name="info">The piece's initial state (type, position, color, side); copied.</param>
         public Advisor(PieceInfo info)
             : base(info) { }
-
-        /// <summary>
-        /// Determines whether the target position is within the legal area where this piece is allowed to stay.
-        /// For the Advisor, this means staying inside its palace area.
-        /// </summary>
-        /// <param name="board">The board the move is made on.</param>
-        /// <param name="targetX">The X-coordinate of the destination.</param>
-        /// <param name="targetY">The Y-coordinate of the destination.</param>
-        /// <returns><c>true</c> if the destination is within the palace; otherwise, <c>false</c>.</returns>
-        protected override bool IsDestinationLegalFull(Board board, int targetX, int targetY)
-        {
-            // 揭棋 (Jieqi/FlipChess — Board.IsJieqi): once revealed, an
-            // Advisor can leave the palace freely. A still-hidden Advisor
-            // (IsFaceUp false) making its first move is not affected by
-            // this — it's bound by the normal palace restriction below,
-            // same as any other Full-board game.
-            if (board.IsJieqi && CurrentInfo.IsFaceUp)
-                return board.IsInBoard(targetX, targetY);
-
-            if (!board.GameRules.CanAdvisorLeavePalace)
-            {
-                // Only can stay in palace (九宮格)
-                if (!board.IsInPalace(Color, targetX, targetY))
-                    return false;
-            }
-            else
-            {
-                if (!board.IsInBoard(targetX, targetY))
-                    return false;
-            }
-
-            return true;
-        }
-
-        /// <summary>
-        /// Checks whether the Advisor can move to the target position according to Chinese Chess rules.
-        /// The Advisor must move exactly one step diagonally, remain in its palace, and cannot capture own pieces (unless <see cref="Rules.CanCaptureOwnPiece"/>).
-        /// </summary>
-        /// <param name="targetX">The X-coordinate of the target position.</param>
-        /// <param name="targetY">The Y-coordinate of the target position.</param>
-        /// <param name="board">The current game board instance, used to check piece positions.</param>
-        /// <returns><c>true</c> if the move is valid; otherwise, <c>false</c>.</returns>
-        protected override bool IsValidMoveFull(Board board, int targetX, int targetY)
-        {
-            // Check if still in valid area
-            if (!IsDestinationLegalFull(board, targetX, targetY))
-                return false;
-
-            // Check if general will see general after move
-            if (WouldExposeGeneralsFull(board, targetX, targetY))
-                return false;
-
-            int dx = targetX - X;
-            int dy = targetY - Y;
-
-            var directions = MovePatterns.GetDiagonalOneStep(Color);
-
-            // Check if match move rule
-            bool matched = false;
-            foreach (var (dirX, dirY) in directions)
-            {
-                if (dx == dirX && dy == dirY)
-                {
-                    matched = true;
-                    break;
-                }
-            }
-            if (!matched)
-                return false;
-
-            // An own piece at the destination blocks (unless 吃己棋, see IsBlockedByOwnPieceFull)
-            if (IsBlockedByOwnPieceFull(board, targetX, targetY))
-                return false;
-
-            return true;
-        }
-
-        /// <summary>
-        /// Gets a list of all legal moves this Advisor can make from its current position.
-        /// Each move is represented as a tuple of (x, y) coordinates.
-        /// </summary>
-        /// <param name="board">The current game board state.</param>
-        /// <returns>
-        /// A list of all possible (x, y) positions the Advisor can legally move to.
-        /// </returns>
-        protected override List<(int x, int y)> GetLegalMovesFull(Board board)
-        {
-            List<(int x, int y)> legalMoves = new List<(int x, int y)>();
-
-            var directions = MovePatterns.GetDiagonalOneStep(Color);
-
-            foreach (var (dx, dy) in directions)
-            {
-                int newX = X + dx;
-                int newY = Y + dy;
-
-                // Skip if outside this piece's legal area (board bounds plus
-                // palace / river, same as IsValidMoveFull)
-                if (!IsDestinationLegalFull(board, newX, newY))
-                    continue;
-
-                // Skip if general will see general after move
-                if (WouldExposeGeneralsFull(board, newX, newY))
-                    continue;
-
-                // Skip if destination occupied by ally
-                if (IsBlockedByOwnPieceFull(board, newX, newY))
-                    continue;
-
-                // Add to legal moves
-                legalMoves.Add((newX, newY));
-            }
-
-            return legalMoves;
-        }
-
-        /// <summary>
-        /// On HalfCenter (8×4, 明棋／暗棋半盤) there is no palace — the
-        /// Advisor just moves one square orthogonally like every other
-        /// non-Cannon piece there (not diagonally, unlike on the Full board).
-        /// </summary>
-        protected override bool IsValidMoveHalfCenter(Board board, int targetX, int targetY) =>
-            IsValidOrthogonalOneStepDarkChess(board, targetX, targetY);
-
-        protected override List<(int x, int y)> GetLegalMovesHalfCenter(Board board) =>
-            GetOrthogonalOneStepMovesDarkChess(board);
-
-        /// <summary>Same dark-chess mechanic as HalfCenter — see General.cs's HalfCross note.</summary>
-        protected override bool IsValidMoveHalfCross(Board board, int targetX, int targetY) =>
-            IsValidOrthogonalOneStepDarkChess(board, targetX, targetY);
-
-        protected override List<(int x, int y)> GetLegalMovesHalfCross(Board board) =>
-            GetOrthogonalOneStepMovesDarkChess(board);
     }
 }
