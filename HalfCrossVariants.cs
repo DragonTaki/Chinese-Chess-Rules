@@ -16,7 +16,7 @@ namespace Chinese_Chess_v3.Game.Core
     /// </summary>
     public enum HalfCrossWinCondition
     {
-        /// <summary>計分（預設, the author's scoring): 車／俥、將、帥 2 points, every other piece 1; ranked by the points above the team's starting piece count (帥將兵卒 12, the other two 10), a tie going to whoever reached it first.</summary>
+        /// <summary>計分（預設, the author's scoring): every piece 1 point, Generals included; ranked by the points above the team's starting piece count (帥將兵卒 12, the other two 10), a tie going to whoever reached it first.</summary>
         Points,
 
         /// <summary>全滅 (wiki): the side that eliminates both others is first.</summary>
