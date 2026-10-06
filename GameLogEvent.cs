@@ -83,7 +83,7 @@ namespace Chinese_Chess_v3.Game.Core
         /// <summary>三國: <paramref name="Side"/> has no action and its turn is skipped.</summary>
         public sealed record TurnSkipped(PlayerSide Side) : GameLogEvent;
 
-        /// <summary>三國: <paramref name="Side"/> resigned (棄權), or ran out of time (<paramref name="TimeUp"/>); the others play on.</summary>
+        /// <summary>三國: <paramref name="Side"/> resigned (棄權), or ran out of time and left (<paramref name="TimeUp"/>); the others play on.</summary>
         public sealed record PlayerForfeited(PlayerSide Side, bool TimeUp) : GameLogEvent;
 
         /// <summary>A move put <paramref name="Side"/> in check and the game goes on.</summary>

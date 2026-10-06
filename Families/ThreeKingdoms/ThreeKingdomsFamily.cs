@@ -84,7 +84,9 @@ namespace Chinese_Chess_v3.Game.Core.Families.ThreeKingdoms
             if (target != null)
             {
                 board.RemovePiece(toX, toY);
-                state.Scores[ThreeKingdomsState.Index(mover)] += ThreeKingdomsTeams.Points(target.Type, board.GameRules.HalfCrossWinCondition);
+                int i = ThreeKingdomsState.Index(mover);
+                state.Scores[i] += ThreeKingdomsTeams.Points(target.Type, board.GameRules.HalfCrossWinCondition);
+                state.ScoreOrder[i] = state.ScoreOrder.Max() + 1;
             }
             board.MovePiece(fromX, fromY, toX, toY);
             if (target != null)
@@ -151,7 +153,8 @@ namespace Chinese_Chess_v3.Game.Core.Families.ThreeKingdoms
             var playing = ThreeKingdomsState.Players.Where(p => ThreeKingdomsStandings.IsPlaying(board, p)).ToList();
             if (playing.Count < 2)
             {
-                // Fewer than two players with pieces left, or else the others resigned.
+                // Fewer than two players with pieces left, or else the others left (棄權 / time-up;
+                // GameManager reports a time-up as TimeUp).
                 int withPieces = ThreeKingdomsState.Players.Count(p => !ThreeKingdomsStandings.IsOut(board, state, p));
                 return End(board, withPieces < 2 ? GameOverReason.NoPiecesLeft : GameOverReason.Resign);
             }

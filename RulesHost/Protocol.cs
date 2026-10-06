@@ -44,15 +44,18 @@ namespace Chinese_Chess_v3.Game.Core.RulesHost
 
     /// <summary>
     /// 三國's state (<c>ThreeKingdomsState</c>), each array by player (Player1 first, three entries):
-    /// the team each claimed (0 = none yet, 1..3), the points, whether it resigned (棄權), and the
-    /// order it went out in (0 = still in, 1 = first out...).
+    /// the team each claimed (0 = none yet, 1..3), the points, whether it resigned (棄權), whether its
+    /// clock ran out (it left), the order it went out in (0 = still in, 1 = first out...) and when it
+    /// last scored (0 = never; 1 = the game's first score...: equal scores go to whoever was first).
     /// </summary>
     public sealed class ThreeKingdomsDto
     {
         public int[] Teams { get; set; }
         public int[] Scores { get; set; }
         public bool[] Resigned { get; set; }
+        public bool[] TimedOut { get; set; }
         public int[] OutOrder { get; set; }
+        public int[] ScoreOrder { get; set; }
     }
 
     /// <summary>One piece: type, colour, owner (0 = nobody yet, 1 / 2 = player; 三國 1..3), square and whether it is face up.</summary>

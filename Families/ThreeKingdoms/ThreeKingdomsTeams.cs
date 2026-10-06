@@ -22,7 +22,7 @@ namespace Chinese_Chess_v3.Game.Core.Families.ThreeKingdoms
     {
         /// <summary>
         /// The points capturing <paramref name="type"/> is worth under <paramref name="condition"/>:
-        /// the author's scoring (車／俥、將、帥 2, every other piece 1) for 計分, 全滅 and 收軍; the wiki's
+        /// the author's scoring (車／俥、將、帥 2, every other piece 1) for 計分 and 全滅; the wiki's
         /// values (將帥車 50, 馬炮 35, 兵卒 20, 士象 15) for 得失分 and 先得 200 分.
         /// </summary>
         public static int Points(PieceType type, HalfCrossWinCondition condition) => condition switch

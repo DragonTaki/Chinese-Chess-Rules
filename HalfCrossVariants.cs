@@ -12,18 +12,15 @@ namespace Chinese_Chess_v3.Game.Core
     /// <summary>
     /// 三國半盤 way of deciding the winner (勝負方式):
     /// the author's own scoring by default, the wiki's ways as alternatives (<c>ThreeKingdomsStandings.Rank</c>).
-    /// 收軍 (<see cref="Recall"/>) is not decided yet, so a game with it cannot be started.
+    /// The wiki's 收軍 is not real play (author 2026-10-06: made up, nobody uses it) and is not offered.
     /// </summary>
     public enum HalfCrossWinCondition
     {
-        /// <summary>計分（預設, the author's scoring): 車／俥、將、帥 2 points, every other piece 1; the 帥將兵卒 team wins at 12 captured points, the other two at 10.</summary>
+        /// <summary>計分（預設, the author's scoring): 車／俥、將、帥 2 points, every other piece 1; ranked by the points above the team's starting piece count (帥將兵卒 12, the other two 10), a tie going to whoever reached it first.</summary>
         Points,
 
         /// <summary>全滅 (wiki): the side that eliminates both others is first.</summary>
         Annihilation,
-
-        /// <summary>收軍 (wiki): the first side to capture as many pieces as it holds recalls its army and is first.</summary>
-        Recall,
 
         /// <summary>得失分 (wiki): in a deadlock the higher score (total - lost + captured) wins.</summary>
         ScoreBalance,

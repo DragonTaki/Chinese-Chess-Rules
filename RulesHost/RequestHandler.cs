@@ -230,7 +230,7 @@ namespace Chinese_Chess_v3.Game.Core.RulesHost
             {
                 board.ThreeKingdoms = CheckThreeKingdoms(position.ThreeKingdoms, infos, rules);
                 if (!ThreeKingdomsStandings.IsPlaying(board, mover))
-                    throw new BadRequestException("position.toMove is out or resigned");
+                    throw new BadRequestException("position.toMove is out, resigned or timed out");
             }
             return (board, mover);
         }
@@ -247,7 +247,8 @@ namespace Chinese_Chess_v3.Game.Core.RulesHost
                 throw new BadRequestException("missing position.threeKingdoms");
             if (!rules.HalfCrossTeams.IsValid)
                 throw new BadRequestException("rules.halfCrossTeams: every team needs a piece");
-            if (dto.Teams?.Length != 3 || dto.Scores?.Length != 3 || dto.Resigned?.Length != 3 || dto.OutOrder?.Length != 3)
+            if (dto.Teams?.Length != 3 || dto.Scores?.Length != 3 || dto.Resigned?.Length != 3 || dto.TimedOut?.Length != 3
+                || dto.OutOrder?.Length != 3 || dto.ScoreOrder?.Length != 3)
                 throw new BadRequestException("position.threeKingdoms arrays need 3 entries");
 
             var state = new ThreeKingdomsState();
@@ -261,10 +262,14 @@ namespace Chinese_Chess_v3.Game.Core.RulesHost
                     throw new BadRequestException("position.threeKingdoms.scores cannot be negative");
                 if (dto.OutOrder[i] < 0 || dto.OutOrder[i] > 3)
                     throw new BadRequestException("position.threeKingdoms.outOrder must be 0..3");
+                if (dto.ScoreOrder[i] < 0)
+                    throw new BadRequestException("position.threeKingdoms.scoreOrder cannot be negative");
                 state.Teams[i + 1] = dto.Teams[i];
                 state.Scores[i + 1] = dto.Scores[i];
                 state.Resigned[i + 1] = dto.Resigned[i];
                 state.OutOrder[i + 1] = dto.OutOrder[i];
+                state.TimedOut[i + 1] = dto.TimedOut[i];
+                state.ScoreOrder[i + 1] = dto.ScoreOrder[i];
             }
             if (dto.Teams.Count(t => t == 0) == 1)
                 throw new BadRequestException("two players have teams but the third has none");
@@ -394,7 +399,9 @@ namespace Chinese_Chess_v3.Game.Core.RulesHost
             Teams = state.Teams[1..],
             Scores = state.Scores[1..],
             Resigned = state.Resigned[1..],
+            TimedOut = state.TimedOut[1..],
             OutOrder = state.OutOrder[1..],
+            ScoreOrder = state.ScoreOrder[1..],
         };
 
         private static PieceDto ToDto(PieceInfo info) => new()

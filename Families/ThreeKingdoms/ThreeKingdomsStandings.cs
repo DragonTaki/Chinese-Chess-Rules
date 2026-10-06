@@ -31,15 +31,15 @@ namespace Chinese_Chess_v3.Game.Core.Families.ThreeKingdoms
         {
             var state = board.ThreeKingdoms ?? throw new InvalidOperationException("A Three Kingdoms board has no ThreeKingdomsState");
             int i = ThreeKingdomsState.Index(side);
-            if (state.Resigned[i])
+            if (state.Resigned[i] || state.TimedOut[i])
                 return false;
             return !IsOut(board, state, side);
         }
 
         /// <summary>
         /// Every player ranked, first place first (author decision 4 for 計分: the points above one's
-        /// team's threshold). Ties keep the turn order. 全滅: the players still in first (by points),
-        /// then the players out, the last one out first. 得失分: the points of one's team still on the
+        /// team's starting piece count; a tie goes to whoever reached it first, author 2026-10-06).
+        /// 全滅: the players still in first (by points), then the players out, the last one out first. 得失分: the points of one's team still on the
         /// board plus the points captured. 先得 200 分: the points captured.
         /// </summary>
         public static IReadOnlyList<PlayerSide> Rank(Board board)
@@ -54,7 +54,10 @@ namespace Chinese_Chess_v3.Game.Core.Families.ThreeKingdoms
                     .ThenByDescending(p => state.OutOrder[ThreeKingdomsState.Index(p)])
                     .ThenByDescending(p => state.Scores[ThreeKingdomsState.Index(p)])
                     .ToList(),
-                _ => players.OrderByDescending(p => RankingScore(board, p)).ToList(),
+                // A tie goes to whoever reached that score first (author 2026-10-06).
+                _ => players.OrderByDescending(p => RankingScore(board, p))
+                    .ThenBy(p => state.ScoreOrder[ThreeKingdomsState.Index(p)])
+                    .ToList(),
             };
         }
 

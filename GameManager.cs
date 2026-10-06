@@ -307,10 +307,10 @@ namespace Chinese_Chess_v3.Game.Core
         /// to move after Red's first move). Also true after the game has ended (undoing
         /// reopens it) and while paused.
         /// </summary>
-        /// 三國: not once a 棄權 (or a time-up, which counts as one) has ended the game — a
-        /// resignation is not a move, so undoing moves cannot take it back.
+        /// 三國: not once a 棄權 or a time-up has ended the game — leaving is not a move, so undoing
+        /// moves cannot take it back.
         public bool CanUndo => _moves.Count - UndoFloor >= UndoRoundPlies
-            && !(IsGameOver && Board.ThreeKingdoms != null && Result?.Reason == GameOverReason.Resign);
+            && !(IsGameOver && Board.ThreeKingdoms != null && Result?.Reason is GameOverReason.Resign or GameOverReason.TimeUp);
 
         /// <summary>
         /// Raised once per move taken back (twice per <see cref="Undo"/>, newest move first),
@@ -531,14 +531,11 @@ namespace Chinese_Chess_v3.Game.Core
         /// </summary>
         /// <param name="deal">Makes a layout; called now and again on every <see cref="Restart"/>.</param>
         /// <exception cref="ArgumentNullException"><paramref name="deal"/> is null.</exception>
-        /// <exception cref="NotSupportedException">The rules pick 收軍 (<see cref="HalfCrossWinCondition.Recall"/>), whose rules are not decided yet.</exception>
         /// <exception cref="InvalidOperationException">The team split (<see cref="Rules.HalfCrossTeams"/>) leaves a team without pieces.</exception>
         public void StartThreeKingdoms(Func<List<PieceInfo>> deal)
         {
             ArgumentNullException.ThrowIfNull(deal);
             var rules = DefaultRulesFor(GameKind.ThreeKingdoms).Clone();
-            if (rules.HalfCrossWinCondition == HalfCrossWinCondition.Recall)
-                throw new NotSupportedException("收軍 (Recall) is not decided yet");
             if (!rules.HalfCrossTeams.IsValid)
                 throw new InvalidOperationException("Every 三國 team needs at least one piece");
             _threeKingdomsDeal = deal;
@@ -1119,6 +1116,11 @@ namespace Chinese_Chess_v3.Game.Core
         public int ScoreOf(PlayerSide side) =>
             Board.ThreeKingdoms != null && side is PlayerSide.Player1 or PlayerSide.Player2 or PlayerSide.Player3
                 ? Board.ThreeKingdoms.Scores[ThreeKingdomsState.Index(side)] : 0;
+
+        /// <summary>三國: whether <paramref name="side"/>'s clock ran out (it left the game; its turns are skipped).</summary>
+        public bool HasTimedOut(PlayerSide side) =>
+            Board.ThreeKingdoms != null && side is PlayerSide.Player1 or PlayerSide.Player2 or PlayerSide.Player3
+            && Board.ThreeKingdoms.TimedOut[ThreeKingdomsState.Index(side)];
 
         /// <summary>三國: whether <paramref name="side"/> resigned (棄權; its turns are skipped).</summary>
         public bool HasResigned(PlayerSide side) =>
@@ -1757,24 +1759,28 @@ namespace Chinese_Chess_v3.Game.Core
         }
 
         /// <summary>
-        /// 三國's resignation (棄權, author decision 8): <paramref name="side"/>'s pieces stay on the
-        /// board (they may still be captured and scored) and its turns are skipped from now on;
-        /// the game ends once fewer than two players still play. A time-up counts as one
-        /// (<paramref name="timeUp"/>). Not a move: undo does not take it back.
+        /// 三國: <paramref name="side"/> leaves the game — a resignation (棄權, author decision 8) or,
+        /// with <paramref name="timeUp"/>, its clock ran out (author 2026-10-06: the player leaves, not
+        /// a 棄權). Either way its pieces stay on the board (they may still be captured and scored),
+        /// its turns are skipped from now on and the game ends once fewer than two players still
+        /// play, ranked by points as always. Not a move: undo does not take it back.
         /// </summary>
-        /// <returns>False when the game is over, <paramref name="side"/> is not a player, or it already resigned.</returns>
+        /// <returns>False when the game is over, <paramref name="side"/> is not a player, or it already left.</returns>
         private bool Forfeit(PlayerSide side, bool timeUp)
         {
             if (IsGameOver || side is not (PlayerSide.Player1 or PlayerSide.Player2 or PlayerSide.Player3))
                 return false;
             var state = Board.ThreeKingdoms;
             int i = ThreeKingdomsState.Index(side);
-            if (state.Resigned[i])
+            if (state.Resigned[i] || state.TimedOut[i])
                 return false;
 
             if (IsPaused)
                 ResumeGame();
-            state.Resigned[i] = true;
+            if (timeUp)
+                state.TimedOut[i] = true;
+            else
+                state.Resigned[i] = true;
             PlayerOf(side).Timer.End();
             HasUnsavedChanges = true;
             CoreLog.Log($"(Forfeit) {side} forfeits{(timeUp ? " (time up)" : "")}", CoreLogLevel.Debug);
@@ -1783,7 +1789,7 @@ namespace Chinese_Chess_v3.Game.Core
             var end = ActionResolver.EvaluateEnd(Board, CurrentTurn, out _);
             if (end != null)
             {
-                EndGame(end);
+                EndGame(timeUp && end.Reason == GameOverReason.Resign ? end with { Reason = GameOverReason.TimeUp } : end);
                 return true;
             }
             if (side == CurrentTurn)
@@ -1886,7 +1892,7 @@ namespace Chinese_Chess_v3.Game.Core
                 return;
             }
 
-            // 三國: running out of time is a 棄權 (the other two play on).
+            // 三國: the player whose time ran out leaves (not a 棄權); the others play on.
             if (Board.ThreeKingdoms != null)
             {
                 Logged?.Invoke(new GameLogEvent.TimeRanOut(loser.Side));

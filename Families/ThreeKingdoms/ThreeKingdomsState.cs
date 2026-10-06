@@ -33,6 +33,19 @@ namespace Chinese_Chess_v3.Game.Core.Families.ThreeKingdoms
         public bool[] Resigned { get; } = new bool[4];
 
         /// <summary>
+        /// Whether each player's clock ran out (author 2026-10-06: the player leaves — not a 棄權 —
+        /// its pieces stay on the board and may only be captured, the others play on). Index 0 is unused.
+        /// </summary>
+        public bool[] TimedOut { get; } = new bool[4];
+
+        /// <summary>
+        /// When each player last scored, in scoring order across the players (1 for the first score of
+        /// the game, then 2...; 0 before it scores): equal ranking scores go to whoever reached theirs
+        /// first (author 2026-10-06). Index 0 is unused.
+        /// </summary>
+        public int[] ScoreOrder { get; } = new int[4];
+
+        /// <summary>
         /// The order in which the players went out (their last piece was captured): 1 for the first
         /// one out, 2 for the next; 0 while a player is in. Ranks the players out of 全滅. Index 0 is unused.
         /// </summary>
@@ -79,18 +92,21 @@ namespace Chinese_Chess_v3.Game.Core.Families.ThreeKingdoms
             Array.Copy(Scores, copy.Scores, 4);
             Array.Copy(Resigned, copy.Resigned, 4);
             Array.Copy(OutOrder, copy.OutOrder, 4);
+            Array.Copy(TimedOut, copy.TimedOut, 4);
+            Array.Copy(ScoreOrder, copy.ScoreOrder, 4);
             return copy;
         }
 
         /// <summary>
         /// Undo: takes the claims, scores and outs back to <paramref name="before"/> (a <see cref="Clone"/>
-        /// taken before an action). Resignations are not actions, so they stay.
+        /// taken before an action). Resignations and time-ups are not actions, so they stay.
         /// </summary>
         public void RestoreActionState(ThreeKingdomsState before)
         {
             Array.Copy(before.Teams, Teams, 4);
             Array.Copy(before.Scores, Scores, 4);
             Array.Copy(before.OutOrder, OutOrder, 4);
+            Array.Copy(before.ScoreOrder, ScoreOrder, 4);
         }
     }
 }
