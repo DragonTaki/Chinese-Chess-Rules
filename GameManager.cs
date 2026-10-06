@@ -1014,11 +1014,10 @@ namespace Chinese_Chess_v3.Game.Core
             if (IsPaused || IsGameOver || !Board.UsesDarkChessRules)
                 return false;
 
-            var piece = Board.GetPiece(x, y);
-            if (piece == null || piece.CurrentInfo.IsFaceUp)
+            if (!ActionResolver.IsLegalFlip(Board, x, y))
                 return false;
 
-            ExecuteFlip(piece);
+            ExecuteFlip(Board.GetPiece(x, y));
             return true;
         }
 
@@ -1030,10 +1029,7 @@ namespace Chinese_Chess_v3.Game.Core
         /// A face-up piece nobody owns yet (明棋半盤 before the first move) is anyone's: moving it
         /// decides the factions.
         /// </summary>
-        private bool IsSelectable(Piece piece) =>
-            piece != null
-            && (piece.Side == CurrentTurn || (Board.UsesDarkChessRules && piece.Side == PlayerSide.None))
-            && (!Board.UsesDarkChessRules || piece.CurrentInfo.IsFaceUp);
+        private bool IsSelectable(Piece piece) => ActionResolver.CanAct(Board, piece, CurrentTurn);
 
         /// <summary>
         /// A piece for the click log lines: its type, or just "face-down" for a face-down piece
@@ -1150,83 +1146,54 @@ namespace Chinese_Chess_v3.Game.Core
         }
 
         /// <summary>
-        /// Applies an already-validated move: advances the board's turn counter (so the
-        /// pieces' history snapshots carry the move number), captures whatever stands on
-        /// the destination, moves the piece, clears the selection and switches the turn.
-        /// Shared by <see cref="HandleClick"/> and <see cref="TryMove"/>. On the dark-chess
-        /// board, moving a piece nobody owns yet (明棋半盤's first move) first gives the side to
-        /// move that piece's colour and the other player the other one
-        /// (<see cref="Board.AssignFactions"/>); the move is then undone like a dark-chess
-        /// action, which takes the decision back too.
+        /// Applies an already-validated move for the side to move: advances the board's turn
+        /// counter (so the pieces' history snapshots carry the move number), lets
+        /// <see cref="ActionResolver.ApplyMove"/> change the board (a capture, or on the dark-chess
+        /// board a hidden capture / 自殺 / the faction decision of 明棋半盤's first move), then
+        /// records it, raises the events, clears the selection and switches the turn or ends the
+        /// game. Shared by <see cref="HandleClick"/> and <see cref="TryMove"/>.
         /// </summary>
         private void ExecuteMove(Piece piece, int toX, int toY)
         {
-            // 暗吃: a move onto a face-down piece reveals it first (see ExecuteHiddenCapture).
-            var hiddenTarget = Board.GetPiece(toX, toY);
-            if (Board.UsesDarkChessRules && hiddenTarget != null && !hiddenTarget.CurrentInfo.IsFaceUp)
-            {
-                ExecuteHiddenCapture(piece, hiddenTarget);
-                return;
-            }
-            // 自殺: a move onto a stronger face-up enemy piece kills the mover (see ExecuteSuicide).
-            if (Board.UsesDarkChessRules && piece.IsSuicideMove(Board, toX, toY))
-            {
-                ExecuteSuicide(piece, toX, toY);
-                return;
-            }
-
-            int fromX = piece.X;
-            int fromY = piece.Y;
             var mover = CurrentTurn;
-            bool decidesFactions = Board.UsesDarkChessRules && piece.Side == PlayerSide.None;
-            // Every piece's ownership changes with the decision: undo it piece by piece.
-            var historyBefore = decidesFactions ? SnapshotHistoryCounts() : null;
-
             // Both clocks as they are right before the move, for Undo.
             var clocks = (Player1.Timer.GetClockState(), Player2.Timer.GetClockState());
-
             // Pre-move facts for the "newly ..." tactical events, taken on the unchanged board.
             var tacticalBefore = Board.UsesCheckRules ? TacticalAnalysis.TakeSnapshot(Board, piece.Side) : null;
-
-            // The notation also depends on the other pieces on the file (前/後), and whether the
-            // move gives check is simulated, so the record is complete before the board changes.
-            string notation = ChineseMoveNotation.Format(Board, fromX, fromY, toX, toY);
-            string iccs = Board.Type == BoardType.Full ? new IccsMove(fromX, fromY, toX, toY).ToString() : null;
-            var opponentSide = OpponentOf(piece.Side);
-            bool givesCheck = Board.UsesCheckRules &&
-                Board.SimulateMove(piece, toX, toY, () => Board.IsSideInCheck(opponentSide), fallback: false);
+            // A dark-chess action is undone piece by piece: every piece's history length now.
+            var historyBefore = Board.UsesDarkChessRules ? SnapshotHistoryCounts() : null;
 
             Board.AdvanceTurn();
+            var outcome = ActionResolver.ApplyMove(Board, mover, piece, toX, toY);
 
-            // If the destination has an (enemy) piece, capture it first
-            var targetPiece = Board.GetPiece(toX, toY);
+            if (outcome.Kind != MoveKind.Move)
+            {
+                FinishDarkChessAction(outcome, clocks, historyBefore);
+                return;
+            }
+
             int ply = _moves.Count + 1;
-            LastMove = new MoveRecord(piece.CurrentInfo.Clone(), fromX, fromY, toX, toY, targetPiece?.CurrentInfo.Clone(),
-                ply, MoveNumberOf(ply), givesCheck, notation, iccs, side: mover);
+            LastMove = new MoveRecord(outcome.PieceBefore, outcome.FromX, outcome.FromY, toX, toY, outcome.Captured,
+                ply, MoveNumberOf(ply), outcome.GivesCheck, outcome.Notation, outcome.Iccs, side: mover);
             _moves.Add(LastMove);
-            _capturedPieces.Add(targetPiece);
+            _capturedPieces.Add(outcome.CapturedPiece);
             _clocksBeforeMove.Add(clocks);
-            _stateChanges.Add(null);
+            // A faction decision changes every piece's owner: undone piece by piece; any other
+            // move by Board.UnmakeMove.
+            _stateChanges.Add(outcome.DecidesFactions ? ChangesSince(historyBefore) : null);
             HasUnsavedChanges = true;
 
-            if (decidesFactions)
-                Board.AssignFactions(piece.Color, mover);
-
+            var targetPiece = outcome.CapturedPiece;
             if (targetPiece != null)
             {
-                Board.RemovePiece(toX, toY);
                 CoreLog.Log($"(Action) Captured {targetPiece.Type} at ({toX},{toY})", CoreLogLevel.Debug);
                 Logged?.Invoke(new GameLogEvent.PieceTaken(targetPiece.Type, toX, toY));
                 PieceCaptured?.Invoke(targetPiece);
                 PieceRemoved?.Invoke(targetPiece);
             }
 
-            // move logic
-            Board.MovePiece(fromX, fromY, toX, toY);
             CoreLog.Log($"(Action) Moved {piece.Type} to ({toX},{toY})", CoreLogLevel.Debug);
             Logged?.Invoke(new GameLogEvent.PieceMoved(piece.Type, toX, toY));
-            if (decidesFactions)
-                _stateChanges[_stateChanges.Count - 1] = ChangesSince(historyBefore);
 
             // raise moved event AFTER board updated
             PieceMoved?.Invoke(piece, toX, toY);
@@ -1234,7 +1201,7 @@ namespace Chinese_Chess_v3.Game.Core
             // Readable move-list entry, in addition to the debug entries above.
             CoreLog.Log($"(Action) Recorded move {LastMove.Ply}: {LastMove.Notation ?? LastMove.Kind.ToString()}", CoreLogLevel.Debug);
             Logged?.Invoke(new GameLogEvent.MovePlayed(LastMove, ColorOf(LastMove.Side), LineStyleOf(LastMove)));
-            if (decidesFactions)
+            if (outcome.DecidesFactions)
                 LogFactions();
             MoveRecorded?.Invoke(LastMove);
 
@@ -1248,26 +1215,23 @@ namespace Chinese_Chess_v3.Game.Core
             // Board hints for the new position (also when this move ends the game).
             UpdateHangingPieces();
 
-            // Standard xiangqi: the side about to move is evaluated right away. With no
-            // legal move it loses on the spot — checkmate if in check, otherwise stalemate
-            // (困斃, which also covers "every remaining move would face the Generals").
-            // The turn is not handed over, so the loser's clock never starts.
+            // The side about to move is evaluated right away (ActionResolver.EvaluateEnd); the
+            // turn is not handed over when the game ends, so the loser's clock never starts.
+            var end = ActionResolver.EvaluateEnd(Board, mover, out bool opponentInCheck);
             if (Board.UsesCheckRules)
             {
-                var opponent = OpponentOf(mover);
-                bool opponentInCheck = Board.IsSideInCheck(opponent);
-
                 // Evaluated before the game-over / turn-switch bookkeeping (the board is
                 // already final), raised after it.
                 var tactical = TacticalAnalysis.Analyze(Board, LastMove, tacticalBefore);
 
-                if (!Board.HasAnyLegalMove(opponent))
+                if (end != null)
                 {
-                    EndGame(mover, opponent, opponentInCheck ? GameOverReason.Checkmate : GameOverReason.Stalemate);
+                    EndGame(end.Winner, end.Loser, end.Reason);
                     RaiseTacticalEvents(tactical);
                     return;
                 }
 
+                var opponent = OpponentOf(mover);
                 // Set before the turn switch so TurnChanged handlers already see it.
                 IsInCheck = opponentInCheck;
                 SwitchTurn();
@@ -1281,8 +1245,11 @@ namespace Chinese_Chess_v3.Game.Core
                 return;
             }
 
-            if (Board.UsesDarkChessRules && EndDarkChessGameIfOver(mover))
+            if (end != null)
+            {
+                EndGame(end.Winner, end.Loser, end.Reason);
                 return;
+            }
             SwitchTurn();
         }
 
@@ -1319,31 +1286,20 @@ namespace Chinese_Chess_v3.Game.Core
 
         /// <summary>
         /// Applies a flip (翻子, dark chess) as the side to move's turn: advances the board's
-        /// turn counter, turns <paramref name="piece"/> face up and — if this is the game's first
-        /// flip (nobody owns a colour yet) — gives the side to move the flipped piece's colour
-        /// and the other player the other one (<see cref="Board.AssignFactions"/>). Then records
-        /// it like a move (<see cref="MoveKind.Flip"/>, for undo with both clocks), logs it,
-        /// clears the selection, recomputes the hanging pieces and switches the turn.
+        /// turn counter and lets <see cref="ActionResolver.ApplyFlip"/> turn the piece face up
+        /// (deciding the factions on the game's first flip), then records it like a move
+        /// (<see cref="MoveKind.Flip"/>, for undo with both clocks), logs it, clears the selection,
+        /// recomputes the hanging pieces and switches the turn.
         /// </summary>
         private void ExecuteFlip(Piece piece)
         {
             var mover = CurrentTurn;
             var clocks = (Player1.Timer.GetClockState(), Player2.Timer.GetClockState());
             var before = SnapshotHistoryCounts();
-            var pieceBefore = piece.CurrentInfo.Clone();
-            bool decidesFactions = piece.Side == PlayerSide.None;
 
             Board.AdvanceTurn();
-            Board.FlipPiece(piece.X, piece.Y);
-            if (decidesFactions)
-                Board.AssignFactions(piece.Color, mover);
-
-            CoreLog.Log($"(Action) Flipped {piece.Color} {piece.Type} at ({piece.X},{piece.Y})", CoreLogLevel.Debug);
-            RecordDarkChessAction(pieceBefore, piece.X, piece.Y, piece.X, piece.Y, MoveKind.Flip, mover,
-                piece.CurrentInfo.Clone(), null, clocks, before);
-            if (decidesFactions)
-                LogFactions();
-            EndDarkChessAction();
+            var outcome = ActionResolver.ApplyFlip(Board, mover, piece);
+            FinishDarkChessAction(outcome, clocks, before);
         }
 
         /// <summary>Reports the faction decision (which player plays which colour) to the game log.</summary>
@@ -1356,137 +1312,56 @@ namespace Chinese_Chess_v3.Game.Core
         }
 
         /// <summary>
-        /// Applies an already-validated move of <paramref name="piece"/> onto the face-down
-        /// <paramref name="target"/> (暗吃, <see cref="Rules.CanCaptureHiddenPiece"/>) as the side
-        /// to move's turn: the target is turned face up, then
-        /// <list type="bullet">
-        /// <item>the mover's own piece: the mover stays on its from-square
-        /// (<see cref="MoveKind.HiddenOwnPiece"/>);</item>
-        /// <item>an enemy piece the mover may capture by the normal rules (re-checked now that
-        /// it is face up — rank order and the Soldier/General pair; a Cannon's jump capture
-        /// ignores rank): a normal capture (<see cref="MoveKind.HiddenCapture"/>);</item>
-        /// <item>any other enemy piece (a stronger one, or a Soldier when the mover is a General):
-        /// <see cref="Rules.IsCaptureHiddenPieceStrongerSuicide"/> on, the mover dies
-        /// (<see cref="MoveKind.HiddenStrongerSuicide"/>); off, it returns to its from-square
-        /// (<see cref="MoveKind.HiddenStrongerReturn"/>). The target stays either way.</item>
-        /// </list>
-        /// Every outcome uses the turn and is recorded, logged and undone like a move.
+        /// The bookkeeping of a dark-chess action (flip, hidden capture or 自殺) the board already
+        /// shows: records it as the next move — <see cref="LastMove"/>, the move list and the undo
+        /// data (both clocks, every piece changed since <paramref name="before"/>) — marks the game
+        /// changed, logs it, raises the board events, then raises <see cref="MoveRecorded"/>,
+        /// clears the selection, recomputes the hanging pieces and hands the turn over or ends the game.
         /// </summary>
-        private void ExecuteHiddenCapture(Piece piece, Piece target)
+        private void FinishDarkChessAction(ActionOutcome outcome, (ClockState, ClockState) clocks, Dictionary<Piece, int> before)
         {
-            var mover = CurrentTurn;
-            int fromX = piece.X;
-            int fromY = piece.Y;
-            int toX = target.X;
-            int toY = target.Y;
-            var clocks = (Player1.Timer.GetClockState(), Player2.Timer.GetClockState());
-            var before = SnapshotHistoryCounts();
-            var pieceBefore = piece.CurrentInfo.Clone();
-
-            Board.AdvanceTurn();
-            Board.FlipPiece(toX, toY);
-            var revealed = target.CurrentInfo.Clone();
-
-            MoveKind kind;
-            Piece captured = null;
-            if (target.Side == piece.Side)
+            var piece = outcome.Piece;
+            var mover = outcome.Mover;
+            switch (outcome.Kind)
             {
-                kind = MoveKind.HiddenOwnPiece;
-            }
-            // With 自殺 on, a move onto a stronger enemy is legal too, so it is checked apart.
-            else if (piece.IsPseudoLegalMove(Board, toX, toY) && !piece.IsSuicideMove(Board, toX, toY))
-            {
-                kind = MoveKind.HiddenCapture;
-                captured = target;
-                Board.RemovePiece(toX, toY);
-                Board.MovePiece(fromX, fromY, toX, toY);
-            }
-            else if (Board.GameRules.IsCaptureHiddenPieceStrongerSuicide)
-            {
-                kind = MoveKind.HiddenStrongerSuicide;
-                Board.RemovePiece(fromX, fromY);
-            }
-            else
-            {
-                kind = MoveKind.HiddenStrongerReturn;
-            }
-
-            CoreLog.Log($"(Action) Hidden capture {piece.Type} ({fromX},{fromY})->({toX},{toY}): revealed {target.Color} {target.Type}, {kind}", CoreLogLevel.Debug);
-            RecordDarkChessAction(pieceBefore, fromX, fromY, toX, toY, kind, mover, revealed, captured, clocks, before);
-
-            // Board events after the record, like ExecuteMove's (the board is already final).
-            switch (kind)
-            {
-                case MoveKind.HiddenCapture:
-                    PieceCaptured?.Invoke(target);
-                    PieceRemoved?.Invoke(target);
-                    PieceMoved?.Invoke(piece, toX, toY);
+                case MoveKind.Flip:
+                    CoreLog.Log($"(Action) Flipped {piece.Color} {piece.Type} at ({piece.X},{piece.Y})", CoreLogLevel.Debug);
                     break;
-                case MoveKind.HiddenStrongerSuicide:
-                    PieceCaptured?.Invoke(piece);
-                    PieceRemoved?.Invoke(piece);
+                case MoveKind.Suicide:
+                    CoreLog.Log($"(Action) Suicide {outcome.PieceBefore.Type} ({outcome.FromX},{outcome.FromY})->({outcome.ToX},{outcome.ToY}) onto {outcome.Revealed.Color} {outcome.Revealed.Type}", CoreLogLevel.Debug);
+                    break;
+                default:
+                    CoreLog.Log($"(Action) Hidden capture {outcome.PieceBefore.Type} ({outcome.FromX},{outcome.FromY})->({outcome.ToX},{outcome.ToY}): revealed {outcome.Revealed.Color} {outcome.Revealed.Type}, {outcome.Kind}", CoreLogLevel.Debug);
                     break;
             }
 
-            EndDarkChessAction();
-        }
-
-        /// <summary>
-        /// Applies an already-validated 自殺 move (<see cref="Rules.CanSuicide"/>,
-        /// <see cref="Piece.IsSuicideMove"/>) as the side to move's turn: <paramref name="piece"/>
-        /// dies (taken off the board) and the face-up enemy piece on (toX, toY) stays
-        /// (<see cref="MoveKind.Suicide"/>). Recorded, logged and undone like a move.
-        /// </summary>
-        private void ExecuteSuicide(Piece piece, int toX, int toY)
-        {
-            var mover = CurrentTurn;
-            int fromX = piece.X;
-            int fromY = piece.Y;
-            var clocks = (Player1.Timer.GetClockState(), Player2.Timer.GetClockState());
-            var before = SnapshotHistoryCounts();
-            var pieceBefore = piece.CurrentInfo.Clone();
-            var target = Board.GetPiece(toX, toY).CurrentInfo.Clone();
-
-            Board.AdvanceTurn();
-            Board.RemovePiece(fromX, fromY);
-
-            CoreLog.Log($"(Action) Suicide {piece.Type} ({fromX},{fromY})->({toX},{toY}) onto {target.Color} {target.Type}", CoreLogLevel.Debug);
-            RecordDarkChessAction(pieceBefore, fromX, fromY, toX, toY, MoveKind.Suicide, mover, target, null, clocks, before);
-
-            PieceCaptured?.Invoke(piece);
-            PieceRemoved?.Invoke(piece);
-
-            EndDarkChessAction();
-        }
-
-        /// <summary>
-        /// Records a dark-chess action (flip, hidden capture or 自殺) applied since
-        /// <paramref name="before"/> as the next move — <see cref="LastMove"/>, the move list
-        /// and the undo data (both clocks, every changed piece) — marks the game changed and
-        /// reports it to the game log (<see cref="GameLogEvent.MovePlayed"/>).
-        /// </summary>
-        private void RecordDarkChessAction(PieceInfo pieceBefore, int fromX, int fromY, int toX, int toY, MoveKind kind,
-            PlayerSide mover, PieceInfo revealed, Piece captured, (ClockState, ClockState) clocks, Dictionary<Piece, int> before)
-        {
             int ply = _moves.Count + 1;
             // The captured piece is the revealed target (as it was before being taken off).
-            LastMove = new MoveRecord(pieceBefore, fromX, fromY, toX, toY, captured != null ? revealed : null, ply, MoveNumberOf(ply),
-                kind: kind, side: mover, revealed: revealed);
+            LastMove = new MoveRecord(outcome.PieceBefore, outcome.FromX, outcome.FromY, outcome.ToX, outcome.ToY, outcome.Captured,
+                ply, MoveNumberOf(ply), kind: outcome.Kind, side: mover, revealed: outcome.Revealed);
             _moves.Add(LastMove);
-            _capturedPieces.Add(captured);
+            _capturedPieces.Add(outcome.CapturedPiece);
             _clocksBeforeMove.Add(clocks);
             _stateChanges.Add(ChangesSince(before));
             HasUnsavedChanges = true;
 
             Logged?.Invoke(new GameLogEvent.MovePlayed(LastMove, ColorOf(mover), MoveLineStyle.DarkChess));
-        }
+            if (outcome.DecidesFactions)
+                LogFactions();
 
-        /// <summary>
-        /// The end of a dark-chess action: raises <see cref="MoveRecorded"/>, clears the
-        /// selection, recomputes the hanging pieces and hands the turn over.
-        /// </summary>
-        private void EndDarkChessAction()
-        {
+            // Board events after the record (the board is already final).
+            if (outcome.CapturedPiece != null)
+            {
+                PieceCaptured?.Invoke(outcome.CapturedPiece);
+                PieceRemoved?.Invoke(outcome.CapturedPiece);
+                PieceMoved?.Invoke(piece, outcome.ToX, outcome.ToY);
+            }
+            else if (outcome.MoverDied)
+            {
+                PieceCaptured?.Invoke(piece);
+                PieceRemoved?.Invoke(piece);
+            }
+
             MoveRecorded?.Invoke(LastMove);
 
             if (_selectedPiece != null)
@@ -1496,38 +1371,13 @@ namespace Chinese_Chess_v3.Game.Core
             }
 
             UpdateHangingPieces();
-            if (EndDarkChessGameIfOver(LastMove.Side))
+            var end = ActionResolver.EvaluateEnd(Board, mover, out _);
+            if (end != null)
+            {
+                EndGame(end.Winner, end.Loser, end.Reason);
                 return;
+            }
             SwitchTurn();
-        }
-
-        /// <summary>
-        /// Dark-chess game over (HalfCenter), checked after each action of
-        /// <paramref name="mover"/> before the turn is handed over (like the Full board's
-        /// checkmate check, so the loser's clock never starts): a player with no piece left
-        /// (face up or face down) loses (<see cref="GameOverReason.NoPiecesLeft"/>) — the
-        /// opponent first, then the mover (whose last piece can die in a hidden capture,
-        /// <see cref="MoveKind.HiddenStrongerSuicide"/>); otherwise the opponent loses if it
-        /// has no action on its turn (no legal move and nothing to flip,
-        /// <see cref="Board.HasAnyAction"/>; <see cref="GameOverReason.Stalemate"/>). Draw rules
-        /// are not decided yet, so none is applied.
-        /// </summary>
-        /// <returns>Whether the game ended.</returns>
-        private bool EndDarkChessGameIfOver(PlayerSide mover)
-        {
-            var opponent = OpponentOf(mover);
-            // Nobody owns a piece before the factions are decided (every action decides them,
-            // so this only guards against a custom position).
-            if (ColorOf(opponent) == PieceColor.None)
-                return false;
-
-            if (Board.QueryPieces(side: opponent).Count == 0)
-                EndGame(mover, opponent, GameOverReason.NoPiecesLeft);
-            else if (Board.QueryPieces(side: mover).Count == 0)
-                EndGame(opponent, mover, GameOverReason.NoPiecesLeft);
-            else if (!Board.HasAnyAction(opponent))
-                EndGame(mover, opponent, GameOverReason.Stalemate);
-            return IsGameOver;
         }
 
         /// <summary>
