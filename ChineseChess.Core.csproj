@@ -5,4 +5,9 @@
     <TargetFramework>net9.0</TargetFramework>
     <RootNamespace>Chinese_Chess_v3.Game.Core</RootNamespace>
   </PropertyGroup>
+  <ItemGroup>
+    <!-- The rules host is its own project in this repo. -->
+    <Compile Remove="RulesHost\**" />
+    <None Remove="RulesHost\**" />
+  </ItemGroup>
 </Project>

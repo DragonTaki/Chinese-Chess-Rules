@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The rules host: a console program the Go server runs as a child process to check moves with
+       the same rules the client plays by (protocol: docs/RULES-HOST.md in the record repo). -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Chinese_Chess_v3.Game.Core.RulesHost</RootNamespace>
+    <AssemblyName>ChineseChess.RulesHost</AssemblyName>
+    <!-- Run on whichever .NET major version the server machine has. -->
+    <RollForward>LatestMajor</RollForward>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ChineseChess.Core.csproj" />
+  </ItemGroup>
+</Project>
