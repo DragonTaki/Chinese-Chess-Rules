@@ -24,6 +24,10 @@ namespace Chinese_Chess_v3.Game.Core.Families.DarkChess
     /// </summary>
     internal sealed class DarkChessFamily : IRulesFamily
     {
+        public int PlayerCount => 2;
+
+        public PlayerSide NextToMove(Board board, PlayerSide mover) => ActionResolver.OpponentOf(mover);
+
         public bool UsesCheckRules => false;
 
         public bool IsPseudoLegalMove(Board board, Piece piece, int targetX, int targetY) =>

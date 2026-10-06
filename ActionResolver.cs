@@ -7,6 +7,8 @@
 // Version: v1.1
 /* ----- ----- ----- ----- */
 
+using System.Collections.Generic;
+
 using Chinese_Chess_v3.Game.Core.Boards;
 using Chinese_Chess_v3.Game.Core.Families;
 using Chinese_Chess_v3.Game.Core.Pieces;
@@ -68,8 +70,8 @@ namespace Chinese_Chess_v3.Game.Core
         public bool GivesCheck { get; init; }
     }
 
-    /// <summary>How a game ended after an action: the winner, the loser and why.</summary>
-    public sealed record GameEnd(PlayerSide Winner, PlayerSide Loser, GameOverReason Reason);
+    /// <summary>How a game ended after an action: the winner, the loser and why; 三國 also every player's place (first first).</summary>
+    public sealed record GameEnd(PlayerSide Winner, PlayerSide Loser, GameOverReason Reason, IReadOnlyList<PlayerSide> Ranking = null);
 
     /// <summary>
     /// The rules of acting on a board, shared by every program that plays or checks a game - the
@@ -118,6 +120,9 @@ namespace Chinese_Chess_v3.Game.Core
         /// <returns>How the game ended; null while it goes on.</returns>
         public static GameEnd EvaluateEnd(Board board, PlayerSide mover, out bool opponentInCheck) =>
             board.Family.EvaluateEnd(board, mover, out opponentInCheck);
+
+        /// <summary>Who moves after <paramref name="mover"/>'s action (<see cref="IRulesFamily.NextToMove"/>).</summary>
+        public static PlayerSide NextToMove(Board board, PlayerSide mover) => board.Family.NextToMove(board, mover);
 
         /// <summary>Whether any piece on the board is owned by a player (the dark-chess factions are decided).</summary>
         public static bool FactionsDecided(Board board)

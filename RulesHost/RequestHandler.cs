@@ -4,7 +4,7 @@
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2026/10/06
 // Update Date: 2026/10/06
-// Version: v1.0
+// Version: v1.1
 /* ----- ----- ----- ----- */
 
 using System;
@@ -14,6 +14,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 
 using Chinese_Chess_v3.Game.Core.Boards;
+using Chinese_Chess_v3.Game.Core.Families.ThreeKingdoms;
 using Chinese_Chess_v3.Game.Core.Pieces;
 using Chinese_Chess_v3.Game.Core.Players;
 
@@ -100,7 +101,7 @@ namespace Chinese_Chess_v3.Game.Core.RulesHost
                     var piece = board.GetPiece(fromX, fromY);
                     string reason =
                         piece == null ? "NoPieceThere"
-                        : board.UsesDarkChessRules && !piece.CurrentInfo.IsFaceUp ? "FaceDownPiece"
+                        : !board.IsJieqi && !piece.CurrentInfo.IsFaceUp ? "FaceDownPiece"
                         : !ActionResolver.CanAct(board, piece, mover) ? "NotYourPiece"
                         : !piece.CanMoveTo(board, toX, toY) ? "IllegalMove"
                         : null;
@@ -114,7 +115,7 @@ namespace Chinese_Chess_v3.Game.Core.RulesHost
                     var (x, y) = Square(action.At, board, "action.at");
                     var piece = board.GetPiece(x, y);
                     string reason =
-                        !board.UsesDarkChessRules ? "CannotFlip"
+                        board.Type == BoardType.Full ? "CannotFlip"
                         : piece == null ? "NoPieceThere"
                         : piece.CurrentInfo.IsFaceUp ? "AlreadyFaceUp"
                         : null;
@@ -133,8 +134,10 @@ namespace Chinese_Chess_v3.Game.Core.RulesHost
                 ["legal"] = true,
                 ["position"] = ToNode(new PositionDto
                 {
-                    ToMove = SideNumber(ActionResolver.OpponentOf(mover)),
+                    // Whose turn it is once the game goes on (三國 skips players out, resigned or without an action).
+                    ToMove = SideNumber(end == null ? ActionResolver.NextToMove(board, mover) : ActionResolver.OpponentOf(mover)),
                     Pieces = board.GetAllPieces().Select(p => ToDto(p.CurrentInfo)).ToList(),
+                    ThreeKingdoms = board.ThreeKingdoms == null ? null : ToDto(board.ThreeKingdoms),
                 }),
                 ["record"] = ToNode(new RecordDto
                 {
@@ -145,7 +148,11 @@ namespace Chinese_Chess_v3.Game.Core.RulesHost
                 }),
                 ["factionsDecided"] = outcome.DecidesFactions,
                 ["check"] = opponentInCheck,
-                ["gameOver"] = end == null ? null : ToNode(new GameOverDto { Winner = SideNumber(end.Winner), Reason = end.Reason }),
+                ["gameOver"] = end == null ? null : ToNode(new GameOverDto
+                {
+                    Winner = SideNumber(end.Winner), Reason = end.Reason,
+                    Ranking = end.Ranking?.Select(SideNumber).ToArray(),
+                }),
             };
         }
 
@@ -168,7 +175,7 @@ namespace Chinese_Chess_v3.Game.Core.RulesHost
             }
 
             var flips = new JsonArray();
-            if (board.UsesDarkChessRules)
+            if (board.Type != BoardType.Full)
             {
                 foreach (var piece in board.GetAllPieces())
                 {
@@ -195,6 +202,7 @@ namespace Chinese_Chess_v3.Game.Core.RulesHost
                 GameKind.Traditional or GameKind.Flip => (BoardType.Full, false),
                 GameKind.DarkHalf => (BoardType.HalfCenter, true),
                 GameKind.OpenHalf => (BoardType.HalfCenter, false),
+                GameKind.ThreeKingdoms => (BoardType.HalfCross, true),
                 _ => throw new BadRequestException($"unsupported kind: {kind}"),
             };
             bool jieqi = kind == GameKind.Flip;
@@ -206,14 +214,66 @@ namespace Chinese_Chess_v3.Game.Core.RulesHost
                 rules.IsHiddenChess = hidden;
 
             var position = request.Position ?? throw new BadRequestException("missing position");
-            if (position.ToMove != 1 && position.ToMove != 2)
-                throw new BadRequestException("position.toMove must be 1 or 2");
+            bool threeKingdoms = boardType == BoardType.HalfCross;
+            int players = threeKingdoms ? 3 : 2;
+            if (position.ToMove < 1 || position.ToMove > players)
+                throw new BadRequestException($"position.toMove must be 1..{players}");
             var pieces = position.Pieces ?? throw new BadRequestException("missing position.pieces");
+            if (!threeKingdoms && position.ThreeKingdoms != null)
+                throw new BadRequestException("position.threeKingdoms is only for ThreeKingdoms");
 
             var board = new Board(boardType, rules, isJieqi: jieqi);
             var infos = CheckPieces(pieces, board, boardType, jieqi);
             board.Initialize(infos);
-            return (board, position.ToMove == 1 ? PlayerSide.Player1 : PlayerSide.Player2);
+            var mover = SideOf(position.ToMove);
+            if (threeKingdoms)
+            {
+                board.ThreeKingdoms = CheckThreeKingdoms(position.ThreeKingdoms, infos, rules);
+                if (!ThreeKingdomsStandings.IsPlaying(board, mover))
+                    throw new BadRequestException("position.toMove is out or resigned");
+            }
+            return (board, mover);
+        }
+
+        /// <summary>
+        /// 三國's state, checked against the pieces: three entries per array; teams 0..3, each claimed
+        /// by one player at most, never just one player without a team (the third gets the last team);
+        /// every piece of a claimed team owned by its player and every other piece by nobody; scores
+        /// not negative; out orders 0..3.
+        /// </summary>
+        private static ThreeKingdomsState CheckThreeKingdoms(ThreeKingdomsDto dto, List<PieceInfo> pieces, Rules rules)
+        {
+            if (dto == null)
+                throw new BadRequestException("missing position.threeKingdoms");
+            if (dto.Teams?.Length != 3 || dto.Scores?.Length != 3 || dto.Resigned?.Length != 3 || dto.OutOrder?.Length != 3)
+                throw new BadRequestException("position.threeKingdoms arrays need 3 entries");
+
+            var state = new ThreeKingdomsState();
+            for (int i = 0; i < 3; i++)
+            {
+                if (dto.Teams[i] < 0 || dto.Teams[i] > 3)
+                    throw new BadRequestException("position.threeKingdoms.teams must be 0..3");
+                if (dto.Teams[i] != 0 && Array.IndexOf(dto.Teams, dto.Teams[i]) != i)
+                    throw new BadRequestException("a team is claimed twice");
+                if (dto.Scores[i] < 0)
+                    throw new BadRequestException("position.threeKingdoms.scores cannot be negative");
+                if (dto.OutOrder[i] < 0 || dto.OutOrder[i] > 3)
+                    throw new BadRequestException("position.threeKingdoms.outOrder must be 0..3");
+                state.Teams[i + 1] = dto.Teams[i];
+                state.Scores[i + 1] = dto.Scores[i];
+                state.Resigned[i + 1] = dto.Resigned[i];
+                state.OutOrder[i + 1] = dto.OutOrder[i];
+            }
+            if (dto.Teams.Count(t => t == 0) == 1)
+                throw new BadRequestException("two players have teams but the third has none");
+
+            foreach (var p in pieces)
+            {
+                int team = ThreeKingdomsTeams.TeamOf(p.Type, p.Color);
+                if (p.Side != state.OwnerOf(team))
+                    throw new BadRequestException($"the piece on ({p.X},{p.Y}) does not belong to its team's owner");
+            }
+            return state;
         }
 
         /// <summary>
@@ -229,6 +289,9 @@ namespace Chinese_Chess_v3.Game.Core.RulesHost
             var squares = new HashSet<(int, int)>();
             var counts = new Dictionary<(PieceColor, PieceType), int>();
             var owners = new Dictionary<PieceColor, int>();
+            // 三國's owners follow the teams, not the colours (CheckThreeKingdoms).
+            bool byColour = boardType != BoardType.HalfCross;
+            int maxSide = byColour ? 2 : 3;
             var infos = new List<PieceInfo>(pieces.Count);
 
             foreach (var p in pieces)
@@ -247,11 +310,14 @@ namespace Chinese_Chess_v3.Game.Core.RulesHost
                 counts[(p.Color, p.Type)] = counts.GetValueOrDefault((p.Color, p.Type)) + 1;
                 if (counts[(p.Color, p.Type)] > max)
                     throw new BadRequestException($"too many {p.Color} {p.Type}");
-                if (p.Side < 0 || p.Side > 2)
+                if (p.Side < 0 || p.Side > maxSide)
                     throw new BadRequestException($"bad side at ({p.X},{p.Y})");
-                if (owners.TryGetValue(p.Color, out int owner) && owner != p.Side)
-                    throw new BadRequestException($"{p.Color} pieces have different owners");
-                owners[p.Color] = p.Side;
+                if (byColour)
+                {
+                    if (owners.TryGetValue(p.Color, out int owner) && owner != p.Side)
+                        throw new BadRequestException($"{p.Color} pieces have different owners");
+                    owners[p.Color] = p.Side;
+                }
                 // Face-down pieces exist on the Full board only in 揭棋, and never a General.
                 if (boardType == BoardType.Full && !p.FaceUp && (!jieqi || p.Type == PieceType.General))
                     throw new BadRequestException("face-down piece not allowed here");
@@ -309,6 +375,7 @@ namespace Chinese_Chess_v3.Game.Core.RulesHost
         {
             1 => PlayerSide.Player1,
             2 => PlayerSide.Player2,
+            3 => PlayerSide.Player3,
             _ => PlayerSide.None,
         };
 
@@ -316,7 +383,16 @@ namespace Chinese_Chess_v3.Game.Core.RulesHost
         {
             PlayerSide.Player1 => 1,
             PlayerSide.Player2 => 2,
+            PlayerSide.Player3 => 3,
             _ => 0,
+        };
+
+        private static ThreeKingdomsDto ToDto(ThreeKingdomsState state) => new()
+        {
+            Teams = state.Teams[1..],
+            Scores = state.Scores[1..],
+            Resigned = state.Resigned[1..],
+            OutOrder = state.OutOrder[1..],
         };
 
         private static PieceDto ToDto(PieceInfo info) => new()

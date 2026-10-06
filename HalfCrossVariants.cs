@@ -10,23 +10,9 @@
 namespace Chinese_Chess_v3.Game.Core
 {
     /// <summary>
-    /// 三國半盤 team split (分隊). A rule option only: no
-    /// gameplay reads it yet (未實作; <see cref="Rules.HalfCrossTeamSetup"/> is the split the
-    /// unfinished HalfCross code uses).
-    /// </summary>
-    public enum HalfCrossTeamVariant
-    {
-        /// <summary>第一種（較公平，預設）: 帥將兵卒 / 仕相俥傌炮 / 士象車馬包.</summary>
-        Standard,
-
-        /// <summary>第二種（讓子用）: 兵卒 / 帥仕相將士象 / 俥傌炮車馬包.</summary>
-        Handicap,
-    }
-
-    /// <summary>
     /// 三國半盤 way of deciding the winner (勝負方式):
-    /// the author's own scoring by default, the wiki's ways as alternatives. A rule option only:
-    /// no gameplay reads it yet (未實作).
+    /// the author's own scoring by default, the wiki's ways as alternatives (<c>ThreeKingdomsStandings.Rank</c>).
+    /// 收軍 (<see cref="Recall"/>) is not decided yet, so a game with it cannot be started.
     /// </summary>
     public enum HalfCrossWinCondition
     {

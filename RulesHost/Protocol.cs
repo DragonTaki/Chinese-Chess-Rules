@@ -29,14 +29,33 @@ namespace Chinese_Chess_v3.Game.Core.RulesHost
         public int[] From { get; set; }
     }
 
-    /// <summary>A position: whose turn it is (1 or 2) and every piece on the board.</summary>
+    /// <summary>
+    /// A position: whose turn it is (1 or 2; 三國 1..3), every piece on the board and, for 三國 only,
+    /// the game's state beyond the pieces (<see cref="ThreeKingdomsDto"/>; absent otherwise).
+    /// </summary>
     public sealed class PositionDto
     {
         public int ToMove { get; set; }
         public List<PieceDto> Pieces { get; set; }
+
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public ThreeKingdomsDto ThreeKingdoms { get; set; }
     }
 
-    /// <summary>One piece: type, colour, owner (0 = nobody yet, 1 / 2 = player), square and whether it is face up.</summary>
+    /// <summary>
+    /// 三國's state (<c>ThreeKingdomsState</c>), each array by player (Player1 first, three entries):
+    /// the team each claimed (0 = none yet, 1..3), the points, whether it resigned (棄權), and the
+    /// order it went out in (0 = still in, 1 = first out...).
+    /// </summary>
+    public sealed class ThreeKingdomsDto
+    {
+        public int[] Teams { get; set; }
+        public int[] Scores { get; set; }
+        public bool[] Resigned { get; set; }
+        public int[] OutOrder { get; set; }
+    }
+
+    /// <summary>One piece: type, colour, owner (0 = nobody yet, 1 / 2 = player; 三國 1..3), square and whether it is face up.</summary>
     public sealed class PieceDto
     {
         public PieceType Type { get; set; }
@@ -79,11 +98,14 @@ namespace Chinese_Chess_v3.Game.Core.RulesHost
         public PieceDto Revealed { get; set; }
     }
 
-    /// <summary>How the game ended: the winner (1 / 2; 0 for a draw) and why.</summary>
+    /// <summary>How the game ended: the winner (1 / 2; 三國 1..3; 0 for a draw), why and, 三國 only, every player's place (first first).</summary>
     public sealed class GameOverDto
     {
         public int Winner { get; set; }
         public GameOverReason Reason { get; set; }
+
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public int[] Ranking { get; set; }
     }
 
     /// <summary>The JSON settings of the protocol: camelCase field names, enums by their C# name (Chariot, Red, Checkmate), unknown fields rejected.</summary>

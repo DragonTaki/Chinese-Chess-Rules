@@ -3,8 +3,8 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2026/10/05
-// Update Date: 2026/10/05
-// Version: v1.0
+// Update Date: 2026/10/06
+// Version: v1.1
 /* ----- ----- ----- ----- */
 
 using Chinese_Chess_v3.Game.Core.Pieces;
@@ -29,6 +29,9 @@ namespace Chinese_Chess_v3.Game.Core
 
         /// <summary>A 揭棋 game was dealt.</summary>
         public sealed record JieqiStarted() : GameLogEvent;
+
+        /// <summary>A 三國 game was dealt, with its way of winning.</summary>
+        public sealed record ThreeKingdomsStarted(HalfCrossWinCondition WinCondition) : GameLogEvent;
 
         /// <summary>An endgame puzzle was set up (<see cref="GameManager.StartEndgame"/>, or its restart).</summary>
         public sealed record EndgameStarted(string Title, string Goal) : GameLogEvent;
@@ -73,6 +76,15 @@ namespace Chinese_Chess_v3.Game.Core
         /// <summary>The first action decided the factions: the colours Player1 and Player2 now play.</summary>
         public sealed record FactionsDecided(PieceColor Player1Color, PieceColor Player2Color) : GameLogEvent;
 
+        /// <summary>三國: <paramref name="Side"/> claimed team <paramref name="Team"/> (1..3).</summary>
+        public sealed record TeamClaimed(PlayerSide Side, int Team) : GameLogEvent;
+
+        /// <summary>三國: <paramref name="Side"/> has no action and its turn is skipped.</summary>
+        public sealed record TurnSkipped(PlayerSide Side) : GameLogEvent;
+
+        /// <summary>三國: <paramref name="Side"/> resigned (棄權), or ran out of time (<paramref name="TimeUp"/>); the others play on.</summary>
+        public sealed record PlayerForfeited(PlayerSide Side, bool TimeUp) : GameLogEvent;
+
         /// <summary>A move put <paramref name="Side"/> in check and the game goes on.</summary>
         public sealed record CheckGiven(PlayerSide Side) : GameLogEvent;
 
@@ -106,6 +118,9 @@ namespace Chinese_Chess_v3.Game.Core
 
         /// <summary>The dark-chess line (flips, hidden captures, 自殺, moves on a dark-chess board).</summary>
         DarkChess,
+
+        /// <summary>三國's line: by player (玩家一…三), since the players own teams, not colours.</summary>
+        ThreeKingdoms,
     }
 
     /// <summary>How a click changed the selection (<see cref="GameLogEvent.SelectionChanged"/>).</summary>

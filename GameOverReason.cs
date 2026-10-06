@@ -3,8 +3,8 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2026/09/30
-// Update Date: 2026/10/01
-// Version: v1.2
+// Update Date: 2026/10/06
+// Version: v1.3
 /* ----- ----- ----- ----- */
 
 namespace Chinese_Chess_v3.Game.Core
@@ -37,5 +37,8 @@ namespace Chinese_Chess_v3.Game.Core
         /// down (all captured, or the last one died in a hidden capture, 吃光判負).
         /// </summary>
         NoPiecesLeft,
+
+        /// <summary>三國 先得 200 分 (<see cref="HalfCrossWinCondition.FirstTo200"/>): the winner reached the points first.</summary>
+        ScoreReached,
     }
 }

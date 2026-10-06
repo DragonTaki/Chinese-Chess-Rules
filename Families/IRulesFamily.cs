@@ -4,7 +4,7 @@
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2026/10/06
 // Update Date: 2026/10/06
-// Version: v1.0
+// Version: v1.1
 /* ----- ----- ----- ----- */
 
 using System.Collections.Generic;
@@ -24,6 +24,15 @@ namespace Chinese_Chess_v3.Game.Core.Families
     /// </summary>
     public interface IRulesFamily
     {
+        /// <summary>How many players the family's games have (2; 三國 3).</summary>
+        int PlayerCount { get; }
+
+        /// <summary>
+        /// Who moves after <paramref name="mover"/>'s action (called only while the game goes on):
+        /// the opponent in a two-player game; 三國 skips players that are out, resigned or have no action.
+        /// </summary>
+        PlayerSide NextToMove(Board board, PlayerSide mover);
+
         /// <summary>Whether xiangqi check rules apply (self-check and facing Generals are illegal, no legal move loses).</summary>
         bool UsesCheckRules { get; }
 

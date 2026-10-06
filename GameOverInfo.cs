@@ -3,8 +3,8 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2026/09/30
-// Update Date: 2026/10/01
-// Version: v1.2
+// Update Date: 2026/10/06
+// Version: v1.3
 /* ----- ----- ----- ----- */
 
 using System.Collections.Generic;
@@ -145,14 +145,24 @@ namespace Chinese_Chess_v3.Game.Core
         /// </summary>
         public IReadOnlyList<PieceInfo> CheckingPieces { get; }
 
+        /// <summary>三國: every player, first place first (two-player games: null).</summary>
+        public IReadOnlyList<PlayerSide> Ranking { get; }
+
+        /// <summary>三國: each player's points (index = player number 1..3); null otherwise.</summary>
+        public IReadOnlyList<int> Scores { get; }
+
         public GameOverInfo(
             PlayerSide winner,
             PlayerSide loser,
             GameOverReason reason,
             IReadOnlyList<PieceInfo> finalBoard,
             MoveRecord lastMove,
-            IReadOnlyList<PieceInfo> checkingPieces)
+            IReadOnlyList<PieceInfo> checkingPieces,
+            IReadOnlyList<PlayerSide> ranking = null,
+            IReadOnlyList<int> scores = null)
         {
+            Ranking = ranking;
+            Scores = scores;
             Winner = winner;
             Loser = loser;
             Reason = reason;

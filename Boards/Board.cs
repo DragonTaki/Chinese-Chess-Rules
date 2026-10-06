@@ -12,6 +12,7 @@ using System.Collections.Generic;
 using System.Linq;
 
 using Chinese_Chess_v3.Game.Core.Families;
+using Chinese_Chess_v3.Game.Core.Families.ThreeKingdoms;
 using Chinese_Chess_v3.Game.Core.Pieces;
 using Chinese_Chess_v3.Game.Core.Players;
 
@@ -99,6 +100,13 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         /// </summary>
         public bool IsJieqi { get; internal set; } = false;
 
+        /// <summary>
+        /// 三國 (HalfCross): which team each player claimed, the scores and the resignations
+        /// (<see cref="ThreeKingdomsState"/>); null on every other board. A fresh one with every
+        /// <see cref="Initialize"/>; the rules host sets the request's.
+        /// </summary>
+        public ThreeKingdomsState ThreeKingdoms { get; set; }
+
         /// <param name="type">The board type.</param>
         /// <param name="rules">The game's rules (null: the defaults).</param>
         /// <param name="isJieqi">Full board: a 揭棋 game (<see cref="IsJieqi"/>).</param>
@@ -142,6 +150,7 @@ namespace Chinese_Chess_v3.Game.Core.Boards
         public void Initialize(List<PieceInfo> initialPieces)
         {
             Clear();
+            ThreeKingdoms = Type == BoardType.HalfCross ? new ThreeKingdomsState() : null;
 
             // Place the given pieces
             foreach (var info in initialPieces)

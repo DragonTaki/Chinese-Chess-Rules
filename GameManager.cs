@@ -13,6 +13,7 @@ using System.IO;
 using System.Linq;
 
 using Chinese_Chess_v3.Game.Core.Boards;
+using Chinese_Chess_v3.Game.Core.Families.ThreeKingdoms;
 using Chinese_Chess_v3.Game.Core.Endgames;
 using Chinese_Chess_v3.Game.Core.Notation;
 using Chinese_Chess_v3.Game.Core.Openings;
@@ -41,6 +42,27 @@ namespace Chinese_Chess_v3.Game.Core
         public Board Board { get; private set; }
         public Player Player1 { get; private set; }
         public Player Player2 { get; private set; }
+
+        /// <summary>三國's third player (its clock only runs in a 三國 game).</summary>
+        public Player Player3 { get; private set; }
+
+        /// <summary>The three players, Player1 first.</summary>
+        private Player[] AllPlayers => new[] { Player1, Player2, Player3 };
+
+        /// <summary>The player of <paramref name="side"/>; null for a side that is not a player.</summary>
+        public Player PlayerOf(PlayerSide side) => side switch
+        {
+            PlayerSide.Player1 => Player1,
+            PlayerSide.Player2 => Player2,
+            PlayerSide.Player3 => Player3,
+            _ => null,
+        };
+
+        /// <summary>How many players the current game has (2; 三國 3).</summary>
+        public int PlayerCount => Board.Family.PlayerCount;
+
+        /// <summary>Every player's clock as it is now (Player1 first), for undo.</summary>
+        private ClockState[] CaptureClocks() => AllPlayers.Select(p => p.Timer.GetClockState()).ToArray();
         private PlayerSide _currentTurn = PlayerSide.Player1;
         public PlayerSide CurrentTurn
         {
@@ -198,7 +220,10 @@ namespace Chinese_Chess_v3.Game.Core
         // move), put back on the board by Undo, and both clocks as they were just before the
         // move, restored by Undo (null when unknown: moves replayed from a saved game).
         private readonly List<Piece> _capturedPieces = new List<Piece>();
-        private readonly List<(ClockState Player1, ClockState Player2)?> _clocksBeforeMove = new List<(ClockState, ClockState)?>();
+        private readonly List<ClockState[]> _clocksBeforeMove = new List<ClockState[]>();
+
+        // 三國: the claims, scores and outs before each move (null on other boards), for undo.
+        private readonly List<ThreeKingdomsState> _kingdomsBefore = new List<ThreeKingdomsState>();
         // Also parallel to `_moves`: for a dark-chess flip or hidden capture, every piece the
         // action changed and how many history snapshots it added (taken back by
         // Board.RevertStates); null for an ordinary move (taken back by Board.UnmakeMove).
@@ -273,8 +298,8 @@ namespace Chinese_Chess_v3.Game.Core
         /// </summary>
         public bool HasPlayedMoves => _moves.Count > UndoFloor;
 
-        /// <summary>How many moves one <see cref="Undo"/> takes back: a round, the last move of each side.</summary>
-        public const int UndoRoundPlies = 2;
+        /// <summary>How many moves one <see cref="Undo"/> takes back: a round, the last move of each player (2; 三國 3).</summary>
+        public int UndoRoundPlies => PlayerCount;
 
         /// <summary>
         /// Whether <see cref="Undo"/> can take a round back: there are at least
@@ -282,7 +307,10 @@ namespace Chinese_Chess_v3.Game.Core
         /// to move after Red's first move). Also true after the game has ended (undoing
         /// reopens it) and while paused.
         /// </summary>
-        public bool CanUndo => _moves.Count - UndoFloor >= UndoRoundPlies;
+        /// 三國: not once a 棄權 (or a time-up, which counts as one) has ended the game — a
+        /// resignation is not a move, so undoing moves cannot take it back.
+        public bool CanUndo => _moves.Count - UndoFloor >= UndoRoundPlies
+            && !(IsGameOver && Board.ThreeKingdoms != null && Result?.Reason == GameOverReason.Resign);
 
         /// <summary>
         /// Raised once per move taken back (twice per <see cref="Undo"/>, newest move first),
@@ -417,10 +445,12 @@ namespace Chinese_Chess_v3.Game.Core
             _selectedPiece = null;
             Player1 = new Player(PlayerSide.Player1, rules.TotalTimeLimit, rules.StepTimeLimit, rules.IncrementPerMove, rules.EnableStepTimer, rules.TimerMode);
             Player2 = new Player(PlayerSide.Player2, rules.TotalTimeLimit, rules.StepTimeLimit, rules.IncrementPerMove, rules.EnableStepTimer, rules.TimerMode);
+            Player3 = new Player(PlayerSide.Player3, rules.TotalTimeLimit, rules.StepTimeLimit, rules.IncrementPerMove, rules.EnableStepTimer, rules.TimerMode);
 
             // The player whose clock runs out loses.
             Player1.Timer.TimeUp += () => OnTimeUp(Player1);
             Player2.Timer.TimeUp += () => OnTimeUp(Player2);
+            Player3.Timer.TimeUp += () => OnTimeUp(Player3);
 
             // Player1 moves first, so their step timer needs to actually be
             // running from the start — SwitchTurn() only starts Player1's
@@ -491,6 +521,37 @@ namespace Chinese_Chess_v3.Game.Core
 
         // The dealer of the 揭棋 game started with StartJieqi, for Restart to deal again.
         private Func<List<PieceInfo>> _jieqiDeal;
+
+        /// <summary>
+        /// Starts a new 三國 game (<see cref="GameKind.ThreeKingdoms"/>, HalfCross board, three
+        /// players) from a layout <paramref name="deal"/> makes: the 32 pieces owned by nobody, face
+        /// down, 8 in each corner block. Player1 acts first; flips decide the teams
+        /// (<see cref="TeamOf"/>). Dealing is not a rule: the caller deals (the client's dealer, the server).
+        /// Not saved: a 三國 game has no saved-game format yet.
+        /// </summary>
+        /// <param name="deal">Makes a layout; called now and again on every <see cref="Restart"/>.</param>
+        /// <exception cref="ArgumentNullException"><paramref name="deal"/> is null.</exception>
+        /// <exception cref="NotSupportedException">The rules pick 收軍 (<see cref="HalfCrossWinCondition.Recall"/>), whose rules are not decided yet.</exception>
+        public void StartThreeKingdoms(Func<List<PieceInfo>> deal)
+        {
+            ArgumentNullException.ThrowIfNull(deal);
+            var rules = DefaultRulesFor(GameKind.ThreeKingdoms).Clone();
+            if (rules.HalfCrossWinCondition == HalfCrossWinCondition.Recall)
+                throw new NotSupportedException("收軍 (Recall) is not decided yet");
+            _threeKingdomsDeal = deal;
+            SetUpThreeKingdoms(rules);
+        }
+
+        // The dealer of the 三國 game started with StartThreeKingdoms, for Restart to deal again.
+        private Func<List<PieceInfo>> _threeKingdomsDeal;
+
+        /// <summary><see cref="StartThreeKingdoms"/> played by <paramref name="rules"/> (this game's own copy).</summary>
+        private void SetUpThreeKingdoms(Rules rules)
+        {
+            SetUpPosition(_threeKingdomsDeal(), null, BoardType.HalfCross, rules);
+            CoreLog.Log($"(ThreeKingdoms) Started a 三國 game, {rules.HalfCrossWinCondition}", CoreLogLevel.Debug);
+            Logged?.Invoke(new GameLogEvent.ThreeKingdomsStarted(rules.HalfCrossWinCondition));
+        }
 
         /// <summary><see cref="StartJieqi"/> played by <paramref name="rules"/> (this game's own copy).</summary>
         private void SetUpJieqi(Rules rules)
@@ -571,7 +632,6 @@ namespace Chinese_Chess_v3.Game.Core
         /// <see cref="ClearBoard"/> (no start position known) the standard start is used.
         /// Raises <see cref="BoardReset"/> like any new game.
         /// </summary>
-        /// <exception cref="NotSupportedException">The board type cannot be played yet (HalfCross).</exception>
         public void Restart()
         {
             // The restarted game keeps its own rules (a fresh copy of them), not the current
@@ -594,6 +654,13 @@ namespace Chinese_Chess_v3.Game.Core
                         throw new InvalidOperationException("This HalfCenter game has no dealer to restart with");
                     SetUpHalfCenter(rules);
                 }
+                return;
+            }
+            if (Board.Type == BoardType.HalfCross)
+            {
+                if (_threeKingdomsDeal == null)
+                    throw new InvalidOperationException("This 三國 game has no dealer to restart with");
+                SetUpThreeKingdoms(rules);
                 return;
             }
             if (Board.Type != BoardType.Full)
@@ -807,7 +874,7 @@ namespace Chinese_Chess_v3.Game.Core
         private void ApplyRules(Rules rules)
         {
             Board.SetRules(rules);
-            foreach (var timer in new[] { Player1.Timer, Player2.Timer })
+            foreach (var timer in AllPlayers.Select(p => p.Timer))
             {
                 timer.TotalTimeLimit = rules.TotalTimeLimit;
                 timer.StepTimeLimit = rules.StepTimeLimit;
@@ -1022,6 +1089,9 @@ namespace Chinese_Chess_v3.Game.Core
         {
             if (side != PlayerSide.Player1 && side != PlayerSide.Player2)
                 return PieceColor.None;
+            // 三國's players own teams, not colours (TeamOf).
+            if (Board.ThreeKingdoms != null)
+                return PieceColor.None;
             if (!Board.UsesDarkChessRules)
                 return side == PlayerSide.Player1 ? _player1Color : OppositeColor(_player1Color);
 
@@ -1036,6 +1106,30 @@ namespace Chinese_Chess_v3.Game.Core
             }
             return PieceColor.None;
         }
+
+        /// <summary>三國: the team (1..3) <paramref name="side"/> claimed; 0 while it has none, or off the 三國 board.</summary>
+        public int TeamOf(PlayerSide side) =>
+            Board.ThreeKingdoms != null && side is PlayerSide.Player1 or PlayerSide.Player2 or PlayerSide.Player3
+                ? Board.ThreeKingdoms.Teams[ThreeKingdomsState.Index(side)] : 0;
+
+        /// <summary>三國: <paramref name="side"/>'s points; 0 off the 三國 board.</summary>
+        public int ScoreOf(PlayerSide side) =>
+            Board.ThreeKingdoms != null && side is PlayerSide.Player1 or PlayerSide.Player2 or PlayerSide.Player3
+                ? Board.ThreeKingdoms.Scores[ThreeKingdomsState.Index(side)] : 0;
+
+        /// <summary>三國: whether <paramref name="side"/> resigned (棄權; its turns are skipped).</summary>
+        public bool HasResigned(PlayerSide side) =>
+            Board.ThreeKingdoms != null && side is PlayerSide.Player1 or PlayerSide.Player2 or PlayerSide.Player3
+            && Board.ThreeKingdoms.Resigned[ThreeKingdomsState.Index(side)];
+
+        /// <summary>三國: the number <paramref name="side"/> is ranked by (計分: points above its team's threshold); 0 off the 三國 board.</summary>
+        public int RankingScoreOf(PlayerSide side) =>
+            Board.ThreeKingdoms != null && side is PlayerSide.Player1 or PlayerSide.Player2 or PlayerSide.Player3
+                ? ThreeKingdomsStandings.RankingScore(Board, side) : 0;
+
+        /// <summary>三國: whether <paramref name="side"/> still plays (not out, not resigned); true off the 三國 board.</summary>
+        public bool IsStillPlaying(PlayerSide side) =>
+            Board.ThreeKingdoms == null || ThreeKingdomsStandings.IsPlaying(Board, side);
 
         private static PieceColor OppositeColor(PieceColor color) => color switch
         {
@@ -1053,7 +1147,7 @@ namespace Chinese_Chess_v3.Game.Core
         /// board, or no face-down piece there).</returns>
         public bool TryFlip(int x, int y)
         {
-            if (IsPaused || IsGameOver || !Board.UsesDarkChessRules)
+            if (IsPaused || IsGameOver)
                 return false;
 
             if (!ActionResolver.IsLegalFlip(Board, x, y))
@@ -1199,7 +1293,8 @@ namespace Chinese_Chess_v3.Game.Core
         {
             var mover = CurrentTurn;
             // Both clocks as they are right before the move, for Undo.
-            var clocks = (Player1.Timer.GetClockState(), Player2.Timer.GetClockState());
+            var clocks = CaptureClocks();
+            var kingdomsBefore = Board.ThreeKingdoms?.Clone();
             // Pre-move facts for the "newly ..." tactical events, taken on the unchanged board.
             var tacticalBefore = Board.UsesCheckRules ? TacticalAnalysis.TakeSnapshot(Board, piece.Side) : null;
             // A dark-chess action or a 揭棋 reveal is undone piece by piece: every piece's history length now.
@@ -1210,7 +1305,7 @@ namespace Chinese_Chess_v3.Game.Core
 
             if (outcome.Kind != MoveKind.Move)
             {
-                FinishDarkChessAction(outcome, clocks, historyBefore);
+                FinishDarkChessAction(outcome, clocks, kingdomsBefore, historyBefore);
                 return;
             }
 
@@ -1220,6 +1315,7 @@ namespace Chinese_Chess_v3.Game.Core
             _moves.Add(LastMove);
             _capturedPieces.Add(outcome.CapturedPiece);
             _clocksBeforeMove.Add(clocks);
+            _kingdomsBefore.Add(kingdomsBefore);
             // A faction decision changes every piece's owner and a 揭棋 move turns the piece face up:
             // undone piece by piece; any other move by Board.UnmakeMove.
             _stateChanges.Add(outcome.DecidesFactions || outcome.Revealed != null ? ChangesSince(historyBefore) : null);
@@ -1244,7 +1340,7 @@ namespace Chinese_Chess_v3.Game.Core
             CoreLog.Log($"(Action) Recorded move {LastMove.Ply}: {LastMove.Notation ?? LastMove.Kind.ToString()}", CoreLogLevel.Debug);
             Logged?.Invoke(new GameLogEvent.MovePlayed(LastMove, ColorOf(LastMove.Side), LineStyleOf(LastMove)));
             if (outcome.DecidesFactions)
-                LogFactions();
+                LogFactions(kingdomsBefore);
             MoveRecorded?.Invoke(LastMove);
 
             // unselect and notify
@@ -1268,7 +1364,7 @@ namespace Chinese_Chess_v3.Game.Core
 
                 if (end != null)
                 {
-                    EndGame(end.Winner, end.Loser, end.Reason);
+                    EndGame(end);
                     RaiseTacticalEvents(tactical);
                     return;
                 }
@@ -1289,7 +1385,7 @@ namespace Chinese_Chess_v3.Game.Core
 
             if (end != null)
             {
-                EndGame(end.Winner, end.Loser, end.Reason);
+                EndGame(end);
                 return;
             }
             SwitchTurn();
@@ -1298,9 +1394,9 @@ namespace Chinese_Chess_v3.Game.Core
         /// <summary>
         /// The move number (第N回合) of the <paramref name="ply"/>-th move: a move and the reply
         /// share a number. Black-first games (endgames; Player1 plays Black) number like PGN:
-        /// Black's first move is 1, Red's reply 2.
+        /// Black's first move is 1, Red's reply 2. 三國: three moves (one round) share a number.
         /// </summary>
-        private int MoveNumberOf(int ply) => (ply - 1 + (_player1Color == PieceColor.Black ? 1 : 0)) / 2 + 1;
+        private int MoveNumberOf(int ply) => (ply - 1 + (_player1Color == PieceColor.Black ? 1 : 0)) / PlayerCount + 1;
 
         /// <summary>
         /// Every piece's history length now, so <see cref="ChangesSince"/> can tell which pieces
@@ -1336,17 +1432,36 @@ namespace Chinese_Chess_v3.Game.Core
         private void ExecuteFlip(Piece piece)
         {
             var mover = CurrentTurn;
-            var clocks = (Player1.Timer.GetClockState(), Player2.Timer.GetClockState());
+            var clocks = CaptureClocks();
+            var kingdomsBefore = Board.ThreeKingdoms?.Clone();
             var before = SnapshotHistoryCounts();
 
             Board.AdvanceTurn();
             var outcome = ActionResolver.ApplyFlip(Board, mover, piece);
-            FinishDarkChessAction(outcome, clocks, before);
+            FinishDarkChessAction(outcome, clocks, kingdomsBefore, before);
         }
 
-        /// <summary>Reports the faction decision (which player plays which colour) to the game log.</summary>
-        private void LogFactions()
+        /// <summary>
+        /// Reports the faction decision to the game log: which player plays which colour, or (三國)
+        /// each team claimed since <paramref name="kingdomsBefore"/>.
+        /// </summary>
+        private void LogFactions(ThreeKingdomsState kingdomsBefore)
         {
+            if (Board.ThreeKingdoms != null)
+            {
+                foreach (var side in ThreeKingdomsState.Players)
+                {
+                    int i = ThreeKingdomsState.Index(side);
+                    int team = Board.ThreeKingdoms.Teams[i];
+                    if (team != 0 && kingdomsBefore?.Teams[i] != team)
+                    {
+                        CoreLog.Log($"(Faction) {side} claims team {team}", CoreLogLevel.Debug);
+                        Logged?.Invoke(new GameLogEvent.TeamClaimed(side, team));
+                    }
+                }
+                return;
+            }
+
             var player1 = ColorOf(PlayerSide.Player1);
             var player2 = ColorOf(PlayerSide.Player2);
             CoreLog.Log($"(Faction) {PlayerSide.Player1} plays {player1}, {PlayerSide.Player2} plays {player2}", CoreLogLevel.Debug);
@@ -1360,7 +1475,7 @@ namespace Chinese_Chess_v3.Game.Core
         /// changed, logs it, raises the board events, then raises <see cref="MoveRecorded"/>,
         /// clears the selection, recomputes the hanging pieces and hands the turn over or ends the game.
         /// </summary>
-        private void FinishDarkChessAction(ActionOutcome outcome, (ClockState, ClockState) clocks, Dictionary<Piece, int> before)
+        private void FinishDarkChessAction(ActionOutcome outcome, ClockState[] clocks, ThreeKingdomsState kingdomsBefore, Dictionary<Piece, int> before)
         {
             var piece = outcome.Piece;
             var mover = outcome.Mover;
@@ -1384,12 +1499,13 @@ namespace Chinese_Chess_v3.Game.Core
             _moves.Add(LastMove);
             _capturedPieces.Add(outcome.CapturedPiece);
             _clocksBeforeMove.Add(clocks);
+            _kingdomsBefore.Add(kingdomsBefore);
             _stateChanges.Add(ChangesSince(before));
             HasUnsavedChanges = true;
 
-            Logged?.Invoke(new GameLogEvent.MovePlayed(LastMove, ColorOf(mover), MoveLineStyle.DarkChess));
+            Logged?.Invoke(new GameLogEvent.MovePlayed(LastMove, ColorOf(mover), LineStyleOf(LastMove)));
             if (outcome.DecidesFactions)
-                LogFactions();
+                LogFactions(kingdomsBefore);
 
             // Board events after the record (the board is already final).
             if (outcome.CapturedPiece != null)
@@ -1416,7 +1532,7 @@ namespace Chinese_Chess_v3.Game.Core
             var end = ActionResolver.EvaluateEnd(Board, mover, out _);
             if (end != null)
             {
-                EndGame(end.Winner, end.Loser, end.Reason);
+                EndGame(end);
                 return;
             }
             SwitchTurn();
@@ -1517,6 +1633,7 @@ namespace Chinese_Chess_v3.Game.Core
             var record = _moves[last];
             var captured = _capturedPieces[last];
             var clocks = _clocksBeforeMove[last];
+            var kingdomsBefore = _kingdomsBefore[last];
             var changes = _stateChanges[last];
 
             if (changes != null)
@@ -1543,7 +1660,10 @@ namespace Chinese_Chess_v3.Game.Core
             _moves.RemoveAt(last);
             _capturedPieces.RemoveAt(last);
             _clocksBeforeMove.RemoveAt(last);
+            _kingdomsBefore.RemoveAt(last);
             _stateChanges.RemoveAt(last);
+            if (kingdomsBefore != null)
+                Board.ThreeKingdoms.RestoreActionState(kingdomsBefore);
             LastMove = _moves.Count > 0 ? _moves[_moves.Count - 1] : null;
             HasUnsavedChanges = true;
 
@@ -1554,11 +1674,10 @@ namespace Chinese_Chess_v3.Game.Core
 
             var mover = record.Side;
             // Unknown clocks (a move replayed from a saved game): keep both totals, new step.
-            var restored = clocks ?? (
-                new ClockState(TimeSpan.Zero, Player1.Timer.CurrentTotalTime),
-                new ClockState(TimeSpan.Zero, Player2.Timer.CurrentTotalTime));
-            Player1.Timer.RestoreClockState(restored.Player1, active: mover == PlayerSide.Player1, paused: IsPaused);
-            Player2.Timer.RestoreClockState(restored.Player2, active: mover == PlayerSide.Player2, paused: IsPaused);
+            var players = AllPlayers;
+            var restored = clocks ?? players.Select(p => new ClockState(TimeSpan.Zero, p.Timer.CurrentTotalTime)).ToArray();
+            for (int i = 0; i < players.Length; i++)
+                players[i].Timer.RestoreClockState(restored[i], active: mover == players[i].Side, paused: IsPaused);
 
             // Set before the turn switch so TurnChanged handlers already see it.
             IsInCheck = Board.UsesCheckRules && Board.IsSideInCheck(mover);
@@ -1579,7 +1698,9 @@ namespace Chinese_Chess_v3.Game.Core
         {
             // Taken before the board changes back (the side names follow the factions).
             var undoEntry = new GameLogEvent.MoveTakenBack(record, ColorOf(record.Side),
-                record.Notation != null ? MoveLineStyle.Notation : MoveLineStyle.DarkChess, record.Piece.Type);
+                record.Notation != null ? MoveLineStyle.Notation
+                : Board.ThreeKingdoms != null ? MoveLineStyle.ThreeKingdoms
+                : MoveLineStyle.DarkChess, record.Piece.Type);
 
             var wasOnBoard = new Dictionary<Piece, (bool onBoard, int x, int y)>();
             foreach (var (p, _) in changes)
@@ -1605,6 +1726,7 @@ namespace Chinese_Chess_v3.Game.Core
         /// <summary>The game-log line style of an ordinary move: its notation when it has one, else the dark-chess line on a dark-chess board.</summary>
         private MoveLineStyle LineStyleOf(MoveRecord move) =>
             move.Notation != null ? MoveLineStyle.Notation
+            : Board.ThreeKingdoms != null ? MoveLineStyle.ThreeKingdoms
             : Board.UsesDarkChessRules ? MoveLineStyle.DarkChess
             : MoveLineStyle.Plain;
 
@@ -1618,6 +1740,8 @@ namespace Chinese_Chess_v3.Game.Core
         /// </summary>
         public bool Resign(PlayerSide side)
         {
+            if (Board.ThreeKingdoms != null)
+                return Forfeit(side, timeUp: false);
             if (IsGameOver || (side != PlayerSide.Player1 && side != PlayerSide.Player2))
                 return false;
 
@@ -1629,20 +1753,75 @@ namespace Chinese_Chess_v3.Game.Core
             return true;
         }
 
+        /// <summary>
+        /// 三國's resignation (棄權, author decision 8): <paramref name="side"/>'s pieces stay on the
+        /// board (they may still be captured and scored) and its turns are skipped from now on;
+        /// the game ends once fewer than two players still play. A time-up counts as one
+        /// (<paramref name="timeUp"/>). Not a move: undo does not take it back.
+        /// </summary>
+        /// <returns>False when the game is over, <paramref name="side"/> is not a player, or it already resigned.</returns>
+        private bool Forfeit(PlayerSide side, bool timeUp)
+        {
+            if (IsGameOver || side is not (PlayerSide.Player1 or PlayerSide.Player2 or PlayerSide.Player3))
+                return false;
+            var state = Board.ThreeKingdoms;
+            int i = ThreeKingdomsState.Index(side);
+            if (state.Resigned[i])
+                return false;
+
+            if (IsPaused)
+                ResumeGame();
+            state.Resigned[i] = true;
+            PlayerOf(side).Timer.End();
+            HasUnsavedChanges = true;
+            CoreLog.Log($"(Forfeit) {side} forfeits{(timeUp ? " (time up)" : "")}", CoreLogLevel.Debug);
+            Logged?.Invoke(new GameLogEvent.PlayerForfeited(side, timeUp));
+
+            var end = ActionResolver.EvaluateEnd(Board, CurrentTurn, out _);
+            if (end != null)
+            {
+                EndGame(end);
+                return true;
+            }
+            if (side == CurrentTurn)
+            {
+                if (_selectedPiece != null)
+                {
+                    PieceUnselected?.Invoke(_selectedPiece);
+                    _selectedPiece = null;
+                }
+                SwitchTurn();
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// Hands the turn to the next player (<see cref="ActionResolver.NextToMove"/>: the opponent;
+        /// 三國 skips the players out, resigned or without an action, each reported to the log).
+        /// </summary>
         private void SwitchTurn()
         {
-            if (CurrentTurn == PlayerSide.Player1)
+            var mover = CurrentTurn;
+            var next = ActionResolver.NextToMove(Board, mover);
+            if (Board.ThreeKingdoms != null)
             {
-                Player1.Timer.EndStep();
-                Player2.Timer.StartStep();
-                CurrentTurn = PlayerSide.Player2;
+                // Everyone between the mover and the next player is skipped (decisions 8 and 9).
+                var side = mover;
+                for (int step = 0; step < PlayerCount; step++)
+                {
+                    side = ThreeKingdomsState.SideOf(ThreeKingdomsState.Index(side) % 3 + 1);
+                    if (side == next)
+                        break;
+                    if (side != mover && ThreeKingdomsStandings.IsPlaying(Board, side))
+                    {
+                        CoreLog.Log($"(Turn) {side} has no action, skipped", CoreLogLevel.Debug);
+                        Logged?.Invoke(new GameLogEvent.TurnSkipped(side));
+                    }
+                }
             }
-            else
-            {
-                Player2.Timer.EndStep();
-                Player1.Timer.StartStep();
-                CurrentTurn = PlayerSide.Player1;
-            }
+            PlayerOf(mover).Timer.EndStep();
+            PlayerOf(next).Timer.StartStep();
+            CurrentTurn = next;
         }
 
         /// <summary>
@@ -1652,9 +1831,9 @@ namespace Chinese_Chess_v3.Game.Core
         /// </summary>
         private void RestartClocks()
         {
-            Player1.Timer.Reset();
-            Player2.Timer.Reset();
-            (CurrentTurn == PlayerSide.Player2 ? Player2 : Player1).Timer.StartStep();
+            foreach (var p in AllPlayers)
+                p.Timer.Reset();
+            PlayerOf(CurrentTurn).Timer.StartStep();
         }
 
         /// <summary>
@@ -1666,8 +1845,8 @@ namespace Chinese_Chess_v3.Game.Core
         /// </summary>
         private void ResetTimers(bool startFirstTurn)
         {
-            Player1.Timer.Reset();
-            Player2.Timer.Reset();
+            foreach (var p in AllPlayers)
+                p.Timer.Reset();
             IsPaused = false;
             IsGameOver = false;
             Winner = PlayerSide.None;
@@ -1677,11 +1856,12 @@ namespace Chinese_Chess_v3.Game.Core
             _moves.Clear();
             _capturedPieces.Clear();
             _clocksBeforeMove.Clear();
+            _kingdomsBefore.Clear();
             _stateChanges.Clear();
             UndoFloor = 0;
             HasUnsavedChanges = false;
             if (startFirstTurn)
-                (CurrentTurn == PlayerSide.Player2 ? Player2 : Player1).Timer.StartStep();
+                PlayerOf(CurrentTurn).Timer.StartStep();
         }
 
         /// <summary>
@@ -1703,6 +1883,14 @@ namespace Chinese_Chess_v3.Game.Core
                 return;
             }
 
+            // 三國: running out of time is a 棄權 (the other two play on).
+            if (Board.ThreeKingdoms != null)
+            {
+                Logged?.Invoke(new GameLogEvent.TimeRanOut(loser.Side));
+                Forfeit(loser.Side, timeUp: true);
+                return;
+            }
+
             var winner = loser == Player1 ? Player2.Side : Player1.Side;
             EndGame(winner, loser.Side, GameOverReason.TimeUp);
         }
@@ -1712,7 +1900,9 @@ namespace Chinese_Chess_v3.Game.Core
         /// and raises <see cref="GameOver"/> with a snapshot of the final position (and,
         /// for checkmate, the pieces giving check).
         /// </summary>
-        private void EndGame(PlayerSide winner, PlayerSide loser, GameOverReason reason)
+        private void EndGame(GameEnd end) => EndGame(end.Winner, end.Loser, end.Reason, end.Ranking);
+
+        private void EndGame(PlayerSide winner, PlayerSide loser, GameOverReason reason, IReadOnlyList<PlayerSide> ranking = null)
         {
             if (IsGameOver)
                 return;
@@ -1732,10 +1922,11 @@ namespace Chinese_Chess_v3.Game.Core
             Winner = winner;
             // Nobody is "to move" any more; a checkmate is reported through Result.Reason.
             IsInCheck = false;
-            Result = new GameOverInfo(winner, loser, reason, finalBoard, LastMove, checking);
+            Result = new GameOverInfo(winner, loser, reason, finalBoard, LastMove, checking, ranking,
+                Board.ThreeKingdoms != null ? (int[])Board.ThreeKingdoms.Scores.Clone() : null);
 
-            Player1.Timer.End();
-            Player2.Timer.End();
+            foreach (var p in AllPlayers)
+                p.Timer.End();
 
             if (_selectedPiece != null)
             {
@@ -1754,8 +1945,8 @@ namespace Chinese_Chess_v3.Game.Core
         /// </summary>
         public void UpdateTimers()
         {
-            Player1.Timer.Update();
-            Player2.Timer.Update();
+            foreach (var p in AllPlayers)
+                p.Timer.Update();
         }
 
         /// <summary>
@@ -1767,8 +1958,8 @@ namespace Chinese_Chess_v3.Game.Core
             if (IsPaused || IsGameOver)
                 return;
 
-            Player1.Timer.Pause();
-            Player2.Timer.Pause();
+            foreach (var p in AllPlayers)
+                p.Timer.Pause();
             IsPaused = true;
         }
 
@@ -1781,8 +1972,8 @@ namespace Chinese_Chess_v3.Game.Core
             if (!IsPaused)
                 return;
 
-            Player1.Timer.Resume();
-            Player2.Timer.Resume();
+            foreach (var p in AllPlayers)
+                p.Timer.Resume();
             IsPaused = false;
         }
 

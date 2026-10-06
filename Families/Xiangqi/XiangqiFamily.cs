@@ -26,6 +26,10 @@ namespace Chinese_Chess_v3.Game.Core.Families.Xiangqi
     /// </summary>
     internal sealed class XiangqiFamily : IRulesFamily
     {
+        public int PlayerCount => 2;
+
+        public PlayerSide NextToMove(Board board, PlayerSide mover) => ActionResolver.OpponentOf(mover);
+
         public bool UsesCheckRules => true;
 
         public bool IsPseudoLegalMove(Board board, Piece piece, int targetX, int targetY) =>
