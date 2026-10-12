@@ -3,8 +3,8 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2025/05/06
-// Update Date: 2026/10/06
-// Version: v1.9
+// Update Date: 2026/10/12
+// Version: v1.10
 /* ----- ----- ----- ----- */
 
 using System;
@@ -208,6 +208,18 @@ namespace Chinese_Chess_v3.Game.Core
         /// </summary>
         public PlayerSide LocalSide { get; private set; } = PlayerSide.Player1;
 
+        /// <summary>True when the server owns the moves, clocks and game result.</summary>
+        public bool IsRemote { get; private set; }
+
+        /// <summary>Blocks remote input while a requested move awaits the server.</summary>
+        public bool IsInputLocked { get; set; }
+
+        /// <summary>Raised for a legal remote move intent; the board is unchanged.</summary>
+        public event Action<MoveRequest> MoveRequested;
+
+        private string[] _remoteNames;
+
+
         /// <summary>
         /// Raised once per move after it is appended to <see cref="Moves"/> and the board is
         /// updated (after <see cref="PieceMoved"/>), before the turn switch and before
@@ -288,7 +300,8 @@ namespace Chinese_Chess_v3.Game.Core
                 PlayerSide.Player3 => 2,
                 _ => -1,
             };
-            return index >= 0 && !string.IsNullOrEmpty(_playerNames[index]) ? _playerNames[index] : null;
+            var names = IsRemote ? _remoteNames : _playerNames;
+            return index >= 0 && index < names.Length && !string.IsNullOrEmpty(names[index]) ? names[index] : null;
         }
 
         /// <summary>
@@ -309,7 +322,7 @@ namespace Chinese_Chess_v3.Game.Core
         /// </summary>
         /// 三國: not once a 棄權 or a time-up has ended the game — leaving is not a move, so undoing
         /// moves cannot take it back.
-        public bool CanUndo => _moves.Count - UndoFloor >= UndoRoundPlies
+        public bool CanUndo => !IsRemote && _moves.Count - UndoFloor >= UndoRoundPlies
             && !(IsGameOver && Board.ThreeKingdoms != null && Result?.Reason is GameOverReason.Resign or GameOverReason.TimeUp);
 
         /// <summary>
@@ -634,6 +647,8 @@ namespace Chinese_Chess_v3.Game.Core
         /// </summary>
         public void Restart()
         {
+            if (IsRemote)
+                return;
             // The restarted game keeps its own rules (a fresh copy of them), not the current
             // DefaultRuleSets: rules are fixed per game.
             var rules = Rules.Clone();
@@ -752,6 +767,59 @@ namespace Chinese_Chess_v3.Game.Core
             return played;
         }
 
+        /// <summary>Starts a server-authoritative Full-board position; Player1 is always Red.</summary>
+        /// <param name="pieces">The server position, owned by colour.</param>
+        /// <param name="rules">The server rules; copied for this game.</param>
+        /// <param name="localSide">The local player's side.</param>
+        /// <param name="toMove">The side to move in the supplied position.</param>
+        /// <param name="names">Online player names, Player1 first.</param>
+        public void StartRemote(List<PieceInfo> pieces, Rules rules, PlayerSide localSide,
+            PlayerSide toMove, IReadOnlyList<string> names)
+        {
+            ArgumentNullException.ThrowIfNull(pieces);
+            ArgumentNullException.ThrowIfNull(rules);
+            ArgumentNullException.ThrowIfNull(names);
+            if (localSide is not (PlayerSide.Player1 or PlayerSide.Player2))
+                throw new ArgumentOutOfRangeException(nameof(localSide));
+            if (toMove is not (PlayerSide.Player1 or PlayerSide.Player2))
+                throw new ArgumentOutOfRangeException(nameof(toMove));
+            _remoteNames = names.ToArray();
+            SetUpPosition(pieces, null, rules: rules.Clone(), localSide: localSide, remote: true, toMove: toMove);
+        }
+
+        /// <summary>Applies a confirmed move or a resumed game's move, ignoring the input lock and local side.</summary>
+        /// <returns>True if remote and the move is legal for the side to move.</returns>
+        public bool ApplyRemoteMove(int fromX, int fromY, int toX, int toY) =>
+            IsRemote && ApplyMove(fromX, fromY, toX, toY);
+
+        /// <summary>Restores server elapsed step and total times, Player1 first, and the active side.</summary>
+        /// <param name="sides">Elapsed clocks (server stepMs and usedMs respectively).</param>
+        /// <param name="toMove">The server's side to move.</param>
+        public void SyncClocks(IReadOnlyList<ClockState> sides, PlayerSide toMove)
+        {
+            if (!IsRemote)
+                return;
+            ArgumentNullException.ThrowIfNull(sides);
+            if (sides.Count != PlayerCount)
+                throw new ArgumentException("One clock per player is required.", nameof(sides));
+            if (toMove is not (PlayerSide.Player1 or PlayerSide.Player2))
+                throw new ArgumentOutOfRangeException(nameof(toMove));
+            CurrentTurn = toMove;
+            for (int i = 0; i < sides.Count; i++)
+                AllPlayers[i].Timer.RestoreClockState(sides[i], active: !IsGameOver && AllPlayers[i].Side == toMove, paused: false);
+        }
+
+        /// <summary>Ends a remote game with the server's winner and reason; None means a draw.</summary>
+        public void EndRemote(PlayerSide winner, GameOverReason reason)
+        {
+            if (!IsRemote)
+                return;
+            if (winner is not (PlayerSide.None or PlayerSide.Player1 or PlayerSide.Player2))
+                throw new ArgumentOutOfRangeException(nameof(winner));
+            IsInputLocked = false;
+            EndGame(winner, winner == PlayerSide.None ? PlayerSide.None : OpponentOf(winner), reason);
+        }
+
         /// <summary>
         /// Shared new-game setup: places <paramref name="pieces"/> (resetting the board's turn
         /// counter; on the Full board owned by colour, <paramref name="firstColor"/> = Player1),
@@ -778,12 +846,18 @@ namespace Chinese_Chess_v3.Game.Core
         /// (<see cref="ColorOf"/>); the pieces' owners are assigned from it
         /// (<see cref="PieceColors.AssignOwners"/>). Ignored on the other boards (their pieces
         /// keep their own sides; Player1's colour there is decided as <see cref="ColorOf"/> says).</param>
+        /// <param name="remote">Whether the server owns this game.</param>
+        /// <param name="toMove">The initial side to move (remote positions may start with Player2).</param>
         /// <param name="jieqi">A 揭棋 game (<see cref="Board.IsJieqi"/>; Full board only).</param>
         /// <exception cref="ArgumentException">Full board: <paramref name="firstColor"/> is not
         /// Red/Black, or a piece is neither Red nor Black.</exception>
         private void SetUpPosition(List<PieceInfo> pieces, PgnGameFile source, BoardType boardType = BoardType.Full,
-            Rules rules = null, PlayerSide? localSide = null, PieceColor firstColor = PieceColor.Red, bool jieqi = false)
+            Rules rules = null, PlayerSide? localSide = null, PieceColor firstColor = PieceColor.Red, bool jieqi = false, bool remote = false, PlayerSide toMove = PlayerSide.Player1)
         {
+            IsRemote = remote;
+            IsInputLocked = false;
+            if (!remote)
+                _remoteNames = null;
             _customHalfCenterStart = null;
 
             // Players are numbered by turn order: on the Full board the first colour is Player1's.
@@ -824,7 +898,7 @@ namespace Chinese_Chess_v3.Game.Core
                 _ => (GameMode.Normal, (string)null, (string)null),
             };
             // Reset side: Player1 always moves first.
-            CurrentTurn = PlayerSide.Player1;
+            CurrentTurn = toMove;
             _player1Color = boardType == BoardType.Full ? firstColor : PieceColor.Red;
             LocalSide = localSide ?? source switch
             {
@@ -835,9 +909,9 @@ namespace Chinese_Chess_v3.Game.Core
             };
             // A 揭棋 position (face-down pieces) has no FEN, so it cannot be saved.
             InitialFen = Board.IsJieqi ? null : FormatInitialFen(_player1Color);
-            ResetTimers(startFirstTurn: true);
+            ResetTimers(startFirstTurn: !IsRemote);
             // A custom position may start with the side to move already in check.
-            IsInCheck = Board.UsesCheckRules && Board.IsSideInCheck(PlayerSide.Player1);
+            IsInCheck = Board.UsesCheckRules && Board.IsSideInCheck(CurrentTurn);
 
             // Inform UI
             BoardReset?.Invoke();
@@ -851,7 +925,7 @@ namespace Chinese_Chess_v3.Game.Core
             // A position whose side to move is already checkmated or stalemated (a custom board
             // or an endgame) is shown as an ended game (author decision 2026-10-02): it ends at
             // once, flagged IsReplaying so no result dialog is shown.
-            if (Board.UsesCheckRules && Board.GetGeneral(PlayerSide.Player1) != null && !Board.HasAnyLegalMove(PlayerSide.Player1))
+            if (!IsRemote && Board.UsesCheckRules && Board.GetGeneral(PlayerSide.Player1) != null && !Board.HasAnyLegalMove(PlayerSide.Player1))
             {
                 bool replaying = IsReplaying;
                 IsReplaying = true;
@@ -1038,6 +1112,9 @@ namespace Chinese_Chess_v3.Game.Core
 
         public void ClearBoard()
         {
+            IsRemote = false;
+            IsInputLocked = false;
+            _remoteNames = null;
             // Clear board:
             // (A) Clear pieces
             // (B) Reset turn
@@ -1193,6 +1270,13 @@ namespace Chinese_Chess_v3.Game.Core
         /// </summary>
         public bool TryMove(int fromX, int fromY, int toX, int toY)
         {
+            if (IsRemote)
+                return false;
+            return ApplyMove(fromX, fromY, toX, toY);
+        }
+
+        private bool ApplyMove(int fromX, int fromY, int toX, int toY)
+        {
             if (IsPaused || IsGameOver)
                 return false;
 
@@ -1211,7 +1295,7 @@ namespace Chinese_Chess_v3.Game.Core
         {
             // A move while paused would end the paused (not active) step and start the
             // other clock, leaving the paused clock stuck until a later Resume.
-            if (IsPaused || IsGameOver)
+            if (IsPaused || IsGameOver || (IsRemote && (CurrentTurn != LocalSide || IsInputLocked)))
                 return;
 
             var clickedPiece = Board.GetPiece(x, y);
@@ -1265,7 +1349,16 @@ namespace Chinese_Chess_v3.Game.Core
             // Has selected piece, try to move to 2nd selection
             if (_selectedPiece.CanMoveTo(Board, x, y))
             {
-                ExecuteMove(_selectedPiece, x, y);
+                if (IsRemote)
+                {
+                    var request = new MoveRequest(_selectedPiece.X, _selectedPiece.Y, x, y);
+                    var selected = _selectedPiece;
+                    _selectedPiece = null;
+                    PieceUnselected?.Invoke(selected);
+                    MoveRequested?.Invoke(request);
+                }
+                else
+                    ExecuteMove(_selectedPiece, x, y);
             }
             else
             {
@@ -1367,7 +1460,7 @@ namespace Chinese_Chess_v3.Game.Core
                 // already final), raised after it.
                 var tactical = TacticalAnalysis.Analyze(Board, LastMove, tacticalBefore);
 
-                if (end != null)
+                if (!IsRemote && end != null)
                 {
                     EndGame(end);
                     RaiseTacticalEvents(tactical);
@@ -1388,7 +1481,7 @@ namespace Chinese_Chess_v3.Game.Core
                 return;
             }
 
-            if (end != null)
+            if (!IsRemote && end != null)
             {
                 EndGame(end);
                 return;
@@ -1535,7 +1628,7 @@ namespace Chinese_Chess_v3.Game.Core
 
             UpdateHangingPieces();
             var end = ActionResolver.EvaluateEnd(Board, mover, out _);
-            if (end != null)
+            if (!IsRemote && end != null)
             {
                 EndGame(end);
                 return;
@@ -1745,6 +1838,8 @@ namespace Chinese_Chess_v3.Game.Core
         /// </summary>
         public bool Resign(PlayerSide side)
         {
+            if (IsRemote)
+                return false;
             if (Board.ThreeKingdoms != null)
                 return Forfeit(side, timeUp: false);
             if (IsGameOver || (side != PlayerSide.Player1 && side != PlayerSide.Player2))
@@ -1787,7 +1882,7 @@ namespace Chinese_Chess_v3.Game.Core
             Logged?.Invoke(new GameLogEvent.PlayerForfeited(side, timeUp));
 
             var end = ActionResolver.EvaluateEnd(Board, CurrentTurn, out _);
-            if (end != null)
+            if (!IsRemote && end != null)
             {
                 EndGame(timeUp && end.Reason == GameOverReason.Resign ? end with { Reason = GameOverReason.TimeUp } : end);
                 return true;
@@ -1828,8 +1923,11 @@ namespace Chinese_Chess_v3.Game.Core
                     }
                 }
             }
-            PlayerOf(mover).Timer.EndStep();
-            PlayerOf(next).Timer.StartStep();
+            if (!IsRemote)
+            {
+                PlayerOf(mover).Timer.EndStep();
+                PlayerOf(next).Timer.StartStep();
+            }
             CurrentTurn = next;
         }
 
@@ -1882,7 +1980,7 @@ namespace Chinese_Chess_v3.Game.Core
         /// </summary>
         private void OnTimeUp(Player loser)
         {
-            if (IsGameOver || Rules.TimerMode == TimerMode.CountUp)
+            if (IsRemote || IsGameOver || Rules.TimerMode == TimerMode.CountUp)
                 return;
 
             if (!Board.GameRules.EndGameWhenTimesUp)
@@ -1964,7 +2062,7 @@ namespace Chinese_Chess_v3.Game.Core
         /// </summary>
         public void PauseGame()
         {
-            if (IsPaused || IsGameOver)
+            if (IsRemote || IsPaused || IsGameOver)
                 return;
 
             foreach (var p in AllPlayers)
@@ -1978,7 +2076,7 @@ namespace Chinese_Chess_v3.Game.Core
         /// </summary>
         public void ResumeGame()
         {
-            if (!IsPaused)
+            if (IsRemote || !IsPaused)
                 return;
 
             foreach (var p in AllPlayers)

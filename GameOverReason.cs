@@ -3,8 +3,8 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2026/09/30
-// Update Date: 2026/10/06
-// Version: v1.3
+// Update Date: 2026/10/12
+// Version: v1.4
 /* ----- ----- ----- ----- */
 
 namespace Chinese_Chess_v3.Game.Core
@@ -40,5 +40,11 @@ namespace Chinese_Chess_v3.Game.Core
 
         /// <summary>三國 先得 200 分 (<see cref="HalfCrossWinCondition.FirstTo200"/>): the winner reached the points first.</summary>
         ScoreReached,
+
+        /// <summary>The loser disconnected beyond the server grace period.</summary>
+        Disconnect,
+
+        /// <summary>The server ended the game for a reason this client does not know.</summary>
+        Other,
     }
 }
