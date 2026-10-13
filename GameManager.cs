@@ -3,8 +3,8 @@
 // Do not distribute or modify
 // Author: DragonTaki (https://github.com/DragonTaki)
 // Create Date: 2025/05/06
-// Update Date: 2026/10/12
-// Version: v1.10
+// Update Date: 2026/10/13
+// Version: v1.12
 /* ----- ----- ----- ----- */
 
 using System;
@@ -219,6 +219,41 @@ namespace Chinese_Chess_v3.Game.Core
 
         private string[] _remoteNames;
 
+        /// <summary>
+        /// The side a computer plays in this local game, or null (every game but a vs-computer
+        /// one: every setup path clears it, <see cref="Restart"/> of a vs-computer game keeps
+        /// it). While it is that side's turn <see cref="HandleClick"/> ignores the human; the
+        /// computer's own moves go through <see cref="TryMove"/>. Set by <see cref="StartVsComputer"/>.
+        /// </summary>
+        public PlayerSide? ComputerSide { get; private set; }
+
+        private string _computerName;
+
+        /// <summary>
+        /// Starts a new local game from the standard position against a computer playing
+        /// <paramref name="computerSide"/>: the human plays the other side (<see cref="LocalSide"/>, so
+        /// the board is drawn from that side), and <see cref="NameOf"/> gives the computer
+        /// <paramref name="computerName"/>. A restart keeps both; every other setup ends the vs-computer game.
+        /// </summary>
+        /// <param name="computerSide">The computer's side (Player1 or Player2).</param>
+        /// <param name="computerName">The computer's name; null or empty leaves it unnamed.</param>
+        /// <param name="rules">Rules for this game only; null uses the Traditional defaults.</param>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="computerSide"/> is not Player1 or Player2.</exception>
+        public void StartVsComputer(PlayerSide computerSide, string computerName, Rules rules = null)
+        {
+            if (computerSide is not (PlayerSide.Player1 or PlayerSide.Player2))
+                throw new ArgumentOutOfRangeException(nameof(computerSide));
+            SetUpPosition(BoardConfigLoader.Load(), null, rules: rules?.Clone(), localSide: OpponentOf(computerSide));
+            SetComputerSide(computerSide, computerName);
+        }
+
+        /// <summary>Makes <paramref name="side"/> the computer's (null: nobody) and names it; see <see cref="ComputerSide"/>.</summary>
+        private void SetComputerSide(PlayerSide? side, string name = null)
+        {
+            ComputerSide = side;
+            _computerName = side == null ? null : name;
+        }
+
 
         /// <summary>
         /// Raised once per move after it is appended to <see cref="Moves"/> and the board is
@@ -300,6 +335,8 @@ namespace Chinese_Chess_v3.Game.Core
                 PlayerSide.Player3 => 2,
                 _ => -1,
             };
+            if (side == ComputerSide && !string.IsNullOrEmpty(_computerName))
+                return _computerName;
             var names = IsRemote ? _remoteNames : _playerNames;
             return index >= 0 && index < names.Length && !string.IsNullOrEmpty(names[index]) ? names[index] : null;
         }
@@ -315,6 +352,14 @@ namespace Chinese_Chess_v3.Game.Core
         public int UndoRoundPlies => PlayerCount;
 
         /// <summary>
+        /// How many moves <see cref="Undo"/> takes back now: a round (<see cref="UndoRoundPlies"/>), except
+        /// in a vs-computer game while the computer is to move after the human's move (it is thinking, so
+        /// its reply is not on the board yet): just that human move.
+        /// </summary>
+        private int UndoPlies => ComputerSide != null && CurrentTurn == ComputerSide && _moves.Count > 0
+            && _moves[_moves.Count - 1].Side != ComputerSide ? 1 : UndoRoundPlies;
+
+        /// <summary>
         /// Whether <see cref="Undo"/> can take a round back: there are at least
         /// <see cref="UndoRoundPlies"/> moves above <see cref="UndoFloor"/> (e.g. not with Black
         /// to move after Red's first move). Also true after the game has ended (undoing
@@ -322,7 +367,7 @@ namespace Chinese_Chess_v3.Game.Core
         /// </summary>
         /// 三國: not once a 棄權 or a time-up has ended the game — leaving is not a move, so undoing
         /// moves cannot take it back.
-        public bool CanUndo => !IsRemote && _moves.Count - UndoFloor >= UndoRoundPlies
+        public bool CanUndo => !IsRemote && _moves.Count - UndoFloor >= UndoPlies
             && !(IsGameOver && Board.ThreeKingdoms != null && Result?.Reason is GameOverReason.Resign or GameOverReason.TimeUp);
 
         /// <summary>
@@ -649,6 +694,8 @@ namespace Chinese_Chess_v3.Game.Core
         {
             if (IsRemote)
                 return;
+            var computerSide = ComputerSide;
+            var computerName = _computerName;
             // The restarted game keeps its own rules (a fresh copy of them), not the current
             // DefaultRuleSets: rules are fixed per game.
             var rules = Rules.Clone();
@@ -708,6 +755,9 @@ namespace Chinese_Chess_v3.Game.Core
                         : XiangqiFen.Parse(InitialFen);
                     // A custom start keeps the side the player chose for it.
                     SetUpPosition(pieces, null, BoardType.Full, rules, LocalSide, firstColor);
+                    // A vs-computer game restarts against the same computer side.
+                    if (computerSide != null)
+                        SetComputerSide(computerSide, computerName);
                     break;
             }
             CoreLog.Log($"(Restart) Restarted the {Mode} game", CoreLogLevel.Debug);
@@ -856,6 +906,7 @@ namespace Chinese_Chess_v3.Game.Core
         {
             IsRemote = remote;
             IsInputLocked = false;
+            SetComputerSide(null);
             if (!remote)
                 _remoteNames = null;
             _customHalfCenterStart = null;
@@ -1114,6 +1165,7 @@ namespace Chinese_Chess_v3.Game.Core
         {
             IsRemote = false;
             IsInputLocked = false;
+            SetComputerSide(null);
             _remoteNames = null;
             // Clear board:
             // (A) Clear pieces
@@ -1295,7 +1347,7 @@ namespace Chinese_Chess_v3.Game.Core
         {
             // A move while paused would end the paused (not active) step and start the
             // other clock, leaving the paused clock stuck until a later Resume.
-            if (IsPaused || IsGameOver || (IsRemote && (CurrentTurn != LocalSide || IsInputLocked)))
+            if (IsPaused || IsGameOver || (IsRemote && (CurrentTurn != LocalSide || IsInputLocked)) || CurrentTurn == ComputerSide)
                 return;
 
             var clickedPiece = Board.GetPiece(x, y);
@@ -1679,8 +1731,9 @@ namespace Chinese_Chess_v3.Game.Core
             if (!CanUndo)
                 return Array.Empty<MoveRecord>();
 
-            var undone = new List<MoveRecord>(UndoRoundPlies);
-            for (int i = 0; i < UndoRoundPlies; i++)
+            int plies = UndoPlies;
+            var undone = new List<MoveRecord>(plies);
+            for (int i = 0; i < plies; i++)
                 undone.Add(UndoLastMove());
             return undone;
         }
